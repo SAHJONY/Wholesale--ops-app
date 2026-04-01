@@ -152,6 +152,7 @@ export default function Home() {
   const [callTask, setCallTask] = useState("You are Alex Smith, acquisitions manager at SAHJONY CAPITAL LLC. Open professionally, confirm you are discussing the correct property, then collect: seller motivation, property condition (roof/HVAC/plumbing/electrical/foundation), occupancy/vacancy, timeline to sell, asking price, lowest acceptable price, liens/title issues, and best callback time. Never transfer the call. Close by confirming next step: we review and return with a formal cash offer strategy.");
   const [callStatus, setCallStatus] = useState("");
   const [callDealIntel, setCallDealIntel] = useState("");
+  const [callBrief, setCallBrief] = useState("");
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -255,6 +256,69 @@ export default function Home() {
       if (res.ok && data?.ok) {
         setCallStatus(`Queued ✅ Call ID: ${data?.data?.call_id || "n/a"}`);
         logAudit(`AI call queued for ${phoneNumber}`);
+      } else {
+        setCallStatus(`Failed: ${data?.error || "unknown error"}`);
+      }
+    } catch {
+      setCallStatus("Failed: request error");
+    }
+  }
+
+  async function runCallSaveBrief() {
+    const phoneNumber = callPhone.trim();
+    const address = callAddress.trim() || addressLookup.trim();
+    if (!phoneNumber || !address) return;
+
+    setCallStatus("Running analyzer + saving deal + queuing call...");
+    let dealIntel = "";
+    try {
+      const dealRes = await fetch("/api/openclaw/console", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: `Analyze this property for wholesale offer positioning. Return ARV range, rehab range, MAO, risk flags, and opening offer strategy. Address: ${address}`,
+          leads,
+          history: consoleLines.slice(-10).map((l) => l.text),
+        }),
+      });
+      const dealData = await dealRes.json().catch(() => ({}));
+      dealIntel = (dealData?.assistantReply || dealData?.message || "").toString();
+      if (dealIntel) {
+        setCallDealIntel(dealIntel);
+        setAddressLookup(address);
+        setDealResult(dealIntel);
+      }
+    } catch {
+      // continue without intel
+    }
+
+    if (dealIntel) {
+      await saveDealIntelToApp(address, dealIntel);
+    }
+
+    const contextHeader = [
+      `Property Address: ${address}`,
+      `Seller Phone: ${phoneNumber}`,
+      callOwnerName.trim() ? `Owner Name: ${callOwnerName.trim()}` : null,
+      dealIntel ? `Deal Intel (OpenClaw): ${dealIntel}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const finalTask = `${contextHeader}\n\n${callTask}`.trim();
+
+    try {
+      const res = await fetch("/api/bland/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, task: finalTask }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        const brief = `CALLBACK BRIEF\nAddress: ${address}\nPhone: ${phoneNumber}\nOwner: ${callOwnerName || "n/a"}\nCall ID: ${data?.data?.call_id || "n/a"}\n\nDeal Intel:\n${dealIntel || "No analyzer output"}\n\nNext Step:\nReturn call with formal offer strategy and confirm lowest acceptable price.`;
+        setCallBrief(brief);
+        setCallStatus(`Queued + saved ✅ Call ID: ${data?.data?.call_id || "n/a"}`);
+        logAudit(`Call+Save+Brief completed for ${address}`);
       } else {
         setCallStatus(`Failed: ${data?.error || "unknown error"}`);
       }
@@ -648,9 +712,9 @@ export default function Home() {
     }
   }
 
-  async function saveDealIntelToApp() {
-    const address = addressLookup.trim();
-    const intel = dealResult.trim();
+  async function saveDealIntelToApp(addressArg?: string, intelArg?: string) {
+    const address = (addressArg ?? addressLookup).trim();
+    const intel = (intelArg ?? dealResult).trim();
     if (!address || !intel) return;
 
     const arv = extractAmount(intel, "ARV");
@@ -971,7 +1035,7 @@ export default function Home() {
             {dealResult ? (
               <>
                 <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{dealResult}</pre>
-                <button type="button" onClick={saveDealIntelToApp} className="mt-2 rounded-lg border border-emerald-300/40 px-3 py-2 text-xs text-emerald-200">
+                <button type="button" onClick={() => saveDealIntelToApp()} className="mt-2 rounded-lg border border-emerald-300/40 px-3 py-2 text-xs text-emerald-200">
                   Add Deal Details to App
                 </button>
               </>
@@ -1223,6 +1287,9 @@ export default function Home() {
             <button type="button" onClick={runAICall} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-black">
               Activate AI Call
             </button>
+            <button type="button" onClick={runCallSaveBrief} className="rounded-xl border border-emerald-300/40 px-4 py-2 text-sm font-semibold text-emerald-200">
+              Call + Save + Brief
+            </button>
           </div>
           <textarea
             value={callTask}
@@ -1231,6 +1298,9 @@ export default function Home() {
           />
           {callDealIntel ? (
             <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{callDealIntel}</pre>
+          ) : null}
+          {callBrief ? (
+            <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-300/20 bg-black/30 p-3 text-xs text-zinc-200">{callBrief}</pre>
           ) : null}
           {callStatus ? <p className="mt-2 text-sm text-emerald-200">{callStatus}</p> : null}
         </section>
