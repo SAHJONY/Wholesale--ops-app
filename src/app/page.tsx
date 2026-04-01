@@ -25,6 +25,7 @@ type Lead = {
 
 type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 type ConsoleLine = { id: string; kind: "input" | "output"; text: string };
+type AutoTask = { id: string; text: string; done: boolean };
 
 type SupabaseLeadRow = {
   id: string;
@@ -74,6 +75,21 @@ function calculateMAO(arv: number, rehab: number) {
   return arv * 0.7 - rehab;
 }
 
+function leadScore(lead: Lead) {
+  let score = 50;
+  const mao = calculateMAO(lead.arv, lead.rehab);
+  if (lead.asking > 0 && mao > 0) {
+    const spread = mao - lead.asking;
+    if (spread > 25000) score += 25;
+    else if (spread > 10000) score += 12;
+    else score -= 8;
+  }
+  if (lead.followUpDate && lead.followUpDate <= nowDate()) score += 10;
+  if (lead.status === "Negotiation") score += 8;
+  if (lead.status === "Contract") score += 20;
+  return Math.max(0, Math.min(100, score));
+}
+
 function nowDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -110,6 +126,7 @@ export default function Home() {
     { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound" },
   ]);
   const [search, setSearch] = useState("");
+  const [tasks, setTasks] = useState<AutoTask[]>([]);
   const [dataMode, setDataMode] = useState<"supabase" | "local">("local");
 
   async function loadLeads() {
@@ -350,6 +367,20 @@ export default function Home() {
     }
   }
 
+  function generateTasks() {
+    const due = leads.filter((l) => l.followUpDate && l.followUpDate <= nowDate()).slice(0, 5);
+    const generated = due.map((lead) => ({
+      id: crypto.randomUUID(),
+      text: `Follow up ${lead.address} and present investor-safe offer range.`,
+      done: false,
+    }));
+    setTasks(generated);
+  }
+
+  function toggleTask(id: string) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  }
+
   return (
     <main className="min-h-screen bg-[#020617] text-zinc-100">
       <div
@@ -455,6 +486,7 @@ export default function Home() {
                     <th className="py-2">Asking</th>
                     <th className="py-2">ARV</th>
                     <th className="py-2">MAO</th>
+                    <th className="py-2">Score</th>
                     <th className="py-2">Follow-up</th>
                     <th className="py-2">Status</th>
                     <th className="py-2">Action</th>
@@ -468,6 +500,9 @@ export default function Home() {
                       <td className="py-3">{formatUSD(lead.asking)}</td>
                       <td className="py-3">{formatUSD(lead.arv)}</td>
                       <td className="py-3 font-semibold">{formatUSD(calculateMAO(lead.arv, lead.rehab))}</td>
+                      <td className="py-3">
+                        <span className="rounded-full border border-indigo-300/30 px-2 py-1 text-xs">{leadScore(lead)}</span>
+                      </td>
                       <td className="py-3">{lead.followUpDate || "-"}</td>
                       <td className="py-3">
                         <select className="rounded-lg border border-white/20 bg-black/30 px-2 py-1" value={lead.status} onChange={(e) => moveStatus(lead.id, e.target.value as LeadStatus)}>
@@ -499,6 +534,33 @@ export default function Home() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-cyan-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-semibold">Automation Task Engine</h2>
+            <button onClick={generateTasks} className="rounded-xl bg-cyan-400 px-3 py-2 text-sm font-semibold text-black">
+              Generate Tasks
+            </button>
+          </div>
+
+          {tasks.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-300">No tasks generated yet.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {tasks.map((task) => (
+                <button
+                  key={task.id}
+                  onClick={() => toggleTask(task.id)}
+                  className={`w-full rounded-xl border p-3 text-left text-sm ${
+                    task.done ? "border-emerald-300/30 bg-emerald-500/10 line-through" : "border-white/15 bg-black/20"
+                  }`}
+                >
+                  {task.text}
+                </button>
+              ))}
             </div>
           )}
         </section>
