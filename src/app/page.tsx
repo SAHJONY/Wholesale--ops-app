@@ -478,9 +478,15 @@ export default function Home() {
 
   async function refreshConsoleResponse() {
     const lastInput = [...consoleLines].reverse().find((l) => l.kind === "input")?.text;
-    if (!lastInput) return;
+    if (!lastInput) {
+      setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "No previous command found. Run a command first." }]);
+      return;
+    }
     const cmd = lastInput.replace(/^\$\s*/, "").trim();
-    if (!cmd) return;
+    if (!cmd) {
+      setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "No valid command to refresh." }]);
+      return;
+    }
 
     setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: `Refreshing: ${cmd}` }]);
 
