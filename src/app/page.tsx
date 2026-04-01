@@ -399,6 +399,7 @@ export default function Home() {
           <h1 className="mt-2 text-3xl font-bold md:text-5xl">Premium Wholesale Operating System</h1>
           <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
           <p className="mt-1 text-zinc-300">OpenClaw Brain: <span className="font-semibold uppercase">{openclawWebhook ? "connected" : "local intelligence"}</span></p>
+          <p className="mt-1 text-zinc-300">Paperclip Skill: <span className="font-semibold uppercase">enabled via console command prefix</span></p>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -596,6 +597,7 @@ export default function Home() {
               "next best action",
               "offer strategy",
               "wake New lead inbound",
+              "paperclip company status",
             ].map((macro) => (
               <button
                 key={macro}

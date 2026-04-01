@@ -58,7 +58,9 @@ export async function POST(req: NextRequest) {
         raw: data,
       };
     } else {
-      const prompt = `Console command from app: ${trimmed}\nReturn concise result.`;
+      const prompt = trimmed.toLowerCase().startsWith("paperclip")
+        ? `Use the Paperclip skill. Execute this operator intent and return concise actionable output:\n${trimmed}`
+        : `Console command from app: ${trimmed}\nReturn concise result.`;
       const res = await fetch(hooksUrl, {
         method: "POST",
         headers: {
