@@ -58,9 +58,12 @@ export async function POST(req: NextRequest) {
         raw: data,
       };
     } else {
-      const prompt = trimmed.toLowerCase().startsWith("paperclip")
-        ? `Use the Paperclip skill. Execute this operator intent and return concise actionable output:\n${trimmed}`
-        : `Console command from app: ${trimmed}\nReturn concise result.`;
+      const skillMatch = trimmed.match(/^skill:([a-zA-Z0-9-]+)\s+([\s\S]+)/);
+      const prompt = skillMatch
+        ? `Use the ${skillMatch[1]} skill for this request. Execute and return concise actionable output:\n${skillMatch[2]}`
+        : trimmed.toLowerCase().startsWith("paperclip")
+          ? `Use the Paperclip skill. Execute this operator intent and return concise actionable output:\n${trimmed}`
+          : `Console command from app: ${trimmed}\nReturn concise result.`;
       const res = await fetch(hooksUrl, {
         method: "POST",
         headers: {

@@ -123,7 +123,7 @@ export default function Home() {
   const [brainMessages, setBrainMessages] = useState<BrainMessage[]>(starterMessages);
   const [consoleInput, setConsoleInput] = useState("");
   const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([
-    { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound" },
+    { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound, skill:paperclip company status" },
   ]);
   const [search, setSearch] = useState("");
   const [tasks, setTasks] = useState<AutoTask[]>([]);
@@ -598,6 +598,8 @@ export default function Home() {
               "offer strategy",
               "wake New lead inbound",
               "paperclip company status",
+              "skill:weather Houston forecast",
+              "skill:github list open PRs",
             ].map((macro) => (
               <button
                 key={macro}
