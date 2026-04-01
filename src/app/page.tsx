@@ -711,7 +711,9 @@ export default function Home() {
             <div className="rounded-xl border border-white/15 bg-black/20 p-3">
               <p className="text-sm font-semibold">OpenClaw API Key Balance</p>
               <p className="mt-1 text-2xl font-bold text-sky-300">
-                {balanceSnapshot?.openclawApiKey?.monthlySpent !== null && balanceSnapshot?.openclawApiKey?.monthlySpent !== undefined
+                {balanceSnapshot?.openclawApiKey?.currentBalance !== null && balanceSnapshot?.openclawApiKey?.currentBalance !== undefined
+                  ? `$${Number(balanceSnapshot.openclawApiKey.currentBalance).toFixed(2)} Balance`
+                  : balanceSnapshot?.openclawApiKey?.monthlySpent !== null && balanceSnapshot?.openclawApiKey?.monthlySpent !== undefined
                   ? `$${Number(balanceSnapshot.openclawApiKey.monthlySpent).toFixed(2)} MTD`
                   : "Unavailable"}
               </p>

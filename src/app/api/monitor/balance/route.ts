@@ -4,6 +4,7 @@ export async function GET() {
   try {
     const blandKey = process.env.BLAND_AI_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
+    const manualOpenclawBalance = process.env.OPENCLAW_MANUAL_BALANCE_USD;
 
     let bland: any = { ok: false, message: "BLAND_AI_API_KEY missing" };
     if (blandKey) {
@@ -59,6 +60,16 @@ export async function GET() {
           message: `OpenAI balance check failed: ${String(err)}`,
         };
       }
+    }
+
+    if (!openclawApiKey?.ok && manualOpenclawBalance) {
+      openclawApiKey = {
+        ok: true,
+        provider: "manual",
+        monthlySpent: null,
+        currentBalance: Number(manualOpenclawBalance),
+        message: "Manual OpenClaw balance snapshot (set via OPENCLAW_MANUAL_BALANCE_USD).",
+      };
     }
 
     return NextResponse.json({
