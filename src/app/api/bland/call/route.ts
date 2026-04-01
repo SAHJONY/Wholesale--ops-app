@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       phone_number: phoneNumber,
       task:
         task ||
-        "You are calling about a wholesale real estate opportunity. Confirm property condition, motivation, and best time for a detailed follow-up.",
+        "Speak like a polished U.S. acquisitions professional. Sound natural, concise, and confident. Use contractions and normal conversation pacing. Do not sound robotic or scripted. Ask about property condition, seller motivation, timeline, and best price. Keep tone respectful and businesslike. Do not proactively mention automation; if directly asked, respond honestly and keep focus on the deal.",
       voice: "josh",
       model: "base",
       from: process.env.BLAND_DEFAULT_FROM_NUMBER || process.env.BLAND_DEFAULT_CALLER_ID,
