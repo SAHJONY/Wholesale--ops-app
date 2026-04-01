@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
+const openclawWebhook = process.env.NEXT_PUBLIC_OPENCLAW_WEBHOOK_URL;
+
 type LeadStatus = "Lead In" | "Underwriting" | "Negotiation" | "Contract" | "Dispo";
 
 type Lead = {
@@ -232,13 +234,36 @@ export default function Home() {
     link.click();
   }
 
-  function sendBrainMessage(e: FormEvent) {
+  async function sendBrainMessage(e: FormEvent) {
     e.preventDefault();
     if (!brainInput.trim()) return;
-    const userMsg: BrainMessage = { id: crypto.randomUUID(), role: "user", text: brainInput.trim() };
-    const assistantMsg: BrainMessage = { id: crypto.randomUUID(), role: "assistant", text: brainReply(brainInput, leads) };
-    setBrainMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+    const prompt = brainInput.trim();
+    const userMsg: BrainMessage = { id: crypto.randomUUID(), role: "user", text: prompt };
+    setBrainMessages((prev) => [...prev, userMsg]);
     setBrainInput("");
+
+    if (openclawWebhook) {
+      try {
+        const res = await fetch(openclawWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: prompt, leads }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const text = data?.reply || data?.message || "OpenClaw responded with no message.";
+          setBrainMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", text }]);
+          return;
+        }
+      } catch {
+        // fallback below
+      }
+    }
+
+    const assistantMsg: BrainMessage = { id: crypto.randomUUID(), role: "assistant", text: brainReply(prompt, leads) };
+    setBrainMessages((prev) => [...prev, assistantMsg]);
   }
 
   return (
@@ -258,6 +283,7 @@ export default function Home() {
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL • PHASE 3</p>
           <h1 className="mt-2 text-3xl font-bold md:text-5xl">Premium Wholesale Operating System</h1>
           <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
+          <p className="mt-1 text-zinc-300">OpenClaw Brain: <span className="font-semibold uppercase">{openclawWebhook ? "connected" : "local intelligence"}</span></p>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -268,7 +294,7 @@ export default function Home() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
-          <form onSubmit={submitLead} className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl xl:col-span-2">
+          <form onSubmit={submitLead} className="rounded-3xl border border-amber-200/20 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur-xl xl:col-span-2">
             <h2 className="text-xl font-semibold">Lead Intake + Analyzer</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input label="Property Address" value={form.address} onChange={(v) => updateForm("address", v)} required />
@@ -298,7 +324,7 @@ export default function Home() {
             <button className="mt-4 rounded-xl bg-white px-4 py-2 font-semibold text-zinc-900" type="submit">Save Lead</button>
           </form>
 
-          <div className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
+          <div className="rounded-3xl border border-indigo-200/20 bg-gradient-to-br from-indigo-500/10 to-white/5 p-6 backdrop-blur-xl">
             <h2 className="text-xl font-semibold">App Brain Console</h2>
             <div className="mt-4 h-64 space-y-2 overflow-y-auto rounded-2xl border border-white/15 bg-black/30 p-3">
               {brainMessages.map((msg) => (
