@@ -57,6 +57,15 @@ const PLAYBOOKS: Playbook[] = [
   { id: "dispo-fast", name: "Fast Dispo", prompt: "Generate rapid buyer disposition plan for a signed contract." },
 ];
 
+const DATA_SOURCES = [
+  "PropStream",
+  "Propwire",
+  "BatchLeads",
+  "County Records",
+  "MLS/Agent Feeds",
+  "Skip Trace Vendors",
+];
+
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
   phone: "",
@@ -558,6 +567,30 @@ export default function Home() {
                 <p className="font-semibold">{pb.name}</p>
                 <p className="mt-1 text-xs text-zinc-300">Load into console</p>
               </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-sky-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">Data Intelligence Hub (Fortune Mode)</h2>
+          <p className="mt-1 text-sm text-zinc-300">
+            Connector architecture ready for PropStream, Propwire, BatchLeads and additional data providers.
+          </p>
+
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {DATA_SOURCES.map((source) => (
+              <div key={source} className="rounded-xl border border-white/15 bg-black/20 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold">{source}</p>
+                  <span className="rounded-md border border-sky-300/30 px-2 py-1 text-xs text-sky-200">Connector Ready</span>
+                </div>
+                <button
+                  onClick={() => setConsoleInput(`Create secure ingestion pipeline for ${source} with authenticated access`)}
+                  className="mt-2 rounded-lg border border-sky-300/30 px-2 py-1 text-xs text-sky-200"
+                >
+                  Build Integration
+                </button>
+              </div>
             ))}
           </div>
         </section>
