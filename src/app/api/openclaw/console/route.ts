@@ -91,6 +91,32 @@ export async function POST(req: NextRequest) {
         raw: data,
       };
     } else {
+      const bridgeUrl = process.env.OPENCLAW_REALTIME_BRIDGE_URL;
+      const bridgeToken = process.env.OPENCLAW_REALTIME_BRIDGE_TOKEN;
+
+      if (bridgeUrl && bridgeToken) {
+        const bridgeRes = await fetch(bridgeUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${bridgeToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: trimmed }),
+        });
+
+        if (bridgeRes.ok) {
+          const bridgeData = await bridgeRes.json().catch(() => ({}));
+          result = {
+            ok: true,
+            mode: "agent",
+            message: bridgeData?.text || "Realtime bridge responded.",
+            assistantReply: bridgeData?.text || quickAssistantReply(trimmed, leads || [], history || []),
+            raw: bridgeData,
+          };
+          return NextResponse.json(result);
+        }
+      }
+
       const skillMatch = trimmed.match(/^skill:([a-zA-Z0-9-]+)\s+([\s\S]+)/);
       const prompt = skillMatch
         ? `Use the ${skillMatch[1]} skill for this request. Execute and return concise actionable output:\n${skillMatch[2]}`
