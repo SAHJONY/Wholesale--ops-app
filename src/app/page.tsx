@@ -23,11 +23,9 @@ type Lead = {
   createdAt: string;
 };
 
-type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 type ConsoleLine = { id: string; kind: "input" | "output"; text: string };
 type AutoTask = { id: string; text: string; priority: "high" | "medium" | "low" };
 type AuditEvent = { id: string; at: string; actor: string; action: string };
-type Playbook = { id: string; name: string; prompt: string };
 
 type SupabaseLeadRow = {
   id: string;
@@ -51,36 +49,12 @@ const CONSOLE_STORAGE_KEY = "wholesale_ops_console_v1";
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=3840&q=80";
 
-const PLAYBOOKS: Playbook[] = [
-  { id: "acq-cold", name: "Cold Lead Conversion", prompt: "Build a 7-touch conversion plan for cold wholesale lead." },
-  { id: "offer-tight", name: "Tight Margin Offer", prompt: "Create risk-safe offer ladder for a tight margin deal." },
-  { id: "dispo-fast", name: "Fast Dispo", prompt: "Generate rapid buyer disposition plan for a signed contract." },
-];
-
 const DAILY_TARGETS = {
   leadsAdded: 25,
   offersSent: 8,
   followUpsDue: 15,
   contracts: 1,
 };
-
-const DATA_SOURCES = [
-  { name: "PropStream", url: "https://www.propstream.com" },
-  { name: "Propwire", url: "https://www.propwire.com" },
-  { name: "BatchLeads", url: "https://batchleads.io" },
-  { name: "Tavily Search", url: "https://tavily.com" },
-  { name: "Zillow", url: "https://www.zillow.com" },
-  { name: "Realtor.com", url: "https://www.realtor.com" },
-  { name: "Redfin", url: "https://www.redfin.com" },
-  { name: "Homes.com", url: "https://www.homes.com" },
-  { name: "FSBO.com", url: "https://www.fsbo.com" },
-  { name: "ForSaleByOwner.com", url: "https://www.forsalebyowner.com" },
-  { name: "Facebook Marketplace", url: "https://www.facebook.com/marketplace" },
-  { name: "Craigslist Real Estate", url: "https://www.craigslist.org" },
-  { name: "MLS / IDX Feeds", url: "https://www.nar.realtor" },
-  { name: "County Records", url: "https://www.naco.org" },
-  { name: "Skip Trace Vendors", url: "https://www.cyberbackgroundchecks.com/" },
-];
 
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
@@ -95,10 +69,6 @@ const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   followUpDate: "",
   notes: "",
 };
-
-const starterMessages: BrainMessage[] = [
-  { id: "intro", role: "assistant", text: "App Brain online. Ask: next best action, follow-ups due, analyze newest lead." },
-];
 
 function formatUSD(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
@@ -127,33 +97,9 @@ function nowDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function brainReply(input: string, leads: Lead[]) {
-  const text = input.toLowerCase().trim();
-  const newest = leads[0];
-  const due = leads.filter((l) => l.followUpDate && l.followUpDate <= nowDate()).sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
-
-  if (!leads.length) return "No leads yet. Add one in Lead Intake and I’ll guide next actions.";
-  if (text.includes("next") || text.includes("action")) {
-    const hot = due[0] || newest;
-    return `Priority: ${hot.address}. Anchor near ${formatUSD(calculateMAO(hot.arv, hot.rehab))} and confirm seller motivation today.`;
-  }
-  if (text.includes("follow") || text.includes("due")) {
-    if (!due.length) return "No follow-ups due. Push underwriting leads into negotiation with first offer.";
-    return `Due now: ${due.slice(0, 3).map((d) => `${d.address} (${d.followUpDate})`).join(" • ")}`;
-  }
-  if (text.includes("mao") || text.includes("analy") || text.includes("offer")) {
-    return `${newest.address}: Ask ${formatUSD(newest.asking)} | ARV ${formatUSD(newest.arv)} | Rehab ${formatUSD(newest.rehab)} | MAO ${formatUSD(
-      calculateMAO(newest.arv, newest.rehab),
-    )}.`;
-  }
-  return "I can prioritize leads, calculate offer ranges, and follow-up sequencing.";
-}
-
 export default function Home() {
   const [form, setForm] = useState(emptyForm);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [brainInput, setBrainInput] = useState("");
-  const [brainMessages, setBrainMessages] = useState<BrainMessage[]>(starterMessages);
   const [consoleInput, setConsoleInput] = useState("");
   const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([
     { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound, skill:paperclip company status. Refresh is active." },
@@ -456,51 +402,6 @@ export default function Home() {
     link.href = URL.createObjectURL(blob);
     link.download = "wholesale-leads.csv";
     link.click();
-  }
-
-  async function sendBrainMessage(e: FormEvent) {
-    e.preventDefault();
-    if (!brainInput.trim()) return;
-
-    const prompt = brainInput.trim();
-    const userMsg: BrainMessage = { id: crypto.randomUUID(), role: "user", text: prompt };
-    setBrainMessages((prev) => [...prev, userMsg]);
-    setBrainInput("");
-
-    if (!openclawWebhook) {
-      setBrainMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: "OpenClaw webhook is not configured yet. Add NEXT_PUBLIC_OPENCLAW_WEBHOOK_URL to activate live OpenClaw brain mode.",
-        },
-      ]);
-      return;
-    }
-
-    try {
-      const res = await fetch(openclawWebhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prompt, leads }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      const text = data?.reply || data?.message || "OpenClaw responded with no message.";
-      setBrainMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", text }]);
-      return;
-    } catch {
-      setBrainMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: "OpenClaw request failed. Verify webhook URL, gateway reachability, and auth.",
-        },
-      ]);
-      return;
-    }
   }
 
   async function runConsoleCommand(e: FormEvent) {
@@ -926,50 +827,8 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="playbooks" className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
-          <h2 className="text-xl font-semibold">Enterprise Playbooks</h2>
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {PLAYBOOKS.map((pb) => (
-              <button
-                type="button"
-                key={pb.id}
-                onClick={() => setConsoleInput(`skill:paperclip ${pb.prompt}`)}
-                className="rounded-xl border border-white/15 bg-black/20 p-3 text-left text-sm"
-              >
-                <p className="font-semibold">{pb.name}</p>
-                <p className="mt-1 text-xs text-zinc-300">Load into console</p>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section id="data-hub" className="rounded-3xl border border-sky-200/20 bg-white/5 p-6 backdrop-blur-xl">
-          <h2 className="text-xl font-semibold">Data Intelligence Hub (Fortune Mode)</h2>
-          <p className="mt-1 text-sm text-zinc-300">
-            Connector architecture ready for PropStream, Propwire, BatchLeads and additional data providers.
-          </p>
-
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {DATA_SOURCES.map((source) => (
-              <div key={source.name} className="rounded-xl border border-white/15 bg-black/20 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <a className="font-semibold underline-offset-2 hover:underline" href={source.url} target="_blank" rel="noreferrer">{source.name}</a>
-                  <span className="rounded-md border border-sky-300/30 px-2 py-1 text-xs text-sky-200">Connector Ready</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setConsoleInput(`Create secure ingestion pipeline for ${source.name} with authenticated access`)}
-                  className="mt-2 rounded-lg border border-sky-300/30 px-2 py-1 text-xs text-sky-200"
-                >
-                  Build Integration
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-3">
-          <form id="intake" onSubmit={submitLead} className="rounded-3xl border border-amber-200/20 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur-xl xl:col-span-2">
+        <section>
+          <form id="intake" onSubmit={submitLead} className="rounded-3xl border border-amber-200/20 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur-xl">
             <h2 className="text-xl font-semibold">Lead Intake + Analyzer</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input label="Property Address" value={form.address} onChange={(v) => updateForm("address", v)} required />
@@ -1000,20 +859,6 @@ export default function Home() {
             <button className="mt-4 rounded-xl bg-white px-4 py-2 font-semibold text-zinc-900" type="submit">Save Lead</button>
           </form>
 
-          <div className="rounded-3xl border border-indigo-200/20 bg-gradient-to-br from-indigo-500/10 to-white/5 p-6 backdrop-blur-xl">
-            <h2 className="text-xl font-semibold">App Brain Console</h2>
-            <div className="mt-4 h-64 space-y-2 overflow-y-auto rounded-2xl border border-white/15 bg-black/30 p-3">
-              {brainMessages.map((msg) => (
-                <div key={msg.id} className={`max-w-[90%] rounded-xl px-3 py-2 text-sm ${msg.role === "assistant" ? "border border-indigo-300/20 bg-indigo-500/20" : "ml-auto bg-zinc-700/50"}`}>
-                  {msg.text}
-                </div>
-              ))}
-            </div>
-            <form onSubmit={sendBrainMessage} className="mt-3 flex gap-2">
-              <input value={brainInput} onChange={(e) => setBrainInput(e.target.value)} placeholder="Ask the App Brain..." className="w-full rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm" />
-              <button type="submit" className="rounded-xl bg-indigo-500 px-3 py-2 text-sm font-semibold">Send</button>
-            </form>
-          </div>
         </section>
 
         <section id="tracker" className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
