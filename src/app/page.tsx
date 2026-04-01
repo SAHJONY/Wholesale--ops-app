@@ -202,11 +202,16 @@ export default function Home() {
 
   const kpis = useMemo(() => {
     const today = nowDate();
+    const projectedProfit = leads.reduce((sum, l) => {
+      const spread = calculateMAO(l.arv, l.rehab) - l.asking;
+      return spread > 0 ? sum + spread : sum;
+    }, 0);
     return {
       totalLeads: leads.length,
       offersSent: leads.filter((l) => ["Negotiation", "Contract", "Dispo"].includes(l.status)).length,
       contracts: leads.filter((l) => ["Contract", "Dispo"].includes(l.status)).length,
       followUpsDue: leads.filter((l) => l.followUpDate && l.followUpDate <= today).length,
+      projectedProfit,
     };
   }, [leads]);
 
@@ -435,11 +440,12 @@ export default function Home() {
           <p className="mt-1 text-zinc-300">Paperclip Skill: <span className="font-semibold uppercase">enabled via console command prefix</span></p>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard label="Total Leads" value={String(kpis.totalLeads)} />
           <KpiCard label="Offers Sent" value={String(kpis.offersSent)} />
           <KpiCard label="Contracts" value={String(kpis.contracts)} />
           <KpiCard label="Follow-ups Due" value={String(kpis.followUpsDue)} />
+          <KpiCard label="Projected Profit" value={formatUSD(kpis.projectedProfit)} />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
