@@ -165,6 +165,9 @@ export default function Home() {
   const [report, setReport] = useState("");
   const [csvInput, setCsvInput] = useState("");
   const [offerPacket, setOfferPacket] = useState("");
+  const [addressLookup, setAddressLookup] = useState("");
+  const [dealResult, setDealResult] = useState("");
+  const [dealLoading, setDealLoading] = useState(false);
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -578,6 +581,29 @@ export default function Home() {
     }
   }
 
+  async function analyzeAddressDeal() {
+    const address = addressLookup.trim();
+    if (!address) return;
+    setDealLoading(true);
+    setDealResult("");
+
+    try {
+      const command = `Analyze this property for a wholesale deal and return: property facts, estimated ARV range, rehab range, MAO, offer strategy, risk flags. Address: ${address}`;
+      const res = await fetch("/api/openclaw/console", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command, leads, history: consoleLines.slice(-10).map((l) => l.text) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setDealResult(data?.assistantReply || data?.message || data?.error || "No deal output returned.");
+      logAudit(`Analyzed address deal: ${address}`);
+    } catch {
+      setDealResult("Deal analysis failed.");
+    } finally {
+      setDealLoading(false);
+    }
+  }
+
   function generateCeoReport() {
     const top = leads.slice(0, 3).map((l) => l.address).join(", ") || "No leads";
     const text = `CEO REPORT\nLeads: ${kpis.totalLeads}\nOffers Sent: ${kpis.offersSent}\nContracts: ${kpis.contracts}\nProjected Profit: ${formatUSD(
@@ -736,6 +762,24 @@ export default function Home() {
           {offerPacket ? (
             <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{offerPacket}</pre>
           ) : null}
+
+          <div className="mt-4 rounded-xl border border-orange-300/20 bg-black/20 p-3">
+            <p className="text-sm font-semibold">Address-to-Deal Analyzer (OpenClaw)</p>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={addressLookup}
+                onChange={(e) => setAddressLookup(e.target.value)}
+                placeholder="Paste property address"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              />
+              <button type="button" onClick={analyzeAddressDeal} className="rounded-lg bg-orange-400 px-3 py-2 text-sm font-semibold text-black">
+                {dealLoading ? "Running..." : "Run Deal"}
+              </button>
+            </div>
+            {dealResult ? (
+              <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{dealResult}</pre>
+            ) : null}
+          </div>
         </section>
 
         <section id="enterprise" className="rounded-3xl border border-fuchsia-200/20 bg-white/5 p-6 backdrop-blur-xl">
