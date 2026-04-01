@@ -1311,7 +1311,19 @@ export default function Home() {
             <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{callDealIntel}</pre>
           ) : null}
           {callBrief ? (
-            <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-300/20 bg-black/30 p-3 text-xs text-zinc-200">{callBrief}</pre>
+            <>
+              <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-300/20 bg-black/30 p-3 text-xs text-zinc-200">{callBrief}</pre>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(callBrief);
+                  setCallStatus("Brief copied to clipboard ✅");
+                }}
+                className="mt-2 rounded-lg border border-emerald-300/40 px-3 py-2 text-xs text-emerald-200"
+              >
+                Copy Brief
+              </button>
+            </>
           ) : null}
           {callStatus ? <p className="mt-2 text-sm text-emerald-200">{callStatus}</p> : null}
         </section>
