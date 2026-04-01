@@ -475,6 +475,31 @@ export default function Home() {
     }
   }
 
+  async function refreshConsoleResponse() {
+    const lastInput = [...consoleLines].reverse().find((l) => l.kind === "input")?.text;
+    if (!lastInput) return;
+    const cmd = lastInput.replace(/^\$\s*/, "").trim();
+    if (!cmd) return;
+
+    setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: `Refreshing: ${cmd}` }]);
+
+    try {
+      const res = await fetch("/api/openclaw/console", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: cmd, leads, history: consoleLines.slice(-10).map((l) => l.text) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const line = data?.message || data?.error || "No response";
+      setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: line }]);
+      if (data?.assistantReply) {
+        setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: `AI: ${data.assistantReply}` }]);
+      }
+    } catch {
+      setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Refresh failed." }]);
+    }
+  }
+
   function generateCeoReport() {
     const top = leads.slice(0, 3).map((l) => l.address).join(", ") || "No leads";
     const text = `CEO REPORT\nLeads: ${kpis.totalLeads}\nOffers Sent: ${kpis.offersSent}\nContracts: ${kpis.contracts}\nProjected Profit: ${formatUSD(
@@ -862,6 +887,9 @@ export default function Home() {
             />
             <button type="submit" className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-black">
               Run
+            </button>
+            <button type="button" onClick={refreshConsoleResponse} className="rounded-xl border border-emerald-400/40 px-3 py-2 text-sm text-emerald-200">
+              Refresh
             </button>
           </form>
 
