@@ -118,6 +118,8 @@ export default function Home() {
   const [controlSnapshot, setControlSnapshot] = useState<any>(null);
   const [valueAudit, setValueAudit] = useState<any>(null);
   const [callPhone, setCallPhone] = useState("");
+  const [callAddress, setCallAddress] = useState("");
+  const [callOwnerName, setCallOwnerName] = useState("");
   const [callTask, setCallTask] = useState("You are Alex Smith, acquisitions manager at SAHJONY CAPITAL LLC. Open professionally, confirm you are discussing the correct property, then collect: seller motivation, property condition (roof/HVAC/plumbing/electrical/foundation), occupancy/vacancy, timeline to sell, asking price, lowest acceptable price, liens/title issues, and best callback time. Never transfer the call. Close by confirming next step: we review and return with a formal cash offer strategy.");
   const [callStatus, setCallStatus] = useState("");
 
@@ -182,10 +184,20 @@ export default function Home() {
     if (!phoneNumber) return;
     setCallStatus("Queuing call...");
     try {
+      const contextHeader = [
+        callAddress.trim() ? `Property Address: ${callAddress.trim()}` : null,
+        phoneNumber ? `Seller Phone: ${phoneNumber}` : null,
+        callOwnerName.trim() ? `Owner Name: ${callOwnerName.trim()}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const finalTask = `${contextHeader}\n\n${callTask}`.trim();
+
       const res = await fetch("/api/bland/call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber, task: callTask }),
+        body: JSON.stringify({ phoneNumber, task: finalTask }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
@@ -1044,9 +1056,21 @@ export default function Home() {
           <p className="mt-1 text-sm text-zinc-300">Direct Bland activation for outbound seller calls.</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <input
+              value={callAddress}
+              onChange={(e) => setCallAddress(e.target.value)}
+              placeholder="Property address"
+              className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
+            />
+            <input
               value={callPhone}
               onChange={(e) => setCallPhone(e.target.value)}
               placeholder="Phone number (E.164, e.g. +1678...)"
+              className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
+            />
+            <input
+              value={callOwnerName}
+              onChange={(e) => setCallOwnerName(e.target.value)}
+              placeholder="Owner name (optional)"
               className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
             />
             <button type="button" onClick={runAICall} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-black">
