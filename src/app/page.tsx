@@ -25,7 +25,7 @@ type Lead = {
 
 type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 type ConsoleLine = { id: string; kind: "input" | "output"; text: string };
-type AutoTask = { id: string; text: string; done: boolean };
+type AutoTask = { id: string; text: string; priority: "high" | "medium" | "low" };
 
 type SupabaseLeadRow = {
   id: string;
@@ -126,7 +126,6 @@ export default function Home() {
     { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound, skill:paperclip company status" },
   ]);
   const [search, setSearch] = useState("");
-  const [tasks, setTasks] = useState<AutoTask[]>([]);
   const [dataMode, setDataMode] = useState<"supabase" | "local">("local");
 
   async function loadLeads() {
@@ -215,6 +214,54 @@ export default function Home() {
     () => STATUS_ORDER.map((stage) => ({ stage, count: leads.filter((l) => l.status === stage).length })),
     [leads],
   );
+
+  const liveTasks = useMemo<AutoTask[]>(() => {
+    const today = nowDate();
+    const generated: AutoTask[] = [];
+
+    leads
+      .filter((l) => l.followUpDate && l.followUpDate <= today)
+      .slice(0, 5)
+      .forEach((lead) => {
+        generated.push({
+          id: `due-${lead.id}`,
+          text: `Follow up ${lead.address} now — follow-up date is due (${lead.followUpDate}).`,
+          priority: "high",
+        });
+      });
+
+    leads
+      .filter((l) => l.status === "Negotiation" && !l.phone)
+      .slice(0, 3)
+      .forEach((lead) => {
+        generated.push({
+          id: `phone-${lead.id}`,
+          text: `Add phone number for ${lead.address} to enable Bland AI outreach.`,
+          priority: "medium",
+        });
+      });
+
+    leads
+      .filter((l) => calculateMAO(l.arv, l.rehab) > 0 && l.asking > 0 && l.asking <= calculateMAO(l.arv, l.rehab))
+      .slice(0, 3)
+      .forEach((lead) => {
+        generated.push({
+          id: `offer-${lead.id}`,
+          text: `Send offer for ${lead.address} — asking is within modeled MAO range.`,
+          priority: "high",
+        });
+      });
+
+    if (!generated.length) {
+      generated.push({
+        id: "seed",
+        text: "No urgent automation tasks. Add new leads or set follow-up dates to trigger automations.",
+        priority: "low",
+      });
+    }
+
+    return generated;
+  }, [leads]);
 
   const mao = useMemo(() => calculateMAO(form.arv, form.rehab), [form.arv, form.rehab]);
 
@@ -365,20 +412,6 @@ export default function Home() {
     } catch {
       setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Console request failed." }]);
     }
-  }
-
-  function generateTasks() {
-    const due = leads.filter((l) => l.followUpDate && l.followUpDate <= nowDate()).slice(0, 5);
-    const generated = due.map((lead) => ({
-      id: crypto.randomUUID(),
-      text: `Follow up ${lead.address} and present investor-safe offer range.`,
-      done: false,
-    }));
-    setTasks(generated);
-  }
-
-  function toggleTask(id: string) {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   }
 
   return (
@@ -542,28 +575,19 @@ export default function Home() {
         <section className="rounded-3xl border border-cyan-200/20 bg-white/5 p-6 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">Automation Task Engine</h2>
-            <button onClick={generateTasks} className="rounded-xl bg-cyan-400 px-3 py-2 text-sm font-semibold text-black">
-              Generate Tasks
-            </button>
+            <span className="rounded-xl border border-cyan-300/40 px-3 py-1 text-xs text-cyan-200">Live Data Mode</span>
           </div>
 
-          {tasks.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-300">No tasks generated yet.</p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {tasks.map((task) => (
-                <button
-                  key={task.id}
-                  onClick={() => toggleTask(task.id)}
-                  className={`w-full rounded-xl border p-3 text-left text-sm ${
-                    task.done ? "border-emerald-300/30 bg-emerald-500/10 line-through" : "border-white/15 bg-black/20"
-                  }`}
-                >
-                  {task.text}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="mt-3 space-y-2">
+            {liveTasks.map((task) => (
+              <div key={task.id} className="w-full rounded-xl border border-white/15 bg-black/20 p-3 text-left text-sm">
+                <span className={`mr-2 rounded-md px-2 py-1 text-xs ${task.priority === "high" ? "bg-red-500/20 text-red-200" : task.priority === "medium" ? "bg-amber-500/20 text-amber-200" : "bg-zinc-500/20 text-zinc-200"}`}>
+                  {task.priority}
+                </span>
+                {task.text}
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-3xl border border-emerald-200/20 bg-black/40 p-6 backdrop-blur-xl">
