@@ -163,6 +163,8 @@ export default function Home() {
   const [role, setRole] = useState<"CEO" | "ACQ" | "DISPO" | "OPS">("CEO");
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [report, setReport] = useState("");
+  const [csvInput, setCsvInput] = useState("");
+  const [offerPacket, setOfferPacket] = useState("");
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -302,6 +304,16 @@ export default function Home() {
     }
 
     return generated;
+  }, [leads]);
+
+  const profitQueue = useMemo(() => {
+    return [...leads]
+      .map((lead) => ({
+        lead,
+        spread: calculateMAO(lead.arv, lead.rehab) - lead.asking,
+      }))
+      .sort((a, b) => b.spread - a.spread)
+      .slice(0, 10);
   }, [leads]);
 
   const mao = useMemo(() => calculateMAO(form.arv, form.rehab), [form.arv, form.rehab]);
@@ -476,6 +488,65 @@ export default function Home() {
     }
   }
 
+  function importCsvLeads() {
+    const raw = csvInput.trim();
+    if (!raw) return;
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return;
+
+    const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const idx = {
+      address: header.indexOf("address"),
+      phone: header.indexOf("phone"),
+      beds: header.indexOf("beds"),
+      baths: header.indexOf("baths"),
+      sqft: header.indexOf("sqft"),
+      asking: header.indexOf("asking"),
+      arv: header.indexOf("arv"),
+      rehab: header.indexOf("rehab"),
+      status: header.indexOf("status"),
+      followUpDate: header.indexOf("followupdate"),
+      notes: header.indexOf("notes"),
+    };
+
+    const imported: Lead[] = lines.slice(1).map((line) => {
+      const cols = line.split(",");
+      return {
+        id: crypto.randomUUID(),
+        address: cols[idx.address] || "",
+        phone: cols[idx.phone] || "",
+        beds: Number(cols[idx.beds] || 0),
+        baths: Number(cols[idx.baths] || 0),
+        sqft: Number(cols[idx.sqft] || 0),
+        asking: Number(cols[idx.asking] || 0),
+        arv: Number(cols[idx.arv] || 0),
+        rehab: Number(cols[idx.rehab] || 0),
+        status: (cols[idx.status] as LeadStatus) || "Lead In",
+        followUpDate: cols[idx.followUpDate] || "",
+        notes: cols[idx.notes] || "",
+        createdAt: new Date().toISOString(),
+      };
+    }).filter((l) => l.address);
+
+    setLeads((prev) => [...imported, ...prev]);
+    setCsvInput("");
+    logAudit(`Imported ${imported.length} leads via CSV`);
+  }
+
+  function buildOfferPacket(lead: Lead) {
+    const mao = Math.round(calculateMAO(lead.arv, lead.rehab));
+    const spread = Math.round(mao - lead.asking);
+    const text = `OFFER PACKET\nAddress: ${lead.address}\nPhone: ${lead.phone || "n/a"}\nAsk: ${formatUSD(
+      lead.asking,
+    )}\nARV: ${formatUSD(lead.arv)}\nRehab: ${formatUSD(lead.rehab)}\nMAO: ${formatUSD(mao)}\nModeled Spread: ${formatUSD(
+      spread,
+    )}\n\nCall Script:\n"We can make a clean as-is cash offer and close quickly. If we keep terms simple, we can be at ${formatUSD(
+      mao,
+    )} range depending on walkthrough findings."`;
+    setOfferPacket(text);
+    logAudit(`Generated offer packet for ${lead.address}`);
+  }
+
   async function refreshConsoleResponse() {
     const lastInput = [...consoleLines].reverse().find((l) => l.kind === "input")?.text;
     if (!lastInput) {
@@ -617,6 +688,54 @@ export default function Home() {
               <li>If no contract by Friday: double inbound lead volume next week and tighten MAO discipline.</li>
             </ul>
           </div>
+        </section>
+
+        <section className="rounded-3xl border border-orange-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">Money Machine Core</h2>
+          <p className="mt-1 text-sm text-zinc-300">Bulk ingest + profit-priority queue + one-click offer packet.</p>
+
+          <div className="mt-3 grid gap-4 xl:grid-cols-2">
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-sm font-semibold">Bulk Lead Import (CSV paste)</p>
+              <p className="mt-1 text-xs text-zinc-300">Header example: address,phone,beds,baths,sqft,asking,arv,rehab,status,followUpDate,notes</p>
+              <textarea
+                value={csvInput}
+                onChange={(e) => setCsvInput(e.target.value)}
+                className="mt-2 min-h-32 w-full rounded-lg border border-white/20 bg-black/30 p-2 text-xs"
+                placeholder="Paste CSV rows here..."
+              />
+              <button type="button" onClick={importCsvLeads} className="mt-2 rounded-lg bg-orange-400 px-3 py-2 text-sm font-semibold text-black">
+                Import Leads
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-sm font-semibold">Profit Priority Queue (Top 10)</p>
+              <div className="mt-2 max-h-52 space-y-2 overflow-y-auto text-xs">
+                {profitQueue.length === 0 ? (
+                  <p className="text-zinc-300">No leads yet.</p>
+                ) : (
+                  profitQueue.map(({ lead, spread }) => (
+                    <div key={lead.id} className="rounded-lg border border-white/10 p-2">
+                      <p className="font-semibold">{lead.address}</p>
+                      <p>Projected Spread: {formatUSD(spread)}</p>
+                      <button
+                        type="button"
+                        onClick={() => buildOfferPacket(lead)}
+                        className="mt-1 rounded-md border border-orange-300/30 px-2 py-1 text-orange-200"
+                      >
+                        Generate Offer Packet
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {offerPacket ? (
+            <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{offerPacket}</pre>
+          ) : null}
         </section>
 
         <section id="enterprise" className="rounded-3xl border border-fuchsia-200/20 bg-white/5 p-6 backdrop-blur-xl">
