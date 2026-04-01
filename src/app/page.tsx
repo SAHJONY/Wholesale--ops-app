@@ -315,8 +315,19 @@ export default function Home() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
-        const brief = `CALLBACK BRIEF\nAddress: ${address}\nPhone: ${phoneNumber}\nOwner: ${callOwnerName || "n/a"}\nCall ID: ${data?.data?.call_id || "n/a"}\n\nDeal Intel:\n${dealIntel || "No analyzer output"}\n\nNext Step:\nReturn call with formal offer strategy and confirm lowest acceptable price.`;
-        setCallBrief(brief);
+        const briefRes = await fetch("/api/tools/deal-brief", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address,
+            phone: phoneNumber,
+            owner: callOwnerName,
+            intel: dealIntel,
+            callId: data?.data?.call_id || "",
+          }),
+        });
+        const briefData = await briefRes.json().catch(() => ({}));
+        setCallBrief(briefData?.brief || "Brief generation failed.");
         setCallStatus(`Queued + saved ✅ Call ID: ${data?.data?.call_id || "n/a"}`);
         logAudit(`Call+Save+Brief completed for ${address}`);
       } else {
