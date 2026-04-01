@@ -470,6 +470,12 @@ export default function Home() {
     logAudit("Generated CEO report");
   }
 
+  function copyLeadLink(leadId: string) {
+    const url = `${window.location.origin}${window.location.pathname}#lead-${leadId}`;
+    navigator.clipboard.writeText(url);
+    logAudit(`Copied lead deep link ${leadId}`);
+  }
+
   async function emailCeoReport() {
     if (!report) {
       generateCeoReport();
@@ -700,8 +706,8 @@ export default function Home() {
                 </thead>
                 <tbody>
                   {filteredLeads.map((lead) => (
-                    <tr key={lead.id} className="border-b border-white/5">
-                      <td className="py-3 pr-4"><p className="font-medium">{lead.address}</p><p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p></td>
+                    <tr id={`lead-${lead.id}`} key={lead.id} className="border-b border-white/5">
+                      <td className="py-3 pr-4"><p className="font-medium"><a href={`#lead-${lead.id}`} className="hover:underline">{lead.address}</a></p><p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p></td>
                       <td className="py-3">{lead.phone || "-"}</td>
                       <td className="py-3">{formatUSD(lead.asking)}</td>
                       <td className="py-3">{formatUSD(lead.arv)}</td>
@@ -732,6 +738,12 @@ export default function Home() {
                             className="rounded-lg border border-emerald-300/30 px-2 py-1 text-emerald-200"
                           >
                             AI Call
+                          </button>
+                          <button
+                            onClick={() => copyLeadLink(lead.id)}
+                            className="rounded-lg border border-sky-300/30 px-2 py-1 text-sky-200"
+                          >
+                            Copy Link
                           </button>
                           <button
                             onClick={() => deleteLead(lead.id)}
