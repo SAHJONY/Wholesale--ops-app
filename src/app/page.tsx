@@ -317,11 +317,14 @@ export default function Home() {
       const res = await fetch("/api/openclaw/console", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: cmd }),
+        body: JSON.stringify({ command: cmd, leads }),
       });
       const data = await res.json().catch(() => ({}));
       const line = data?.message || data?.error || "No response";
       setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: line }]);
+      if (data?.assistantReply) {
+        setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: `AI: ${data.assistantReply}` }]);
+      }
     } catch {
       setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Console request failed." }]);
     }

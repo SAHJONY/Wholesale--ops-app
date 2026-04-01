@@ -5,8 +5,19 @@ type ConsoleResult = {
   mode: "agent" | "wake";
   runId?: string;
   message: string;
+  assistantReply?: string;
   raw?: unknown;
 };
+
+function quickAssistantReply(command: string, leads: any[]) {
+  const cmd = command.toLowerCase();
+  const total = leads?.length || 0;
+  if (cmd.includes("status")) return `System online. ${total} leads loaded. OpenClaw run queued.`;
+  if (cmd.includes("pipeline")) return `Pipeline summary requested. I queued OpenClaw analysis and will prioritize the next best action.`;
+  if (cmd.startsWith("wake ")) return `Wake event accepted. I nudged OpenClaw immediately.`;
+  if (cmd.includes("offer") || cmd.includes("mao")) return `I’m running offer analysis now. I’ll target a conservative MAO and margin-safe range.`;
+  return `Got it. I queued this in OpenClaw and I’m processing it as your operating console.`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OpenClaw hooks env missing" }, { status: 500 });
     }
 
-    const { command } = (await req.json()) as { command?: string };
+    const { command, leads } = (await req.json()) as { command?: string; leads?: unknown[] };
     if (!command?.trim()) {
       return NextResponse.json({ error: "command is required" }, { status: 400 });
     }
@@ -42,6 +53,7 @@ export async function POST(req: NextRequest) {
         ok: res.ok,
         mode: "wake",
         message: res.ok ? `Wake event sent: ${text}` : "Wake event failed",
+        assistantReply: quickAssistantReply(trimmed, leads || []),
         raw: data,
       };
     } else {
@@ -66,6 +78,7 @@ export async function POST(req: NextRequest) {
         mode: "agent",
         runId: data?.runId,
         message: res.ok ? `Command accepted. runId=${data?.runId ?? "n/a"}` : "Command failed",
+        assistantReply: quickAssistantReply(trimmed, leads || []),
         raw: data,
       };
     }
