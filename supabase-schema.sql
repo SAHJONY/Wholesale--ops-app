@@ -3,6 +3,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.leads (
   id uuid primary key default gen_random_uuid(),
   address text not null,
+  phone text,
   beds numeric,
   baths numeric,
   sqft numeric,

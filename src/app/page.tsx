@@ -10,6 +10,7 @@ type LeadStatus = "Lead In" | "Underwriting" | "Negotiation" | "Contract" | "Dis
 type Lead = {
   id: string;
   address: string;
+  phone: string;
   beds: number;
   baths: number;
   sqft: number;
@@ -31,6 +32,7 @@ const HERO_IMAGE =
 
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
+  phone: "",
   beds: 3,
   baths: 2,
   sqft: 1200,
@@ -99,6 +101,7 @@ export default function Home() {
         const mapped: Lead[] = data.map((row: any) => ({
           id: row.id,
           address: row.address ?? "",
+          phone: row.phone ?? "",
           beds: Number(row.beds ?? 0),
           baths: Number(row.baths ?? 0),
           sqft: Number(row.sqft ?? 0),
@@ -175,6 +178,7 @@ export default function Home() {
       await supabase.from("leads").insert({
         id: next.id,
         address: next.address,
+        phone: next.phone,
         beds: next.beds,
         baths: next.baths,
         sqft: next.sqft,
@@ -212,9 +216,10 @@ export default function Home() {
   }
 
   function exportCsv() {
-    const headers = ["address", "beds", "baths", "sqft", "asking", "arv", "rehab", "mao", "status", "followUpDate", "notes"];
+    const headers = ["address", "phone", "beds", "baths", "sqft", "asking", "arv", "rehab", "mao", "status", "followUpDate", "notes"];
     const rows = leads.map((l) => [
       l.address,
+      l.phone,
       l.beds,
       l.baths,
       l.sqft,
@@ -298,6 +303,7 @@ export default function Home() {
             <h2 className="text-xl font-semibold">Lead Intake + Analyzer</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input label="Property Address" value={form.address} onChange={(v) => updateForm("address", v)} required />
+              <Input label="Contact Phone" value={form.phone} onChange={(v) => updateForm("phone", v)} />
               <Input label="Follow-up Date" type="date" value={form.followUpDate} onChange={(v) => updateForm("followUpDate", v)} />
               <Input label="Beds" type="number" value={String(form.beds)} onChange={(v) => updateForm("beds", Number(v))} />
               <Input label="Baths" type="number" value={String(form.baths)} onChange={(v) => updateForm("baths", Number(v))} />
@@ -366,6 +372,7 @@ export default function Home() {
                 <thead>
                   <tr className="border-b border-white/10 text-zinc-300">
                     <th className="py-2">Address</th>
+                    <th className="py-2">Phone</th>
                     <th className="py-2">Asking</th>
                     <th className="py-2">ARV</th>
                     <th className="py-2">MAO</th>
@@ -378,6 +385,7 @@ export default function Home() {
                   {filteredLeads.map((lead) => (
                     <tr key={lead.id} className="border-b border-white/5">
                       <td className="py-3 pr-4"><p className="font-medium">{lead.address}</p><p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p></td>
+                      <td className="py-3">{lead.phone || "-"}</td>
                       <td className="py-3">{formatUSD(lead.asking)}</td>
                       <td className="py-3">{formatUSD(lead.arv)}</td>
                       <td className="py-3 font-semibold">{formatUSD(calculateMAO(lead.arv, lead.rehab))}</td>
@@ -387,7 +395,27 @@ export default function Home() {
                           {STATUS_ORDER.map((status) => <option key={status} value={status}>{status}</option>)}
                         </select>
                       </td>
-                      <td className="py-3"><button onClick={() => deleteLead(lead.id)} className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200">Delete</button></td>
+                      <td className="py-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              if (!lead.phone) return;
+                              await fetch("/api/bland/call", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  phoneNumber: lead.phone,
+                                  task: `Call ${lead.address} lead and ask motivation, timeline, and lowest acceptable price.`,
+                                }),
+                              });
+                            }}
+                            className="rounded-lg border border-emerald-300/30 px-2 py-1 text-emerald-200"
+                          >
+                            AI Call
+                          </button>
+                          <button onClick={() => deleteLead(lead.id)} className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200">Delete</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
