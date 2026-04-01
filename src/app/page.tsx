@@ -908,84 +908,91 @@ export default function Home() {
           {filteredLeads.length === 0 ? (
             <p className="mt-6 text-zinc-400">No matching leads yet.</p>
           ) : (
-            <div className="mt-6 overflow-auto">
-              <table className="w-full min-w-[960px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-zinc-300">
-                    <th className="py-2">Address</th>
-                    <th className="py-2">Phone</th>
-                    <th className="py-2">Asking</th>
-                    <th className="py-2">ARV</th>
-                    <th className="py-2">MAO</th>
-                    <th className="py-2">Score</th>
-                    <th className="py-2">Follow-up</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLeads.map((lead) => (
-                    <tr id={`lead-${lead.id}`} key={lead.id} className="border-b border-white/5">
-                      <td className="py-3 pr-4"><p className="font-medium"><a href={`#lead-${lead.id}`} className="hover:underline">{lead.address}</a></p><p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p></td>
-                      <td className="py-3">{lead.phone || "-"}</td>
-                      <td className="py-3">{formatUSD(lead.asking)}</td>
-                      <td className="py-3">{formatUSD(lead.arv)}</td>
-                      <td className="py-3 font-semibold">{formatUSD(calculateMAO(lead.arv, lead.rehab))}</td>
-                      <td className="py-3">
-                        <span className="rounded-full border border-indigo-300/30 px-2 py-1 text-xs">{leadScore(lead)}</span>
-                      </td>
-                      <td className="py-3">{lead.followUpDate || "-"}</td>
-                      <td className="py-3">
-                        <select className="rounded-lg border border-white/20 bg-black/30 px-2 py-1" value={lead.status} onChange={(e) => moveStatus(lead.id, e.target.value as LeadStatus)}>
-                          {STATUS_ORDER.map((status) => <option key={status} value={status}>{status}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-3">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!lead.phone) return;
-                              await fetch("/api/bland/call", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  phoneNumber: lead.phone,
-                                  task: `Call ${lead.address} lead and ask motivation, timeline, and lowest acceptable price.`,
-                                }),
-                              });
-                            }}
-                            className="rounded-lg border border-emerald-300/30 px-2 py-1 text-emerald-200"
-                          >
-                            AI Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => copyLeadLink(lead.id)}
-                            className="rounded-lg border border-sky-300/30 px-2 py-1 text-sky-200"
-                          >
-                            Copy Link
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (role !== "CEO") {
-                                setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Delete restricted: switch role to CEO." }]);
-                                return;
-                              }
-                              deleteLead(lead.id);
-                            }}
-                            className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+            <>
+              <div className="mt-6 space-y-3 md:hidden">
+                {filteredLeads.map((lead) => (
+                  <div key={lead.id} className="rounded-xl border border-white/15 bg-black/20 p-3">
+                    <p className="font-semibold">{lead.address}</p>
+                    <p className="mt-1 text-xs text-zinc-300">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p>
+                    <p className="mt-1 text-xs text-zinc-300">Ask {formatUSD(lead.asking)} · ARV {formatUSD(lead.arv)} · MAO {formatUSD(calculateMAO(lead.arv, lead.rehab))}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!lead.phone) return;
+                          await fetch("/api/bland/call", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              phoneNumber: lead.phone,
+                              task: `Call ${lead.address} lead and ask motivation, timeline, and lowest acceptable price.`,
+                            }),
+                          });
+                        }}
+                        className="rounded-lg border border-emerald-300/30 px-2 py-1 text-xs text-emerald-200"
+                      >
+                        AI Call
+                      </button>
+                      <button type="button" onClick={() => copyLeadLink(lead.id)} className="rounded-lg border border-sky-300/30 px-2 py-1 text-xs text-sky-200">Copy Link</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 hidden overflow-auto md:block">
+                <table className="w-full min-w-[960px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-zinc-300">
+                      <th className="py-2">Address</th>
+                      <th className="py-2">Phone</th>
+                      <th className="py-2">Asking</th>
+                      <th className="py-2">ARV</th>
+                      <th className="py-2">MAO</th>
+                      <th className="py-2">Score</th>
+                      <th className="py-2">Follow-up</th>
+                      <th className="py-2">Status</th>
+                      <th className="py-2">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredLeads.map((lead) => (
+                      <tr id={`lead-${lead.id}`} key={lead.id} className="border-b border-white/5">
+                        <td className="py-3 pr-4"><p className="font-medium"><a href={`#lead-${lead.id}`} className="hover:underline">{lead.address}</a></p><p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p></td>
+                        <td className="py-3">{lead.phone || "-"}</td>
+                        <td className="py-3">{formatUSD(lead.asking)}</td>
+                        <td className="py-3">{formatUSD(lead.arv)}</td>
+                        <td className="py-3 font-semibold">{formatUSD(calculateMAO(lead.arv, lead.rehab))}</td>
+                        <td className="py-3"><span className="rounded-full border border-indigo-300/30 px-2 py-1 text-xs">{leadScore(lead)}</span></td>
+                        <td className="py-3">{lead.followUpDate || "-"}</td>
+                        <td className="py-3">
+                          <select className="rounded-lg border border-white/20 bg-black/30 px-2 py-1" value={lead.status} onChange={(e) => moveStatus(lead.id, e.target.value as LeadStatus)}>
+                            {STATUS_ORDER.map((status) => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-3">
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => copyLeadLink(lead.id)} className="rounded-lg border border-sky-300/30 px-2 py-1 text-sky-200">Copy Link</button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (role !== "CEO") {
+                                  setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Delete restricted: switch role to CEO." }]);
+                                  return;
+                                }
+                                deleteLead(lead.id);
+                              }}
+                              className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </section>
 
