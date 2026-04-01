@@ -264,27 +264,40 @@ export default function Home() {
     setBrainMessages((prev) => [...prev, userMsg]);
     setBrainInput("");
 
-    if (openclawWebhook) {
-      try {
-        const res = await fetch(openclawWebhook, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: prompt, leads }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const text = data?.reply || data?.message || "OpenClaw responded with no message.";
-          setBrainMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", text }]);
-          return;
-        }
-      } catch {
-        // fallback below
-      }
+    if (!openclawWebhook) {
+      setBrainMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "OpenClaw webhook is not configured yet. Add NEXT_PUBLIC_OPENCLAW_WEBHOOK_URL to activate live OpenClaw brain mode.",
+        },
+      ]);
+      return;
     }
 
-    const assistantMsg: BrainMessage = { id: crypto.randomUUID(), role: "assistant", text: brainReply(prompt, leads) };
-    setBrainMessages((prev) => [...prev, assistantMsg]);
+    try {
+      const res = await fetch(openclawWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: prompt, leads }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      const text = data?.reply || data?.message || "OpenClaw responded with no message.";
+      setBrainMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", text }]);
+      return;
+    } catch {
+      setBrainMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "OpenClaw request failed. Verify webhook URL, gateway reachability, and auth.",
+        },
+      ]);
+      return;
+    }
   }
 
   return (
