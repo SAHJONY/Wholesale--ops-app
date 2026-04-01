@@ -116,6 +116,7 @@ export default function Home() {
   const [dealLoading, setDealLoading] = useState(false);
   const [balanceSnapshot, setBalanceSnapshot] = useState<any>(null);
   const [controlSnapshot, setControlSnapshot] = useState<any>(null);
+  const [valueAudit, setValueAudit] = useState<any>(null);
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -161,6 +162,17 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLeads();
   }, []);
+
+  async function runValueAudit() {
+    try {
+      const res = await fetch("/api/control/value-audit", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      setValueAudit(data);
+      logAudit("Ran value audit");
+    } catch {
+      setValueAudit({ ok: false, error: "Value audit failed" });
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -640,6 +652,21 @@ export default function Home() {
 
           <div className="mt-3 rounded-xl border border-white/15 bg-black/20 p-3 text-xs text-zinc-300">
             Connectors: {(controlSnapshot?.connectors || []).map((c: any) => c.name).join(" • ") || "Loading..."}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-white/15 bg-black/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Value Audit</p>
+              <button type="button" onClick={runValueAudit} className="rounded-lg border border-violet-300/40 px-2 py-1 text-xs text-violet-200">
+                Run Audit
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">Confirms revenue-critical endpoints and strips non-value drift.</p>
+            {valueAudit ? (
+              <div className="mt-2 text-xs text-zinc-300">
+                <p>Score: {valueAudit?.score ?? "n/a"}% ({valueAudit?.passed ?? 0}/{valueAudit?.total ?? 0})</p>
+              </div>
+            ) : null}
           </div>
         </section>
 
