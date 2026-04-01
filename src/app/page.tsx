@@ -56,6 +56,17 @@ const DAILY_TARGETS = {
   contracts: 1,
 };
 
+const RESEARCH_PORTALS = [
+  { name: "Propwire", url: "https://propwire.com/search?filters=%7B%7D" },
+  { name: "Zillow", url: "https://www.zillow.com" },
+  { name: "Redfin", url: "https://www.redfin.com" },
+  { name: "Realtor", url: "https://www.realtor.com" },
+  { name: "County Property Records", url: "https://publicrecords.netronline.com/" },
+  { name: "County Court Records", url: "https://www.judyrecords.com/" },
+  { name: "Public Records Search", url: "https://www.searchsystems.net/" },
+  { name: "Skip Trace (CyberBackgroundChecks)", url: "https://www.cyberbackgroundchecks.com/" },
+];
+
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
   phone: "",
@@ -102,6 +113,17 @@ function extractAmount(text: string, label: string) {
   const m = text.match(rx);
   if (!m) return 0;
   return Number((m[1] || "0").replaceAll(",", "")) || 0;
+}
+
+function leadResearchLinks(address: string) {
+  const q = encodeURIComponent(address);
+  return {
+    zillow: `https://www.zillow.com/homes/${q}_rb/`,
+    redfin: `https://www.redfin.com/stingray/do/location-autocomplete?location=${q}`,
+    realtor: `https://www.realtor.com/realestateandhomes-search/${q}`,
+    propwire: `https://propwire.com/search?filters=%7B%7D`,
+    skipTrace: `https://www.google.com/search?q=${encodeURIComponent(`${address} site:cyberbackgroundchecks.com`)}`,
+  };
 }
 
 export default function Home() {
@@ -1044,6 +1066,17 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="mt-3 rounded-xl border border-white/15 bg-black/20 p-3 text-xs text-zinc-300">
+            <p className="font-semibold">Direct links: lead data, county courts, property records, public records</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {RESEARCH_PORTALS.map((s) => (
+                <a key={s.name} href={s.url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/20 px-2 py-1 hover:bg-white/10">
+                  {s.name}
+                </a>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-3 md:grid-cols-5">
             {pipeline.map((step) => (
               <div key={step.stage} className="rounded-xl border border-white/15 bg-black/20 p-3 text-center">
@@ -1064,6 +1097,7 @@ export default function Home() {
                     <p className="mt-1 text-xs text-zinc-300">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p>
                     <p className="mt-1 text-xs text-zinc-300">Ask {formatUSD(lead.asking)} · ARV {formatUSD(lead.arv)} · MAO {formatUSD(calculateMAO(lead.arv, lead.rehab))}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
+                      <a href={leadResearchLinks(lead.address).skipTrace} target="_blank" rel="noreferrer" className="rounded-lg border border-amber-300/30 px-2 py-1 text-xs text-amber-200">Skip Trace</a>
                       <button
                         type="button"
                         onClick={async () => {
@@ -1081,6 +1115,7 @@ export default function Home() {
                       >
                         AI Call
                       </button>
+                      <a href={leadResearchLinks(lead.address).zillow} target="_blank" rel="noreferrer" className="rounded-lg border border-white/30 px-2 py-1 text-xs">Zillow</a>
                       <button type="button" onClick={() => copyLeadLink(lead.id)} className="rounded-lg border border-sky-300/30 px-2 py-1 text-xs text-sky-200">Copy Link</button>
                     </div>
                   </div>
@@ -1119,6 +1154,7 @@ export default function Home() {
                         </td>
                         <td className="py-3">
                           <div className="flex gap-2">
+                            <a href={leadResearchLinks(lead.address).skipTrace} target="_blank" rel="noreferrer" className="rounded-lg border border-amber-300/30 px-2 py-1 text-amber-200">Skip Trace</a>
                             <button type="button" onClick={() => copyLeadLink(lead.id)} className="rounded-lg border border-sky-300/30 px-2 py-1 text-sky-200">Copy Link</button>
                             <button
                               type="button"
