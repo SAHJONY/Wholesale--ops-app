@@ -75,6 +75,7 @@ const DATA_SOURCES = [
   { name: "Homes.com", url: "https://www.homes.com" },
   { name: "FSBO.com", url: "https://www.fsbo.com" },
   { name: "ForSaleByOwner.com", url: "https://www.forsalebyowner.com" },
+  { name: "Facebook Marketplace", url: "https://www.facebook.com/marketplace" },
   { name: "Craigslist Real Estate", url: "https://www.craigslist.org" },
   { name: "MLS / IDX Feeds", url: "https://www.nar.realtor" },
   { name: "County Records", url: "https://www.naco.org" },
@@ -155,7 +156,7 @@ export default function Home() {
   const [brainMessages, setBrainMessages] = useState<BrainMessage[]>(starterMessages);
   const [consoleInput, setConsoleInput] = useState("");
   const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([
-    { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound, skill:paperclip company status" },
+    { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound, skill:paperclip company status. Refresh is active." },
   ]);
   const [search, setSearch] = useState("");
   const [dataMode, setDataMode] = useState<"supabase" | "local">("local");
