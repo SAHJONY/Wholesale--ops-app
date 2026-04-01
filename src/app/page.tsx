@@ -27,6 +27,7 @@ type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 type ConsoleLine = { id: string; kind: "input" | "output"; text: string };
 type AutoTask = { id: string; text: string; priority: "high" | "medium" | "low" };
 type AuditEvent = { id: string; at: string; actor: string; action: string };
+type Playbook = { id: string; name: string; prompt: string };
 
 type SupabaseLeadRow = {
   id: string;
@@ -49,6 +50,12 @@ const STORAGE_KEY = "wholesale_ops_leads_v4";
 const CONSOLE_STORAGE_KEY = "wholesale_ops_console_v1";
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=3840&q=80";
+
+const PLAYBOOKS: Playbook[] = [
+  { id: "acq-cold", name: "Cold Lead Conversion", prompt: "Build a 7-touch conversion plan for cold wholesale lead." },
+  { id: "offer-tight", name: "Tight Margin Offer", prompt: "Create risk-safe offer ladder for a tight margin deal." },
+  { id: "dispo-fast", name: "Fast Dispo", prompt: "Generate rapid buyer disposition plan for a signed contract." },
+];
 
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
@@ -453,6 +460,19 @@ export default function Home() {
     logAudit("Generated CEO report");
   }
 
+  async function emailCeoReport() {
+    if (!report) {
+      generateCeoReport();
+      return;
+    }
+    await fetch("/api/reports/ceo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report }),
+    });
+    logAudit("Emailed CEO report");
+  }
+
   return (
     <main className="min-h-screen bg-[#020617] text-zinc-100">
       <div
@@ -509,6 +529,9 @@ export default function Home() {
             <button onClick={generateCeoReport} className="rounded-xl bg-fuchsia-400 px-3 py-2 text-sm font-semibold text-black">
               Generate CEO Report
             </button>
+            <button onClick={emailCeoReport} className="rounded-xl border border-fuchsia-300/40 px-3 py-2 text-sm font-semibold text-fuchsia-100">
+              Email CEO Report
+            </button>
           </div>
 
           {report ? (
@@ -520,6 +543,22 @@ export default function Home() {
             <div className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-zinc-300">
               {audit.length === 0 ? <p>No events yet.</p> : audit.map((a) => <p key={a.id}>{a.at} • {a.actor} • {a.action}</p>)}
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">Enterprise Playbooks</h2>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {PLAYBOOKS.map((pb) => (
+              <button
+                key={pb.id}
+                onClick={() => setConsoleInput(`skill:paperclip ${pb.prompt}`)}
+                className="rounded-xl border border-white/15 bg-black/20 p-3 text-left text-sm"
+              >
+                <p className="font-semibold">{pb.name}</p>
+                <p className="mt-1 text-xs text-zinc-300">Load into console</p>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -642,7 +681,13 @@ export default function Home() {
                           >
                             AI Call
                           </button>
-                          <button onClick={() => deleteLead(lead.id)} className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200">Delete</button>
+                          <button
+                            onClick={() => deleteLead(lead.id)}
+                            disabled={role !== "CEO"}
+                            className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
