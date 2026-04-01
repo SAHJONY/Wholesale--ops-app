@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type LeadStatus = "Lead In" | "Underwriting" | "Negotiation" | "Contract" | "Dispo";
 
@@ -19,14 +20,12 @@ type Lead = {
   createdAt: string;
 };
 
-type BrainMessage = {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-};
+type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 
 const STATUS_ORDER: LeadStatus[] = ["Lead In", "Underwriting", "Negotiation", "Contract", "Dispo"];
-const STORAGE_KEY = "wholesale_ops_leads_v3";
+const STORAGE_KEY = "wholesale_ops_leads_v4";
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=3840&q=80";
 
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
@@ -42,22 +41,11 @@ const emptyForm: Omit<Lead, "id" | "createdAt"> = {
 };
 
 const starterMessages: BrainMessage[] = [
-  {
-    id: "intro",
-    role: "assistant",
-    text: "App Brain online. Ask: next best action, follow-ups due, or analyze newest lead.",
-  },
+  { id: "intro", role: "assistant", text: "App Brain online. Ask: next best action, follow-ups due, analyze newest lead." },
 ];
 
-const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=3840&q=80";
-
 function formatUSD(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value || 0);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
 }
 
 function calculateMAO(arv: number, rehab: number) {
@@ -68,38 +56,26 @@ function nowDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function topFollowUp(leads: Lead[]) {
-  const today = nowDate();
-  return leads.filter((l) => l.followUpDate && l.followUpDate <= today).sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
-}
-
 function brainReply(input: string, leads: Lead[]) {
   const text = input.toLowerCase().trim();
   const newest = leads[0];
-  const due = topFollowUp(leads);
+  const due = leads.filter((l) => l.followUpDate && l.followUpDate <= nowDate()).sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
 
-  if (!leads.length) return "No leads yet. Add one in Lead Intake and I’ll start strategy guidance.";
-
+  if (!leads.length) return "No leads yet. Add one in Lead Intake and I’ll guide next actions.";
   if (text.includes("next") || text.includes("action")) {
     const hot = due[0] || newest;
-    return `Priority: ${hot.address}. Call today, confirm motivation/timeline, then anchor near ${formatUSD(
-      calculateMAO(hot.arv, hot.rehab),
-    )}.`;
+    return `Priority: ${hot.address}. Anchor near ${formatUSD(calculateMAO(hot.arv, hot.rehab))} and confirm seller motivation today.`;
   }
-
   if (text.includes("follow") || text.includes("due")) {
-    if (!due.length) return "No follow-ups due. Push underwriting leads into negotiation with first offers.";
+    if (!due.length) return "No follow-ups due. Push underwriting leads into negotiation with first offer.";
     return `Due now: ${due.slice(0, 3).map((d) => `${d.address} (${d.followUpDate})`).join(" • ")}`;
   }
-
   if (text.includes("mao") || text.includes("analy") || text.includes("offer")) {
-    const mao = calculateMAO(newest.arv, newest.rehab);
-    return `${newest.address}: Ask ${formatUSD(newest.asking)} | ARV ${formatUSD(newest.arv)} | Rehab ${formatUSD(
-      newest.rehab,
-    )} | MAO ${formatUSD(mao)}.`;
+    return `${newest.address}: Ask ${formatUSD(newest.asking)} | ARV ${formatUSD(newest.arv)} | Rehab ${formatUSD(newest.rehab)} | MAO ${formatUSD(
+      calculateMAO(newest.arv, newest.rehab),
+    )}.`;
   }
-
-  return "I can prioritize leads, calculate offer ranges, and schedule follow-ups. Try: ‘next best action’.";
+  return "I can prioritize leads, calculate offer ranges, and follow-up sequencing.";
 }
 
 export default function Home() {
@@ -108,20 +84,57 @@ export default function Home() {
   const [brainInput, setBrainInput] = useState("");
   const [brainMessages, setBrainMessages] = useState<BrainMessage[]>(starterMessages);
   const [search, setSearch] = useState("");
+  const [dataMode, setDataMode] = useState<"supabase" | "local">("local");
+
+  async function loadLeads() {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        const mapped: Lead[] = data.map((row: any) => ({
+          id: row.id,
+          address: row.address ?? "",
+          beds: Number(row.beds ?? 0),
+          baths: Number(row.baths ?? 0),
+          sqft: Number(row.sqft ?? 0),
+          asking: Number(row.asking ?? 0),
+          arv: Number(row.arv ?? 0),
+          rehab: Number(row.rehab ?? 0),
+          status: (row.status as LeadStatus) ?? "Lead In",
+          followUpDate: row.follow_up_date ?? "",
+          notes: row.notes ?? "",
+          createdAt: row.created_at ?? new Date().toISOString(),
+        }));
+        setLeads(mapped);
+        setDataMode("supabase");
+        return;
+      }
+    }
+
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        setLeads(JSON.parse(raw) as Lead[]);
+      } catch {
+        setLeads([]);
+      }
+    }
+    setDataMode("local");
+  }
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    try {
-      setLeads(JSON.parse(raw) as Lead[]);
-    } catch {
-      setLeads([]);
-    }
+    loadLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
-  }, [leads]);
+    if (dataMode === "local") {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
+    }
+  }, [dataMode, leads]);
 
   const filteredLeads = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -150,19 +163,49 @@ export default function Home() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function submitLead(e: FormEvent) {
+  async function submitLead(e: FormEvent) {
     e.preventDefault();
     if (!form.address.trim()) return;
+
     const next: Lead = { ...form, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-    setLeads((prev) => [next, ...prev]);
+
+    if (dataMode === "supabase" && supabase) {
+      await supabase.from("leads").insert({
+        id: next.id,
+        address: next.address,
+        beds: next.beds,
+        baths: next.baths,
+        sqft: next.sqft,
+        asking: next.asking,
+        arv: next.arv,
+        rehab: next.rehab,
+        status: next.status,
+        follow_up_date: next.followUpDate || null,
+        notes: next.notes,
+      });
+      await loadLeads();
+    } else {
+      setLeads((prev) => [next, ...prev]);
+    }
+
     setForm(emptyForm);
   }
 
-  function moveStatus(id: string, status: LeadStatus) {
+  async function moveStatus(id: string, status: LeadStatus) {
+    if (dataMode === "supabase" && supabase) {
+      await supabase.from("leads").update({ status }).eq("id", id);
+      await loadLeads();
+      return;
+    }
     setLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, status } : lead)));
   }
 
-  function deleteLead(id: string) {
+  async function deleteLead(id: string) {
+    if (dataMode === "supabase" && supabase) {
+      await supabase.from("leads").delete().eq("id", id);
+      await loadLeads();
+      return;
+    }
     setLeads((prev) => prev.filter((lead) => lead.id !== id));
   }
 
@@ -212,11 +255,9 @@ export default function Home() {
 
       <div className="relative mx-auto max-w-7xl space-y-6 p-4 md:p-6">
         <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL • PRIVATE APP BRAIN</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL • PHASE 3</p>
           <h1 className="mt-2 text-3xl font-bold md:text-5xl">Premium Wholesale Operating System</h1>
-          <p className="mt-2 max-w-3xl text-zinc-300">
-            Luxury UI, smart lead intelligence, deal analyzer, and execution controls built for high-volume acquisitions.
-          </p>
+          <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -242,12 +283,7 @@ export default function Home() {
 
             <div className="mt-3">
               <label className="text-sm text-zinc-300">Notes</label>
-              <textarea
-                className="mt-1 min-h-20 w-full rounded-xl border border-white/20 bg-black/30 p-3 text-zinc-100"
-                value={form.notes}
-                onChange={(e) => updateForm("notes", e.target.value)}
-                placeholder="Motivation, condition, timeline, objections..."
-              />
+              <textarea className="mt-1 min-h-20 w-full rounded-xl border border-white/20 bg-black/30 p-3 text-zinc-100" value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} />
             </div>
 
             <div className="mt-4 rounded-2xl border border-indigo-400/30 bg-indigo-500/10 p-4">
@@ -259,9 +295,7 @@ export default function Home() {
               </div>
             </div>
 
-            <button className="mt-4 rounded-xl bg-white px-4 py-2 font-semibold text-zinc-900" type="submit">
-              Save Lead
-            </button>
+            <button className="mt-4 rounded-xl bg-white px-4 py-2 font-semibold text-zinc-900" type="submit">Save Lead</button>
           </form>
 
           <div className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
@@ -274,12 +308,7 @@ export default function Home() {
               ))}
             </div>
             <form onSubmit={sendBrainMessage} className="mt-3 flex gap-2">
-              <input
-                value={brainInput}
-                onChange={(e) => setBrainInput(e.target.value)}
-                placeholder="Ask the App Brain..."
-                className="w-full rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm"
-              />
+              <input value={brainInput} onChange={(e) => setBrainInput(e.target.value)} placeholder="Ask the App Brain..." className="w-full rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm" />
               <button type="submit" className="rounded-xl bg-indigo-500 px-3 py-2 text-sm font-semibold">Send</button>
             </form>
           </div>
@@ -289,12 +318,7 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">Lead Tracker</h2>
             <div className="flex gap-2">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search leads"
-                className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
-              />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads" className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm" />
               <button onClick={exportCsv} type="button" className="rounded-xl border border-white/20 px-3 py-2 text-sm">Export CSV</button>
             </div>
           </div>
@@ -327,28 +351,17 @@ export default function Home() {
                 <tbody>
                   {filteredLeads.map((lead) => (
                     <tr key={lead.id} className="border-b border-white/5">
-                      <td className="py-3 pr-4">
-                        <p className="font-medium">{lead.address}</p>
-                        <p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p>
-                      </td>
+                      <td className="py-3 pr-4"><p className="font-medium">{lead.address}</p><p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p></td>
                       <td className="py-3">{formatUSD(lead.asking)}</td>
                       <td className="py-3">{formatUSD(lead.arv)}</td>
                       <td className="py-3 font-semibold">{formatUSD(calculateMAO(lead.arv, lead.rehab))}</td>
                       <td className="py-3">{lead.followUpDate || "-"}</td>
                       <td className="py-3">
-                        <select
-                          className="rounded-lg border border-white/20 bg-black/30 px-2 py-1"
-                          value={lead.status}
-                          onChange={(e) => moveStatus(lead.id, e.target.value as LeadStatus)}
-                        >
-                          {STATUS_ORDER.map((status) => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
+                        <select className="rounded-lg border border-white/20 bg-black/30 px-2 py-1" value={lead.status} onChange={(e) => moveStatus(lead.id, e.target.value as LeadStatus)}>
+                          {STATUS_ORDER.map((status) => <option key={status} value={status}>{status}</option>)}
                         </select>
                       </td>
-                      <td className="py-3">
-                        <button onClick={() => deleteLead(lead.id)} className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200">Delete</button>
-                      </td>
+                      <td className="py-3"><button onClick={() => deleteLead(lead.id)} className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200">Delete</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -370,29 +383,11 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Input({
-  label,
-  value,
-  onChange,
-  type = "text",
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  required?: boolean;
-}) {
+function Input({ label, value, onChange, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
   return (
     <label>
       <span className="text-sm text-zinc-300">{label}</span>
-      <input
-        className="mt-1 w-full rounded-xl border border-white/20 bg-black/30 p-2 text-zinc-100"
-        type={type}
-        value={value}
-        required={required}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <input className="mt-1 w-full rounded-xl border border-white/20 bg-black/30 p-2 text-zinc-100" type={type} value={value} required={required} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
