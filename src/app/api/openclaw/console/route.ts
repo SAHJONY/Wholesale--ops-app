@@ -115,6 +115,12 @@ export async function POST(req: NextRequest) {
           };
           return NextResponse.json(result);
         }
+
+        const bridgeError = await bridgeRes.text().catch(() => "bridge unavailable");
+        return NextResponse.json(
+          { ok: false, mode: "agent", message: `Realtime bridge error: ${bridgeError}` },
+          { status: 502 },
+        );
       }
 
       const skillMatch = trimmed.match(/^skill:([a-zA-Z0-9-]+)\s+([\s\S]+)/);
