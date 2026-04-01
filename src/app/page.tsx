@@ -57,6 +57,13 @@ const PLAYBOOKS: Playbook[] = [
   { id: "dispo-fast", name: "Fast Dispo", prompt: "Generate rapid buyer disposition plan for a signed contract." },
 ];
 
+const DAILY_TARGETS = {
+  leadsAdded: 25,
+  offersSent: 8,
+  followUpsDue: 15,
+  contracts: 1,
+};
+
 const DATA_SOURCES = [
   { name: "PropStream", url: "https://www.propstream.com" },
   { name: "Propwire", url: "https://www.propwire.com" },
@@ -534,6 +541,43 @@ export default function Home() {
           <KpiCard label="Contracts" value={String(kpis.contracts)} />
           <KpiCard label="Follow-ups Due" value={String(kpis.followUpsDue)} />
           <KpiCard label="Projected Profit" value={formatUSD(kpis.projectedProfit)} />
+        </section>
+
+        <section className="rounded-3xl border border-lime-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">Daily Operating Plan (Profit Mode)</h2>
+          <p className="mt-1 text-sm text-zinc-300">Hard quotas + fail-safe triggers to force execution every day.</p>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            {[
+              ["Leads Added", kpis.totalLeads, DAILY_TARGETS.leadsAdded],
+              ["Offers Sent", kpis.offersSent, DAILY_TARGETS.offersSent],
+              ["Follow-ups Due", kpis.followUpsDue, DAILY_TARGETS.followUpsDue],
+              ["Contracts", kpis.contracts, DAILY_TARGETS.contracts],
+            ].map(([label, current, target]) => {
+              const ratio = Number(target) === 0 ? 1 : Number(current) / Number(target);
+              const ok = ratio >= 1;
+              return (
+                <div key={String(label)} className="rounded-xl border border-white/15 bg-black/20 p-3">
+                  <p className="text-xs text-zinc-300">{label}</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {String(current)} / {String(target)}
+                  </p>
+                  <p className={`text-xs ${ok ? "text-emerald-300" : "text-amber-300"}`}>
+                    {ok ? "On target" : "Behind target"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-white/15 bg-black/20 p-3 text-sm text-zinc-200">
+            <p>Fail-safe triggers:</p>
+            <ul className="mt-1 list-inside list-disc text-zinc-300">
+              <li>If offers sent &lt; 8 by 2pm: run console macro <code>offer strategy</code> and send 3 offers immediately.</li>
+              <li>If follow-ups due &gt; 10: run Bland AI calls on top 5 due leads before end of day.</li>
+              <li>If no contract by Friday: double inbound lead volume next week and tighten MAO discipline.</li>
+            </ul>
+          </div>
         </section>
 
         <section id="enterprise" className="rounded-3xl border border-fuchsia-200/20 bg-white/5 p-6 backdrop-blur-xl">
