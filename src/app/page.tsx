@@ -122,6 +122,7 @@ export default function Home() {
   const [callOwnerName, setCallOwnerName] = useState("");
   const [callTask, setCallTask] = useState("You are Alex Smith, acquisitions manager at SAHJONY CAPITAL LLC. Open professionally, confirm you are discussing the correct property, then collect: seller motivation, property condition (roof/HVAC/plumbing/electrical/foundation), occupancy/vacancy, timeline to sell, asking price, lowest acceptable price, liens/title issues, and best callback time. Never transfer the call. Close by confirming next step: we review and return with a formal cash offer strategy.");
   const [callStatus, setCallStatus] = useState("");
+  const [callDealIntel, setCallDealIntel] = useState("");
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -184,10 +185,32 @@ export default function Home() {
     if (!phoneNumber) return;
     setCallStatus("Queuing call...");
     try {
+      let dealIntel = "";
+      if (callAddress.trim()) {
+        setCallStatus("Analyzing deal first...");
+        try {
+          const dealRes = await fetch("/api/openclaw/console", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              command: `Analyze this property for wholesale offer positioning. Return ARV range, rehab range, MAO, risk flags, and opening offer strategy. Address: ${callAddress.trim()}`,
+              leads,
+              history: consoleLines.slice(-10).map((l) => l.text),
+            }),
+          });
+          const dealData = await dealRes.json().catch(() => ({}));
+          dealIntel = (dealData?.assistantReply || dealData?.message || "").toString();
+          setCallDealIntel(dealIntel);
+        } catch {
+          dealIntel = "";
+        }
+      }
+
       const contextHeader = [
         callAddress.trim() ? `Property Address: ${callAddress.trim()}` : null,
         phoneNumber ? `Seller Phone: ${phoneNumber}` : null,
         callOwnerName.trim() ? `Owner Name: ${callOwnerName.trim()}` : null,
+        dealIntel ? `Deal Intel (OpenClaw): ${dealIntel}` : null,
       ]
         .filter(Boolean)
         .join("\n");
@@ -1082,6 +1105,9 @@ export default function Home() {
             onChange={(e) => setCallTask(e.target.value)}
             className="mt-3 min-h-24 w-full rounded-xl border border-white/20 bg-black/30 p-3 text-sm"
           />
+          {callDealIntel ? (
+            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{callDealIntel}</pre>
+          ) : null}
           {callStatus ? <p className="mt-2 text-sm text-emerald-200">{callStatus}</p> : null}
         </section>
 
