@@ -560,10 +560,10 @@ export default function Home() {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={generateCeoReport} className="rounded-xl bg-fuchsia-400 px-3 py-2 text-sm font-semibold text-black">
+            <button type="button" onClick={generateCeoReport} className="rounded-xl bg-fuchsia-400 px-3 py-2 text-sm font-semibold text-black">
               Generate CEO Report
             </button>
-            <button onClick={emailCeoReport} className="rounded-xl border border-fuchsia-300/40 px-3 py-2 text-sm font-semibold text-fuchsia-100">
+            <button type="button" onClick={emailCeoReport} className="rounded-xl border border-fuchsia-300/40 px-3 py-2 text-sm font-semibold text-fuchsia-100">
               Email CEO Report
             </button>
           </div>
@@ -585,6 +585,7 @@ export default function Home() {
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             {PLAYBOOKS.map((pb) => (
               <button
+                type="button"
                 key={pb.id}
                 onClick={() => setConsoleInput(`skill:paperclip ${pb.prompt}`)}
                 className="rounded-xl border border-white/15 bg-black/20 p-3 text-left text-sm"
@@ -610,6 +611,7 @@ export default function Home() {
                   <span className="rounded-md border border-sky-300/30 px-2 py-1 text-xs text-sky-200">Connector Ready</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setConsoleInput(`Create secure ingestion pipeline for ${source.name} with authenticated access`)}
                   className="mt-2 rounded-lg border border-sky-300/30 px-2 py-1 text-xs text-sky-200"
                 >
@@ -724,6 +726,7 @@ export default function Home() {
                       <td className="py-3">
                         <div className="flex gap-2">
                           <button
+                            type="button"
                             onClick={async () => {
                               if (!lead.phone) return;
                               await fetch("/api/bland/call", {
@@ -740,15 +743,22 @@ export default function Home() {
                             AI Call
                           </button>
                           <button
+                            type="button"
                             onClick={() => copyLeadLink(lead.id)}
                             className="rounded-lg border border-sky-300/30 px-2 py-1 text-sky-200"
                           >
                             Copy Link
                           </button>
                           <button
-                            onClick={() => deleteLead(lead.id)}
-                            disabled={role !== "CEO"}
-                            className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+                            type="button"
+                            onClick={() => {
+                              if (role !== "CEO") {
+                                setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Delete restricted: switch role to CEO." }]);
+                                return;
+                              }
+                              deleteLead(lead.id);
+                            }}
+                            className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200"
                           >
                             Delete
                           </button>
