@@ -168,6 +168,7 @@ export default function Home() {
   const [addressLookup, setAddressLookup] = useState("");
   const [dealResult, setDealResult] = useState("");
   const [dealLoading, setDealLoading] = useState(false);
+  const [balanceSnapshot, setBalanceSnapshot] = useState<any>(null);
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -234,6 +235,27 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(CONSOLE_STORAGE_KEY, JSON.stringify(consoleLines.slice(-80)));
   }, [consoleLines]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadBalances = async () => {
+      try {
+        const res = await fetch("/api/monitor/balance", { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        if (alive) setBalanceSnapshot(data);
+      } catch {
+        if (alive) setBalanceSnapshot({ ok: false, error: "Balance monitor request failed" });
+      }
+    };
+
+    loadBalances();
+    const timer = setInterval(loadBalances, 45000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const filteredLeads = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -669,6 +691,29 @@ export default function Home() {
           <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
           <p className="mt-1 text-zinc-300">OpenClaw Brain: <span className="font-semibold uppercase">{openclawWebhook ? "connected" : "local intelligence"}</span></p>
           <p className="mt-1 text-zinc-300">Paperclip Skill: <span className="font-semibold uppercase">enabled via console command prefix</span></p>
+        </section>
+
+        <section className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">Live Balance Monitor</h2>
+          <p className="mt-1 text-sm text-zinc-300">Auto-refresh every 45 seconds for operating cash visibility.</p>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-sm font-semibold">Bland.ai Call Balance</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-300">
+                {balanceSnapshot?.bland?.currentBalance !== null && balanceSnapshot?.bland?.currentBalance !== undefined
+                  ? `$${Number(balanceSnapshot.bland.currentBalance).toFixed(2)}`
+                  : "Unavailable"}
+              </p>
+              <p className="mt-1 text-xs text-zinc-400">{balanceSnapshot?.ts ? `Updated: ${balanceSnapshot.ts}` : "Waiting for update..."}</p>
+            </div>
+
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-sm font-semibold">OpenClaw API Key Balance</p>
+              <p className="mt-1 text-sm text-amber-200">{balanceSnapshot?.openclawApiKey?.message || "Integration pending"}</p>
+              <p className="mt-1 text-xs text-zinc-400">Next step: wire provider billing endpoint (OpenAI/Anthropic/etc.)</p>
+            </div>
+          </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
