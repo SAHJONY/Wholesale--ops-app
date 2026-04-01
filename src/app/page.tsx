@@ -118,7 +118,7 @@ export default function Home() {
   const [controlSnapshot, setControlSnapshot] = useState<any>(null);
   const [valueAudit, setValueAudit] = useState<any>(null);
   const [callPhone, setCallPhone] = useState("");
-  const [callTask, setCallTask] = useState("Call seller, collect full deal details, and prepare callback brief for John.");
+  const [callTask, setCallTask] = useState("You are Alex Smith, acquisitions manager at SAHJONY CAPITAL LLC. Open professionally, confirm you are discussing the correct property, then collect: seller motivation, property condition (roof/HVAC/plumbing/electrical/foundation), occupancy/vacancy, timeline to sell, asking price, lowest acceptable price, liens/title issues, and best callback time. Never transfer the call. Close by confirming next step: we review and return with a formal cash offer strategy.");
   const [callStatus, setCallStatus] = useState("");
 
   async function loadLeads() {
