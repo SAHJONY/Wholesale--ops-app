@@ -608,7 +608,6 @@ export default function Home() {
               ["#intake", "Intake"],
               ["#tracker", "Tracker"],
               ["#automation", "Automation"],
-              ["#data-hub", "Data Hub"],
               ["#console", "Console"],
             ].map(([href, label]) => (
               <a key={href} href={href} className="rounded-lg border border-white/20 px-2 py-1 hover:bg-white/10">
