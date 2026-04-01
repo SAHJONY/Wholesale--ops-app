@@ -25,6 +25,22 @@ type Lead = {
 
 type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 
+type SupabaseLeadRow = {
+  id: string;
+  address: string | null;
+  phone: string | null;
+  beds: number | null;
+  baths: number | null;
+  sqft: number | null;
+  asking: number | null;
+  arv: number | null;
+  rehab: number | null;
+  status: LeadStatus | null;
+  follow_up_date: string | null;
+  notes: string | null;
+  created_at: string | null;
+};
+
 const STATUS_ORDER: LeadStatus[] = ["Lead In", "Underwriting", "Negotiation", "Contract", "Dispo"];
 const STORAGE_KEY = "wholesale_ops_leads_v4";
 const HERO_IMAGE =
@@ -98,7 +114,7 @@ export default function Home() {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        const mapped: Lead[] = data.map((row: any) => ({
+        const mapped: Lead[] = (data as SupabaseLeadRow[]).map((row) => ({
           id: row.id,
           address: row.address ?? "",
           phone: row.phone ?? "",
@@ -131,8 +147,8 @@ export default function Home() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLeads();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
