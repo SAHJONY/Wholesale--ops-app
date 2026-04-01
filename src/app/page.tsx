@@ -61,6 +61,7 @@ const DATA_SOURCES = [
   "PropStream",
   "Propwire",
   "BatchLeads",
+  "Tavily Search",
   "County Records",
   "MLS/Agent Feeds",
   "Skip Trace Vendors",
@@ -783,6 +784,7 @@ export default function Home() {
               "paperclip company status",
               "skill:weather Houston forecast",
               "skill:github list open PRs",
+              "skill:tavily-search find cash buyer lists in Houston",
             ].map((macro) => (
               <button
                 key={macro}
