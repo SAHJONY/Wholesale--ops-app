@@ -44,6 +44,7 @@ type SupabaseLeadRow = {
 
 const STATUS_ORDER: LeadStatus[] = ["Lead In", "Underwriting", "Negotiation", "Contract", "Dispo"];
 const STORAGE_KEY = "wholesale_ops_leads_v4";
+const CONSOLE_STORAGE_KEY = "wholesale_ops_console_v1";
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=3840&q=80";
 
@@ -157,10 +158,25 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const raw = localStorage.getItem(CONSOLE_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as ConsoleLine[];
+      if (parsed.length) setConsoleLines(parsed);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
     if (dataMode === "local") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
     }
   }, [dataMode, leads]);
+
+  useEffect(() => {
+    localStorage.setItem(CONSOLE_STORAGE_KEY, JSON.stringify(consoleLines.slice(-80)));
+  }, [consoleLines]);
 
   const filteredLeads = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -317,7 +333,11 @@ export default function Home() {
       const res = await fetch("/api/openclaw/console", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: cmd, leads }),
+        body: JSON.stringify({
+          command: cmd,
+          leads,
+          history: consoleLines.slice(-10).map((l) => l.text),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       const line = data?.message || data?.error || "No response";
@@ -506,6 +526,25 @@ export default function Home() {
               Run
             </button>
           </form>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              "status",
+              "pipeline summary",
+              "next best action",
+              "offer strategy",
+              "wake New lead inbound",
+            ].map((macro) => (
+              <button
+                key={macro}
+                type="button"
+                onClick={() => setConsoleInput(macro)}
+                className="rounded-lg border border-emerald-400/30 px-2 py-1 text-xs text-emerald-200"
+              >
+                {macro}
+              </button>
+            ))}
+          </div>
         </section>
       </div>
     </main>

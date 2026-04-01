@@ -9,14 +9,15 @@ type ConsoleResult = {
   raw?: unknown;
 };
 
-function quickAssistantReply(command: string, leads: any[]) {
+function quickAssistantReply(command: string, leads: any[], history: string[] = []) {
   const cmd = command.toLowerCase();
   const total = leads?.length || 0;
+  const previous = history.length ? ` Previous context: ${history.slice(-2).join(" | ")}.` : "";
   if (cmd.includes("status")) return `System online. ${total} leads loaded. OpenClaw run queued.`;
-  if (cmd.includes("pipeline")) return `Pipeline summary requested. I queued OpenClaw analysis and will prioritize the next best action.`;
-  if (cmd.startsWith("wake ")) return `Wake event accepted. I nudged OpenClaw immediately.`;
-  if (cmd.includes("offer") || cmd.includes("mao")) return `I’m running offer analysis now. I’ll target a conservative MAO and margin-safe range.`;
-  return `Got it. I queued this in OpenClaw and I’m processing it as your operating console.`;
+  if (cmd.includes("pipeline")) return `Pipeline summary requested. I queued OpenClaw analysis and will prioritize the next best action.${previous}`;
+  if (cmd.startsWith("wake ")) return `Wake event accepted. I nudged OpenClaw immediately.${previous}`;
+  if (cmd.includes("offer") || cmd.includes("mao")) return `I’m running offer analysis now. I’ll target a conservative MAO and margin-safe range.${previous}`;
+  return `Got it. I queued this in OpenClaw and I’m processing it as your operating console.${previous}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OpenClaw hooks env missing" }, { status: 500 });
     }
 
-    const { command, leads } = (await req.json()) as { command?: string; leads?: unknown[] };
+    const { command, leads, history } = (await req.json()) as { command?: string; leads?: unknown[]; history?: string[] };
     if (!command?.trim()) {
       return NextResponse.json({ error: "command is required" }, { status: 400 });
     }
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
         ok: res.ok,
         mode: "wake",
         message: res.ok ? `Wake event sent: ${text}` : "Wake event failed",
-        assistantReply: quickAssistantReply(trimmed, leads || []),
+        assistantReply: quickAssistantReply(trimmed, leads || [], history || []),
         raw: data,
       };
     } else {
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
         mode: "agent",
         runId: data?.runId,
         message: res.ok ? `Command accepted. runId=${data?.runId ?? "n/a"}` : "Command failed",
-        assistantReply: quickAssistantReply(trimmed, leads || []),
+        assistantReply: quickAssistantReply(trimmed, leads || [], history || []),
         raw: data,
       };
     }
