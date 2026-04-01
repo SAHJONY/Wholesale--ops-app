@@ -11,12 +11,45 @@ type ConsoleResult = {
 
 function quickAssistantReply(command: string, leads: any[], history: string[] = []) {
   const cmd = command.toLowerCase();
-  const total = leads?.length || 0;
+  const rows = Array.isArray(leads) ? leads : [];
+  const total = rows.length;
+  const pipeline = rows.reduce<Record<string, number>>((acc, row) => {
+    const s = row?.status || "Lead In";
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+
+  const due = rows
+    .filter((r) => r?.followUpDate && String(r.followUpDate) <= new Date().toISOString().slice(0, 10))
+    .slice(0, 3)
+    .map((r) => r.address)
+    .filter(Boolean);
+
+  const top = rows[0];
   const previous = history.length ? ` Previous context: ${history.slice(-2).join(" | ")}.` : "";
-  if (cmd.includes("status")) return `System online. ${total} leads loaded. OpenClaw run queued.`;
-  if (cmd.includes("pipeline")) return `Pipeline summary requested. I queued OpenClaw analysis and will prioritize the next best action.${previous}`;
+  if (cmd.includes("status")) {
+    return `System online. Leads: ${total}. Follow-ups due today: ${due.length}. OpenClaw execution is active.${previous}`;
+  }
+  if (cmd.includes("pipeline")) {
+    const breakdown = Object.entries(pipeline)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(" | ");
+    return `Pipeline summary: ${breakdown || "no leads yet"}.${previous}`;
+  }
   if (cmd.startsWith("wake ")) return `Wake event accepted. I nudged OpenClaw immediately.${previous}`;
-  if (cmd.includes("offer") || cmd.includes("mao")) return `I’m running offer analysis now. I’ll target a conservative MAO and margin-safe range.${previous}`;
+  if (cmd.includes("offer") || cmd.includes("mao")) {
+    if (!top) return `No lead loaded yet. Add a lead with asking/ARV/rehab and rerun offer strategy.${previous}`;
+    const ask = Number(top.asking || 0);
+    const arv = Number(top.arv || 0);
+    const rehab = Number(top.rehab || 0);
+    const mao = arv * 0.7 - rehab;
+    return `Offer model for ${top.address || "latest lead"}: Ask $${ask.toLocaleString()}, ARV $${arv.toLocaleString()}, Rehab $${rehab.toLocaleString()}, MAO $${Math.round(
+      mao,
+    ).toLocaleString()}.${previous}`;
+  }
+  if (cmd.includes("next") || cmd.includes("action")) {
+    return `Next best action: ${due[0] ? `follow up ${due[0]} now` : "underwrite the newest lead and send first offer"}.${previous}`;
+  }
   return `Got it. I queued this in OpenClaw and I’m processing it as your operating console.${previous}`;
 }
 
