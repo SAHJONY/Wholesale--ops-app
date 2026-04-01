@@ -117,6 +117,9 @@ export default function Home() {
   const [balanceSnapshot, setBalanceSnapshot] = useState<any>(null);
   const [controlSnapshot, setControlSnapshot] = useState<any>(null);
   const [valueAudit, setValueAudit] = useState<any>(null);
+  const [callPhone, setCallPhone] = useState("");
+  const [callTask, setCallTask] = useState("Call seller, collect full deal details, and prepare callback brief for John.");
+  const [callStatus, setCallStatus] = useState("");
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -171,6 +174,28 @@ export default function Home() {
       logAudit("Ran value audit");
     } catch {
       setValueAudit({ ok: false, error: "Value audit failed" });
+    }
+  }
+
+  async function runAICall() {
+    const phoneNumber = callPhone.trim();
+    if (!phoneNumber) return;
+    setCallStatus("Queuing call...");
+    try {
+      const res = await fetch("/api/bland/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, task: callTask }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        setCallStatus(`Queued ✅ Call ID: ${data?.data?.call_id || "n/a"}`);
+        logAudit(`AI call queued for ${phoneNumber}`);
+      } else {
+        setCallStatus(`Failed: ${data?.error || "unknown error"}`);
+      }
+    } catch {
+      setCallStatus("Failed: request error");
     }
   }
 
@@ -1012,6 +1037,28 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">AI Call Section (Active)</h2>
+          <p className="mt-1 text-sm text-zinc-300">Direct Bland activation for outbound seller calls.</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <input
+              value={callPhone}
+              onChange={(e) => setCallPhone(e.target.value)}
+              placeholder="Phone number (E.164, e.g. +1678...)"
+              className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
+            />
+            <button type="button" onClick={runAICall} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-black">
+              Activate AI Call
+            </button>
+          </div>
+          <textarea
+            value={callTask}
+            onChange={(e) => setCallTask(e.target.value)}
+            className="mt-3 min-h-24 w-full rounded-xl border border-white/20 bg-black/30 p-3 text-sm"
+          />
+          {callStatus ? <p className="mt-2 text-sm text-emerald-200">{callStatus}</p> : null}
         </section>
 
         <section id="console" className="rounded-3xl border border-emerald-200/20 bg-black/40 p-6 backdrop-blur-xl">
