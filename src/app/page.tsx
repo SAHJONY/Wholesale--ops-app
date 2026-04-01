@@ -69,8 +69,15 @@ const DATA_SOURCES = [
   { name: "Propwire", url: "https://www.propwire.com" },
   { name: "BatchLeads", url: "https://batchleads.io" },
   { name: "Tavily Search", url: "https://tavily.com" },
+  { name: "Zillow", url: "https://www.zillow.com" },
+  { name: "Realtor.com", url: "https://www.realtor.com" },
+  { name: "Redfin", url: "https://www.redfin.com" },
+  { name: "Homes.com", url: "https://www.homes.com" },
+  { name: "FSBO.com", url: "https://www.fsbo.com" },
+  { name: "ForSaleByOwner.com", url: "https://www.forsalebyowner.com" },
+  { name: "Craigslist Real Estate", url: "https://www.craigslist.org" },
+  { name: "MLS / IDX Feeds", url: "https://www.nar.realtor" },
   { name: "County Records", url: "https://www.naco.org" },
-  { name: "MLS/Agent Feeds", url: "https://www.nar.realtor" },
   { name: "Skip Trace Vendors", url: "https://www.cyberbackgroundchecks.com/" },
 ];
 
