@@ -710,8 +710,12 @@ export default function Home() {
 
             <div className="rounded-xl border border-white/15 bg-black/20 p-3">
               <p className="text-sm font-semibold">OpenClaw API Key Balance</p>
+              <p className="mt-1 text-2xl font-bold text-sky-300">
+                {balanceSnapshot?.openclawApiKey?.monthlySpent !== null && balanceSnapshot?.openclawApiKey?.monthlySpent !== undefined
+                  ? `$${Number(balanceSnapshot.openclawApiKey.monthlySpent).toFixed(2)} MTD`
+                  : "Unavailable"}
+              </p>
               <p className="mt-1 text-sm text-amber-200">{balanceSnapshot?.openclawApiKey?.message || "Integration pending"}</p>
-              <p className="mt-1 text-xs text-zinc-400">Next step: wire provider billing endpoint (OpenAI/Anthropic/etc.)</p>
             </div>
           </div>
         </section>
