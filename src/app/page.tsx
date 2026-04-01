@@ -58,13 +58,13 @@ const PLAYBOOKS: Playbook[] = [
 ];
 
 const DATA_SOURCES = [
-  "PropStream",
-  "Propwire",
-  "BatchLeads",
-  "Tavily Search",
-  "County Records",
-  "MLS/Agent Feeds",
-  "Skip Trace Vendors",
+  { name: "PropStream", url: "https://www.propstream.com" },
+  { name: "Propwire", url: "https://www.propwire.com" },
+  { name: "BatchLeads", url: "https://batchleads.io" },
+  { name: "Tavily Search", url: "https://tavily.com" },
+  { name: "County Records", url: "https://www.naco.org" },
+  { name: "MLS/Agent Feeds", url: "https://www.nar.realtor" },
+  { name: "Skip Trace Vendors", url: "https://www.cyberbackgroundchecks.com/" },
 ];
 
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
@@ -496,7 +496,25 @@ export default function Home() {
       />
 
       <div className="relative mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-        <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
+        <section className="sticky top-2 z-20 rounded-2xl border border-white/15 bg-black/40 p-3 backdrop-blur-xl">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {[
+              ["#overview", "Overview"],
+              ["#enterprise", "Enterprise"],
+              ["#intake", "Intake"],
+              ["#tracker", "Tracker"],
+              ["#automation", "Automation"],
+              ["#data-hub", "Data Hub"],
+              ["#console", "Console"],
+            ].map(([href, label]) => (
+              <a key={href} href={href} className="rounded-lg border border-white/20 px-2 py-1 hover:bg-white/10">
+                {label}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section id="overview" className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL • PHASE 3</p>
           <h1 className="mt-2 text-3xl font-bold md:text-5xl">Premium Wholesale Operating System</h1>
           <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
@@ -512,7 +530,7 @@ export default function Home() {
           <KpiCard label="Projected Profit" value={formatUSD(kpis.projectedProfit)} />
         </section>
 
-        <section className="rounded-3xl border border-fuchsia-200/20 bg-white/5 p-6 backdrop-blur-xl">
+        <section id="enterprise" className="rounded-3xl border border-fuchsia-200/20 bg-white/5 p-6 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-semibold">Enterprise Control Layer</h2>
             <div className="flex items-center gap-2">
@@ -556,7 +574,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
+        <section id="playbooks" className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
           <h2 className="text-xl font-semibold">Enterprise Playbooks</h2>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             {PLAYBOOKS.map((pb) => (
@@ -572,7 +590,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-sky-200/20 bg-white/5 p-6 backdrop-blur-xl">
+        <section id="data-hub" className="rounded-3xl border border-sky-200/20 bg-white/5 p-6 backdrop-blur-xl">
           <h2 className="text-xl font-semibold">Data Intelligence Hub (Fortune Mode)</h2>
           <p className="mt-1 text-sm text-zinc-300">
             Connector architecture ready for PropStream, Propwire, BatchLeads and additional data providers.
@@ -580,13 +598,13 @@ export default function Home() {
 
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             {DATA_SOURCES.map((source) => (
-              <div key={source} className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <div key={source.name} className="rounded-xl border border-white/15 bg-black/20 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold">{source}</p>
+                  <a className="font-semibold underline-offset-2 hover:underline" href={source.url} target="_blank" rel="noreferrer">{source.name}</a>
                   <span className="rounded-md border border-sky-300/30 px-2 py-1 text-xs text-sky-200">Connector Ready</span>
                 </div>
                 <button
-                  onClick={() => setConsoleInput(`Create secure ingestion pipeline for ${source} with authenticated access`)}
+                  onClick={() => setConsoleInput(`Create secure ingestion pipeline for ${source.name} with authenticated access`)}
                   className="mt-2 rounded-lg border border-sky-300/30 px-2 py-1 text-xs text-sky-200"
                 >
                   Build Integration
@@ -597,7 +615,7 @@ export default function Home() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
-          <form onSubmit={submitLead} className="rounded-3xl border border-amber-200/20 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur-xl xl:col-span-2">
+          <form id="intake" onSubmit={submitLead} className="rounded-3xl border border-amber-200/20 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur-xl xl:col-span-2">
             <h2 className="text-xl font-semibold">Lead Intake + Analyzer</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input label="Property Address" value={form.address} onChange={(v) => updateForm("address", v)} required />
@@ -644,7 +662,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
+        <section id="tracker" className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">Lead Tracker</h2>
             <div className="flex gap-2">
@@ -732,7 +750,7 @@ export default function Home() {
           )}
         </section>
 
-        <section className="rounded-3xl border border-cyan-200/20 bg-white/5 p-6 backdrop-blur-xl">
+        <section id="automation" className="rounded-3xl border border-cyan-200/20 bg-white/5 p-6 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">Automation Task Engine</h2>
             <span className="rounded-xl border border-cyan-300/40 px-3 py-1 text-xs text-cyan-200">Live Data Mode</span>
@@ -750,7 +768,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-emerald-200/20 bg-black/40 p-6 backdrop-blur-xl">
+        <section id="console" className="rounded-3xl border border-emerald-200/20 bg-black/40 p-6 backdrop-blur-xl">
           <h2 className="text-xl font-semibold">Phase 5 — OpenClaw Console API</h2>
           <p className="mt-1 text-sm text-zinc-300">Terminal-style command console routed through OpenClaw hooks.</p>
 
