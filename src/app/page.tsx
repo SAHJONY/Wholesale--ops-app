@@ -664,7 +664,7 @@ export default function Home() {
         </section>
 
         <section id="overview" className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL • PHASE 3</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL LLC • PHASE 3</p>
           <h1 className="mt-2 text-3xl font-bold md:text-5xl">Premium Wholesale Operating System</h1>
           <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
           <p className="mt-1 text-zinc-300">OpenClaw Brain: <span className="font-semibold uppercase">{openclawWebhook ? "connected" : "local intelligence"}</span></p>
