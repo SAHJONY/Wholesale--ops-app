@@ -169,6 +169,7 @@ export default function Home() {
   const [dealResult, setDealResult] = useState("");
   const [dealLoading, setDealLoading] = useState(false);
   const [balanceSnapshot, setBalanceSnapshot] = useState<any>(null);
+  const [controlSnapshot, setControlSnapshot] = useState<any>(null);
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -213,6 +214,25 @@ export default function Home() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLeads();
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const loadControl = async () => {
+      try {
+        const res = await fetch("/api/control/snapshot", { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        if (alive) setControlSnapshot(data);
+      } catch {
+        if (alive) setControlSnapshot({ ok: false, error: "Control snapshot failed" });
+      }
+    };
+    loadControl();
+    const timer = setInterval(loadControl, 30000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -691,6 +711,35 @@ export default function Home() {
           <p className="mt-2 text-zinc-300">Data Mode: <span className="font-semibold uppercase">{dataMode}</span> {dataMode === "local" && "(Supabase env not active)"}</p>
           <p className="mt-1 text-zinc-300">OpenClaw Brain: <span className="font-semibold uppercase">{openclawWebhook ? "connected" : "local intelligence"}</span></p>
           <p className="mt-1 text-zinc-300">Paperclip Skill: <span className="font-semibold uppercase">enabled via console command prefix</span></p>
+        </section>
+
+        <section className="rounded-3xl border border-violet-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">National Command Center Snapshot</h2>
+          <p className="mt-1 text-sm text-zinc-300">30s auto-refresh. Central view for balance, policy, connectors, and operating status.</p>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-xs text-zinc-300">Business</p>
+              <p className="mt-1 font-semibold">{controlSnapshot?.business || "SAHJONY CAPITAL LLC"}</p>
+              <p className="mt-1 text-xs text-zinc-400">Voice: {controlSnapshot?.persona || "Alex Smith"}</p>
+            </div>
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-xs text-zinc-300">Bland Balance</p>
+              <p className="mt-1 text-xl font-semibold text-emerald-300">
+                {controlSnapshot?.balances?.bland?.currentBalance !== null && controlSnapshot?.balances?.bland?.currentBalance !== undefined
+                  ? `$${Number(controlSnapshot.balances.bland.currentBalance).toFixed(2)}`
+                  : "Unavailable"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/15 bg-black/20 p-3">
+              <p className="text-xs text-zinc-300">OpenClaw / OpenAI</p>
+              <p className="mt-1 text-sm text-zinc-200">{controlSnapshot?.balances?.openclaw?.message || "Monitoring active"}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-white/15 bg-black/20 p-3 text-xs text-zinc-300">
+            Connectors: {(controlSnapshot?.connectors || []).map((c: any) => c.name).join(" • ") || "Loading..."}
+          </div>
         </section>
 
         <section className="rounded-3xl border border-emerald-200/20 bg-white/5 p-6 backdrop-blur-xl">
