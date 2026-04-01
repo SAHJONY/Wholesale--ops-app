@@ -24,6 +24,7 @@ type Lead = {
 };
 
 type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
+type ConsoleLine = { id: string; kind: "input" | "output"; text: string };
 
 type SupabaseLeadRow = {
   id: string;
@@ -103,6 +104,10 @@ export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [brainInput, setBrainInput] = useState("");
   const [brainMessages, setBrainMessages] = useState<BrainMessage[]>(starterMessages);
+  const [consoleInput, setConsoleInput] = useState("");
+  const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([
+    { id: "boot", kind: "output", text: "OpenClaw Console API ready. Try: status, pipeline summary, wake New lead inbound" },
+  ]);
   const [search, setSearch] = useState("");
   const [dataMode, setDataMode] = useState<"supabase" | "local">("local");
 
@@ -300,6 +305,28 @@ export default function Home() {
     }
   }
 
+  async function runConsoleCommand(e: FormEvent) {
+    e.preventDefault();
+    if (!consoleInput.trim()) return;
+
+    const cmd = consoleInput.trim();
+    setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "input", text: `$ ${cmd}` }]);
+    setConsoleInput("");
+
+    try {
+      const res = await fetch("/api/openclaw/console", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: cmd }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const line = data?.message || data?.error || "No response";
+      setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: line }]);
+    } catch {
+      setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Console request failed." }]);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#020617] text-zinc-100">
       <div
@@ -451,6 +478,31 @@ export default function Home() {
               </table>
             </div>
           )}
+        </section>
+
+        <section className="rounded-3xl border border-emerald-200/20 bg-black/40 p-6 backdrop-blur-xl">
+          <h2 className="text-xl font-semibold">Phase 5 — OpenClaw Console API</h2>
+          <p className="mt-1 text-sm text-zinc-300">Terminal-style command console routed through OpenClaw hooks.</p>
+
+          <div className="mt-4 h-64 overflow-y-auto rounded-2xl border border-emerald-400/20 bg-black p-3 font-mono text-sm">
+            {consoleLines.map((line) => (
+              <div key={line.id} className={line.kind === "input" ? "text-emerald-300" : "text-zinc-200"}>
+                {line.text}
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={runConsoleCommand} className="mt-3 flex gap-2">
+            <input
+              value={consoleInput}
+              onChange={(e) => setConsoleInput(e.target.value)}
+              placeholder="Enter OpenClaw command..."
+              className="w-full rounded-xl border border-emerald-400/30 bg-black px-3 py-2 font-mono text-sm"
+            />
+            <button type="submit" className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-black">
+              Run
+            </button>
+          </form>
         </section>
       </div>
     </main>
