@@ -26,7 +26,7 @@ type BrainMessage = {
 };
 
 const STATUS_ORDER: LeadStatus[] = ["Lead In", "Underwriting", "Negotiation", "Contract", "Dispo"];
-const STORAGE_KEY = "wholesale_ops_leads_v2";
+const STORAGE_KEY = "wholesale_ops_leads_v3";
 
 const emptyForm: Omit<Lead, "id" | "createdAt"> = {
   address: "",
@@ -45,9 +45,12 @@ const starterMessages: BrainMessage[] = [
   {
     id: "intro",
     role: "assistant",
-    text: "I’m your App Brain. Ask me: ‘next best action’, ‘which lead to follow up today’, or ‘analyze my newest lead’.",
+    text: "App Brain online. Ask: next best action, follow-ups due, or analyze newest lead.",
   },
 ];
+
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=3840&q=80";
 
 function formatUSD(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -67,9 +70,7 @@ function nowDate() {
 
 function topFollowUp(leads: Lead[]) {
   const today = nowDate();
-  return leads
-    .filter((l) => l.followUpDate && l.followUpDate <= today)
-    .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
+  return leads.filter((l) => l.followUpDate && l.followUpDate <= today).sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
 }
 
 function brainReply(input: string, leads: Lead[]) {
@@ -77,33 +78,28 @@ function brainReply(input: string, leads: Lead[]) {
   const newest = leads[0];
   const due = topFollowUp(leads);
 
-  if (!leads.length) {
-    return "You have no leads yet. Add one in Lead Intake, then I’ll start guiding next actions and offer strategy.";
-  }
+  if (!leads.length) return "No leads yet. Add one in Lead Intake and I’ll start strategy guidance.";
 
   if (text.includes("next") || text.includes("action")) {
     const hot = due[0] || newest;
-    const mao = calculateMAO(hot.arv, hot.rehab);
-    return `Priority: follow up ${hot.address}. Ask: motivation, timeline, and bottom number. Current ask is ${formatUSD(
-      hot.asking,
-    )}, model MAO is ${formatUSD(mao)}.`;
+    return `Priority: ${hot.address}. Call today, confirm motivation/timeline, then anchor near ${formatUSD(
+      calculateMAO(hot.arv, hot.rehab),
+    )}.`;
   }
 
   if (text.includes("follow") || text.includes("due")) {
-    if (!due.length) return "No follow-ups due today. Next move: push underwriting leads into negotiation with a first offer.";
-    const list = due.slice(0, 3).map((l) => `${l.address} (${l.followUpDate})`);
-    return `Follow-ups due now: ${list.join(" • ")}`;
+    if (!due.length) return "No follow-ups due. Push underwriting leads into negotiation with first offers.";
+    return `Due now: ${due.slice(0, 3).map((d) => `${d.address} (${d.followUpDate})`).join(" • ")}`;
   }
 
-  if (text.includes("analyze") || text.includes("mao") || text.includes("offer")) {
+  if (text.includes("mao") || text.includes("analy") || text.includes("offer")) {
     const mao = calculateMAO(newest.arv, newest.rehab);
-    const spread = newest.arv - newest.asking - newest.rehab;
-    return `Newest lead: ${newest.address}. Ask ${formatUSD(newest.asking)}, ARV ${formatUSD(
-      newest.arv,
-    )}, rehab ${formatUSD(newest.rehab)}, MAO ${formatUSD(mao)}, estimated spread ${formatUSD(spread)}.`;
+    return `${newest.address}: Ask ${formatUSD(newest.asking)} | ARV ${formatUSD(newest.arv)} | Rehab ${formatUSD(
+      newest.rehab,
+    )} | MAO ${formatUSD(mao)}.`;
   }
 
-  return "I can help with lead prioritization, MAO/offer strategy, and follow-up sequencing. Try: ‘next best action’ or ‘analyze my newest lead’.";
+  return "I can prioritize leads, calculate offer ranges, and schedule follow-ups. Try: ‘next best action’.";
 }
 
 export default function Home() {
@@ -111,6 +107,7 @@ export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [brainInput, setBrainInput] = useState("");
   const [brainMessages, setBrainMessages] = useState<BrainMessage[]>(starterMessages);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -125,6 +122,12 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
   }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return leads;
+    return leads.filter((l) => l.address.toLowerCase().includes(q) || l.notes.toLowerCase().includes(q));
+  }, [leads, search]);
 
   const kpis = useMemo(() => {
     const today = nowDate();
@@ -150,13 +153,7 @@ export default function Home() {
   function submitLead(e: FormEvent) {
     e.preventDefault();
     if (!form.address.trim()) return;
-
-    const next: Lead = {
-      ...form,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-
+    const next: Lead = { ...form, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
     setLeads((prev) => [next, ...prev]);
     setForm(emptyForm);
   }
@@ -165,28 +162,61 @@ export default function Home() {
     setLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, status } : lead)));
   }
 
+  function deleteLead(id: string) {
+    setLeads((prev) => prev.filter((lead) => lead.id !== id));
+  }
+
+  function exportCsv() {
+    const headers = ["address", "beds", "baths", "sqft", "asking", "arv", "rehab", "mao", "status", "followUpDate", "notes"];
+    const rows = leads.map((l) => [
+      l.address,
+      l.beds,
+      l.baths,
+      l.sqft,
+      l.asking,
+      l.arv,
+      l.rehab,
+      Math.round(calculateMAO(l.arv, l.rehab)),
+      l.status,
+      l.followUpDate,
+      l.notes.replaceAll(",", " "),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "wholesale-leads.csv";
+    link.click();
+  }
+
   function sendBrainMessage(e: FormEvent) {
     e.preventDefault();
     if (!brainInput.trim()) return;
-
     const userMsg: BrainMessage = { id: crypto.randomUUID(), role: "user", text: brainInput.trim() };
-    const assistantMsg: BrainMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      text: brainReply(brainInput, leads),
-    };
-
+    const assistantMsg: BrainMessage = { id: crypto.randomUUID(), role: "assistant", text: brainReply(brainInput, leads) };
     setBrainMessages((prev) => [...prev, userMsg, assistantMsg]);
     setBrainInput("");
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_20%_0%,#1f2937_0%,#111827_35%,#020617_100%)] p-4 text-zinc-100 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-md">
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL</p>
-          <h1 className="mt-2 text-3xl font-bold md:text-4xl">Premium Wholesale Operating System</h1>
-          <p className="mt-2 text-zinc-300">App Brain enabled: lead intelligence, offer logic, and follow-up execution in one command center.</p>
+    <main className="min-h-screen bg-[#020617] text-zinc-100">
+      <div
+        className="absolute inset-0 opacity-25"
+        style={{
+          backgroundImage: `linear-gradient(to bottom, rgba(2,6,23,0.3), rgba(2,6,23,0.95)), url('${HERO_IMAGE}')`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }}
+      />
+
+      <div className="relative mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+        <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">SAHJONY CAPITAL • PRIVATE APP BRAIN</p>
+          <h1 className="mt-2 text-3xl font-bold md:text-5xl">Premium Wholesale Operating System</h1>
+          <p className="mt-2 max-w-3xl text-zinc-300">
+            Luxury UI, smart lead intelligence, deal analyzer, and execution controls built for high-volume acquisitions.
+          </p>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -197,8 +227,8 @@ export default function Home() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
-          <form onSubmit={submitLead} className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-md xl:col-span-2">
-            <h2 className="text-xl font-semibold">Lead Intake + Deal Analyzer</h2>
+          <form onSubmit={submitLead} className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl xl:col-span-2">
+            <h2 className="text-xl font-semibold">Lead Intake + Analyzer</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input label="Property Address" value={form.address} onChange={(v) => updateForm("address", v)} required />
               <Input label="Follow-up Date" type="date" value={form.followUpDate} onChange={(v) => updateForm("followUpDate", v)} />
@@ -213,15 +243,15 @@ export default function Home() {
             <div className="mt-3">
               <label className="text-sm text-zinc-300">Notes</label>
               <textarea
-                className="mt-1 min-h-20 w-full rounded-xl border border-white/20 bg-black/20 p-3 text-zinc-100 placeholder:text-zinc-500"
+                className="mt-1 min-h-20 w-full rounded-xl border border-white/20 bg-black/30 p-3 text-zinc-100"
                 value={form.notes}
                 onChange={(e) => updateForm("notes", e.target.value)}
                 placeholder="Motivation, condition, timeline, objections..."
               />
             </div>
 
-            <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
-              <p className="text-sm text-emerald-200">Analyzer Snapshot</p>
+            <div className="mt-4 rounded-2xl border border-indigo-400/30 bg-indigo-500/10 p-4">
+              <p className="text-sm text-indigo-200">Analyzer Snapshot</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 <p>Asking: <span className="font-semibold">{formatUSD(form.asking)}</span></p>
                 <p>ARV: <span className="font-semibold">{formatUSD(form.arv)}</span></p>
@@ -234,41 +264,39 @@ export default function Home() {
             </button>
           </form>
 
-          <div className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-md">
+          <div className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
             <h2 className="text-xl font-semibold">App Brain Console</h2>
-            <p className="mt-1 text-sm text-zinc-300">Talk to your built-in assistant directly inside the app.</p>
-
-            <div className="mt-4 h-64 space-y-2 overflow-y-auto rounded-2xl border border-white/15 bg-black/20 p-3">
+            <div className="mt-4 h-64 space-y-2 overflow-y-auto rounded-2xl border border-white/15 bg-black/30 p-3">
               {brainMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`max-w-[90%] rounded-xl px-3 py-2 text-sm ${
-                    msg.role === "assistant" ? "bg-indigo-500/20 border border-indigo-300/20" : "ml-auto bg-zinc-700/50"
-                  }`}
-                >
+                <div key={msg.id} className={`max-w-[90%] rounded-xl px-3 py-2 text-sm ${msg.role === "assistant" ? "border border-indigo-300/20 bg-indigo-500/20" : "ml-auto bg-zinc-700/50"}`}>
                   {msg.text}
                 </div>
               ))}
             </div>
-
             <form onSubmit={sendBrainMessage} className="mt-3 flex gap-2">
               <input
                 value={brainInput}
                 onChange={(e) => setBrainInput(e.target.value)}
                 placeholder="Ask the App Brain..."
-                className="w-full rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm"
               />
-              <button type="submit" className="rounded-xl bg-indigo-500 px-3 py-2 text-sm font-semibold">
-                Send
-              </button>
+              <button type="submit" className="rounded-xl bg-indigo-500 px-3 py-2 text-sm font-semibold">Send</button>
             </form>
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-md">
+        <section className="rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold">Deal Pipeline + Follow-up Tracker</h2>
-            <p className="text-xs text-zinc-300">Data currently stored locally in browser</p>
+            <h2 className="text-xl font-semibold">Lead Tracker</h2>
+            <div className="flex gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search leads"
+                className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              />
+              <button onClick={exportCsv} type="button" className="rounded-xl border border-white/20 px-3 py-2 text-sm">Export CSV</button>
+            </div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-5">
@@ -280,11 +308,11 @@ export default function Home() {
             ))}
           </div>
 
-          {leads.length === 0 ? (
-            <p className="mt-6 text-zinc-400">No leads yet. Add your first lead above.</p>
+          {filteredLeads.length === 0 ? (
+            <p className="mt-6 text-zinc-400">No matching leads yet.</p>
           ) : (
             <div className="mt-6 overflow-auto">
-              <table className="w-full min-w-[920px] text-left text-sm">
+              <table className="w-full min-w-[960px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-zinc-300">
                     <th className="py-2">Address</th>
@@ -293,16 +321,15 @@ export default function Home() {
                     <th className="py-2">MAO</th>
                     <th className="py-2">Follow-up</th>
                     <th className="py-2">Status</th>
+                    <th className="py-2">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map((lead) => (
+                  {filteredLeads.map((lead) => (
                     <tr key={lead.id} className="border-b border-white/5">
                       <td className="py-3 pr-4">
                         <p className="font-medium">{lead.address}</p>
-                        <p className="text-xs text-zinc-400">
-                          {lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft
-                        </p>
+                        <p className="text-xs text-zinc-400">{lead.beds}bd / {lead.baths}ba · {lead.sqft} sqft</p>
                       </td>
                       <td className="py-3">{formatUSD(lead.asking)}</td>
                       <td className="py-3">{formatUSD(lead.arv)}</td>
@@ -315,11 +342,12 @@ export default function Home() {
                           onChange={(e) => moveStatus(lead.id, e.target.value as LeadStatus)}
                         >
                           {STATUS_ORDER.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
+                            <option key={status} value={status}>{status}</option>
                           ))}
                         </select>
+                      </td>
+                      <td className="py-3">
+                        <button onClick={() => deleteLead(lead.id)} className="rounded-lg border border-red-300/30 px-2 py-1 text-red-200">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -335,7 +363,7 @@ export default function Home() {
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/15 bg-white/5 p-5 backdrop-blur-md">
+    <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/10 to-white/5 p-5 backdrop-blur-xl">
       <p className="text-xs uppercase tracking-wider text-zinc-300">{label}</p>
       <p className="mt-2 text-3xl font-bold">{value}</p>
     </div>
@@ -359,7 +387,7 @@ function Input({
     <label>
       <span className="text-sm text-zinc-300">{label}</span>
       <input
-        className="mt-1 w-full rounded-xl border border-white/20 bg-black/20 p-2 text-zinc-100"
+        className="mt-1 w-full rounded-xl border border-white/20 bg-black/30 p-2 text-zinc-100"
         type={type}
         value={value}
         required={required}
