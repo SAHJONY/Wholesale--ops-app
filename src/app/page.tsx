@@ -97,6 +97,13 @@ function nowDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function extractAmount(text: string, label: string) {
+  const rx = new RegExp(`${label}[^$0-9]*\$?([0-9][0-9,]*)`, "i");
+  const m = text.match(rx);
+  if (!m) return 0;
+  return Number((m[1] || "0").replaceAll(",", "")) || 0;
+}
+
 export default function Home() {
   const [form, setForm] = useState(emptyForm);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -619,6 +626,82 @@ export default function Home() {
     }
   }
 
+  async function saveDealIntelToApp() {
+    const address = addressLookup.trim();
+    const intel = dealResult.trim();
+    if (!address || !intel) return;
+
+    const arv = extractAmount(intel, "ARV");
+    const rehab = extractAmount(intel, "Rehab");
+    const asking = extractAmount(intel, "Ask");
+
+    const existing = leads.find((l) => l.address.trim().toLowerCase() === address.toLowerCase());
+    const intelNote = `\n\n[OpenClaw Deal Intel ${new Date().toISOString()}]\n${intel}`;
+
+    if (existing) {
+      if (dataMode === "supabase" && supabase) {
+        await supabase
+          .from("leads")
+          .update({
+            notes: `${existing.notes || ""}${intelNote}`,
+            arv: arv || existing.arv,
+            rehab: rehab || existing.rehab,
+            asking: asking || existing.asking,
+          })
+          .eq("id", existing.id);
+        await loadLeads();
+      } else {
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === existing.id
+              ? { ...l, notes: `${l.notes || ""}${intelNote}`, arv: arv || l.arv, rehab: rehab || l.rehab, asking: asking || l.asking }
+              : l,
+          ),
+        );
+      }
+      logAudit(`Updated lead with OpenClaw intel: ${address}`);
+      return;
+    }
+
+    const created: Lead = {
+      id: crypto.randomUUID(),
+      address,
+      phone: "",
+      beds: 0,
+      baths: 0,
+      sqft: 0,
+      asking,
+      arv,
+      rehab,
+      status: "Underwriting",
+      followUpDate: nowDate(),
+      notes: `Deal added from Address-to-Deal Analyzer.${intelNote}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (dataMode === "supabase" && supabase) {
+      await supabase.from("leads").insert({
+        id: created.id,
+        address: created.address,
+        phone: created.phone,
+        beds: created.beds,
+        baths: created.baths,
+        sqft: created.sqft,
+        asking: created.asking,
+        arv: created.arv,
+        rehab: created.rehab,
+        status: created.status,
+        follow_up_date: created.followUpDate,
+        notes: created.notes,
+      });
+      await loadLeads();
+    } else {
+      setLeads((prev) => [created, ...prev]);
+    }
+
+    logAudit(`Created lead from OpenClaw intel: ${address}`);
+  }
+
   function generateCeoReport() {
     const top = leads.slice(0, 3).map((l) => l.address).join(", ") || "No leads";
     const text = `CEO REPORT\nLeads: ${kpis.totalLeads}\nOffers Sent: ${kpis.offersSent}\nContracts: ${kpis.contracts}\nProjected Profit: ${formatUSD(
@@ -864,7 +947,12 @@ export default function Home() {
               </button>
             </div>
             {dealResult ? (
-              <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{dealResult}</pre>
+              <>
+                <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{dealResult}</pre>
+                <button type="button" onClick={saveDealIntelToApp} className="mt-2 rounded-lg border border-emerald-300/40 px-3 py-2 text-xs text-emerald-200">
+                  Add Deal Details to App
+                </button>
+              </>
             ) : null}
           </div>
         </section>
