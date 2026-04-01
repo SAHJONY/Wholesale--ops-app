@@ -26,6 +26,7 @@ type Lead = {
 type BrainMessage = { id: string; role: "user" | "assistant"; text: string };
 type ConsoleLine = { id: string; kind: "input" | "output"; text: string };
 type AutoTask = { id: string; text: string; priority: "high" | "medium" | "low" };
+type AuditEvent = { id: string; at: string; actor: string; action: string };
 
 type SupabaseLeadRow = {
   id: string;
@@ -127,6 +128,9 @@ export default function Home() {
   ]);
   const [search, setSearch] = useState("");
   const [dataMode, setDataMode] = useState<"supabase" | "local">("local");
+  const [role, setRole] = useState<"CEO" | "ACQ" | "DISPO" | "OPS">("CEO");
+  const [audit, setAudit] = useState<AuditEvent[]>([]);
+  const [report, setReport] = useState("");
 
   async function loadLeads() {
     if (isSupabaseConfigured && supabase) {
@@ -270,6 +274,20 @@ export default function Home() {
 
   const mao = useMemo(() => calculateMAO(form.arv, form.rehab), [form.arv, form.rehab]);
 
+  const sla = useMemo(() => {
+    const today = nowDate();
+    const overdue = leads.filter((l) => l.followUpDate && l.followUpDate < today).length;
+    const dueToday = leads.filter((l) => l.followUpDate && l.followUpDate === today).length;
+    return { overdue, dueToday };
+  }, [leads]);
+
+  function logAudit(action: string) {
+    setAudit((prev) => [
+      { id: crypto.randomUUID(), at: new Date().toISOString(), actor: role, action },
+      ...prev,
+    ].slice(0, 50));
+  }
+
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -300,6 +318,8 @@ export default function Home() {
       setLeads((prev) => [next, ...prev]);
     }
 
+    logAudit(`Created lead: ${next.address}`);
+
     setForm(emptyForm);
   }
 
@@ -307,18 +327,22 @@ export default function Home() {
     if (dataMode === "supabase" && supabase) {
       await supabase.from("leads").update({ status }).eq("id", id);
       await loadLeads();
+      logAudit(`Updated status to ${status}`);
       return;
     }
     setLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, status } : lead)));
+    logAudit(`Updated status to ${status}`);
   }
 
   async function deleteLead(id: string) {
     if (dataMode === "supabase" && supabase) {
       await supabase.from("leads").delete().eq("id", id);
       await loadLeads();
+      logAudit(`Deleted lead ${id}`);
       return;
     }
     setLeads((prev) => prev.filter((lead) => lead.id !== id));
+    logAudit(`Deleted lead ${id}`);
   }
 
   function exportCsv() {
@@ -414,9 +438,19 @@ export default function Home() {
       if (data?.assistantReply) {
         setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: `AI: ${data.assistantReply}` }]);
       }
+      logAudit(`Console command: ${cmd}`);
     } catch {
       setConsoleLines((prev) => [...prev, { id: crypto.randomUUID(), kind: "output", text: "Console request failed." }]);
     }
+  }
+
+  function generateCeoReport() {
+    const top = leads.slice(0, 3).map((l) => l.address).join(", ") || "No leads";
+    const text = `CEO REPORT\nLeads: ${kpis.totalLeads}\nOffers Sent: ${kpis.offersSent}\nContracts: ${kpis.contracts}\nProjected Profit: ${formatUSD(
+      kpis.projectedProfit,
+    )}\nSLA Overdue: ${sla.overdue}\nFocus List: ${top}`;
+    setReport(text);
+    logAudit("Generated CEO report");
   }
 
   return (
@@ -446,6 +480,47 @@ export default function Home() {
           <KpiCard label="Contracts" value={String(kpis.contracts)} />
           <KpiCard label="Follow-ups Due" value={String(kpis.followUpsDue)} />
           <KpiCard label="Projected Profit" value={formatUSD(kpis.projectedProfit)} />
+        </section>
+
+        <section className="rounded-3xl border border-fuchsia-200/20 bg-white/5 p-6 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold">Enterprise Control Layer</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-300">Role</span>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as "CEO" | "ACQ" | "DISPO" | "OPS")}
+                className="rounded-lg border border-white/20 bg-black/30 px-2 py-1"
+              >
+                <option>CEO</option>
+                <option>ACQ</option>
+                <option>DISPO</option>
+                <option>OPS</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2 text-sm">
+            <span className="rounded-lg border border-red-300/30 bg-red-500/10 px-2 py-1 text-red-200">SLA Overdue: {sla.overdue}</span>
+            <span className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-2 py-1 text-amber-200">Due Today: {sla.dueToday}</span>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={generateCeoReport} className="rounded-xl bg-fuchsia-400 px-3 py-2 text-sm font-semibold text-black">
+              Generate CEO Report
+            </button>
+          </div>
+
+          {report ? (
+            <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-white/15 bg-black/30 p-3 text-xs text-zinc-200">{report}</pre>
+          ) : null}
+
+          <div className="mt-3 rounded-xl border border-white/15 bg-black/20 p-3">
+            <p className="text-sm font-semibold">Audit Log</p>
+            <div className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-zinc-300">
+              {audit.length === 0 ? <p>No events yet.</p> : audit.map((a) => <p key={a.id}>{a.at} • {a.actor} • {a.action}</p>)}
+            </div>
+          </div>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
