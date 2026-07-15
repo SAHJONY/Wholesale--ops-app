@@ -13,7 +13,7 @@ class PropertyInput(BaseModel):
     asking_price: float | None = None
     arv: float | None = None
     repairs: float | None = None
-    distress_signals: list[str] = []
+    distress_signals: list[str] = Field(default_factory=list)
     latitude: float | None = None
     longitude: float | None = None
 
@@ -25,7 +25,7 @@ class LeadCreate(BaseModel):
     source: str = "manual"
     motivation_score: float = Field(default=0, ge=0, le=100)
     equity_score: float = Field(default=0, ge=0, le=100)
-    timeline_days: int | None = None
+    timeline_days: int | None = Field(default=None, ge=0)
     notes: str | None = None
     property: PropertyInput
 
@@ -36,15 +36,15 @@ class BuyerCreate(BaseModel):
     buyer_type: str = "cash_buyer"
     phone: str
     email: str | None = None
-    zip_codes: list[str] = []
-    asset_types: list[str] = ["single_family"]
-    min_price: float = 0
-    max_price: float = 10_000_000
-    max_rehab: float = 500_000
-    closing_days: int = 14
+    zip_codes: list[str] = Field(default_factory=list)
+    asset_types: list[str] = Field(default_factory=lambda: ["single_family"])
+    min_price: float = Field(default=0, ge=0)
+    max_price: float = Field(default=10_000_000, ge=0)
+    max_rehab: float = Field(default=500_000, ge=0)
+    closing_days: int = Field(default=14, ge=1)
     proof_of_funds_verified: bool = False
-    response_rate: float = 0
-    reliability_score: float = 50
+    response_rate: float = Field(default=0, ge=0, le=100)
+    reliability_score: float = Field(default=50, ge=0, le=100)
 
 
 class UnderwriteRequest(BaseModel):
