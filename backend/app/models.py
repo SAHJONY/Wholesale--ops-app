@@ -133,3 +133,60 @@ class Campaign(Base):
     response_count: Mapped[int] = mapped_column(Integer, default=0)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AcquisitionRun(Base):
+    __tablename__ = "acquisition_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_type: Mapped[str] = mapped_column(String(80), index=True)
+    market: Mapped[str] = mapped_column(String(120), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="queued", index=True)
+    records_seen: Mapped[int] = mapped_column(Integer, default=0)
+    records_created: Mapped[int] = mapped_column(Integer, default=0)
+    confidence: Mapped[float] = mapped_column(Float, default=0)
+    configuration: Mapped[dict] = mapped_column(JSON, default=dict)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Deal(Base):
+    __tablename__ = "deals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    property_id: Mapped[int] = mapped_column(ForeignKey("properties.id"), unique=True, index=True)
+    stage: Mapped[str] = mapped_column(String(40), default="lead", index=True)
+    strategy: Mapped[str] = mapped_column(String(60), default="assignment")
+    target_contract_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_buyer_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    projected_assignment_fee: Mapped[float | None] = mapped_column(Float, nullable=True)
+    probability_to_close: Mapped[float] = mapped_column(Float, default=0)
+    risk_score: Mapped[float] = mapped_column(Float, default=50)
+    next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Offer(Base):
+    __tablename__ = "offers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deal_id: Mapped[int] = mapped_column(ForeignKey("deals.id"), index=True)
+    offer_type: Mapped[str] = mapped_column(String(40), default="seller_offer")
+    amount: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    recipient_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    recipient_contact: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    terms: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ClosingItem(Base):
+    __tablename__ = "closing_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deal_id: Mapped[int] = mapped_column(ForeignKey("deals.id"), index=True)
+    item_type: Mapped[str] = mapped_column(String(80), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    owner: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
