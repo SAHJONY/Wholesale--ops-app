@@ -2,16 +2,19 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import AgentRun, Approval, Buyer, Campaign, Lead, OpsTask, Property
+from .models import AcquisitionRun, AgentRun, Approval, Buyer, Campaign, Deal, Lead, OpsTask, Property
 from .services import lead_score, match_buyer
 
 
 AUTONOMY_AGENTS = [
+    {"name": "executive-orchestrator", "role": "Plans daily operating priorities and allocates work", "status": "active"},
     {"name": "market-intelligence", "role": "Scores markets and distress signals", "status": "active"},
+    {"name": "acquisition-source-manager", "role": "Runs verified public and licensed lead sources", "status": "active"},
     {"name": "seller-acquisition", "role": "Prioritizes and qualifies seller leads", "status": "active"},
-    {"name": "underwriting", "role": "Validates ARV, repairs, MAO, and risk", "status": "active"},
+    {"name": "underwriting", "role": "Validates ARV, repairs, MAO, exits, and risk", "status": "active"},
     {"name": "buyer-intelligence", "role": "Maintains buyer buy boxes and match scores", "status": "active"},
     {"name": "disposition", "role": "Creates buyer campaigns and offer sequences", "status": "active"},
+    {"name": "transaction-coordinator", "role": "Tracks title, documents, funding, and closing", "status": "active"},
     {"name": "compliance", "role": "Enforces approval gates and audit policy", "status": "active"},
 ]
 
@@ -28,6 +31,30 @@ def create_task(db: Session, task_type: str, payload: dict, priority: int = 50,
     return task
 
 
+def _ensure_deal(db: Session, lead: Lead, score: float) -> Deal | None:
+    if not lead.property:
+        return None
+    deal = db.scalar(select(Deal).where(Deal.property_id == lead.property.id))
+    if deal:
+        return deal
+    fee = 15000.0
+    contract_price = lead.property.mao
+    deal = Deal(
+        property_id=lead.property.id,
+        stage="qualified" if score >= 70 else "nurture",
+        target_contract_price=contract_price,
+        target_buyer_price=(contract_price + fee) if contract_price else None,
+        projected_assignment_fee=fee,
+        probability_to_close=min(95, max(5, score)),
+        risk_score=max(5, 100 - score),
+        next_action="Verify comps, title risk, seller authority, and offer strategy",
+        metadata_json={"lead_score": score},
+    )
+    db.add(deal)
+    db.flush()
+    return deal
+
+
 def run_task(db: Session, task: OpsTask) -> OpsTask:
     task.status = "running"
     db.commit()
@@ -38,7 +65,26 @@ def run_task(db: Session, task: OpsTask) -> OpsTask:
                 raise ValueError("Lead not found")
             score = lead_score(lead.motivation_score, lead.equity_score, lead.distress_score)
             lead.status = "qualified" if score >= 70 else "nurture"
-            task.result = {"lead_score": score, "recommended_status": lead.status}
+            deal = _ensure_deal(db, lead, score)
+            if score >= 70 and lead.property:
+                db.add(OpsTask(task_type="match_buyers", priority=85,
+                               payload={"property_id": lead.property.id}, lead_id=lead.id))
+            task.result = {"lead_score": score, "recommended_status": lead.status,
+                           "deal_id": deal.id if deal else None}
+        elif task.task_type == "acquisition_source_run":
+            run = db.get(AcquisitionRun, int(task.payload["acquisition_run_id"]))
+            if not run:
+                raise ValueError("Acquisition run not found")
+            run.status = "completed"
+            run.completed_at = datetime.utcnow()
+            run.confidence = 1.0
+            run.result = {
+                "status": "connector_required",
+                "message": "Source scheduled successfully; no records fabricated. Configure a licensed/public data connector to ingest records.",
+                "source_type": run.source_type,
+                "market": run.market,
+            }
+            task.result = run.result
         elif task.task_type == "match_buyers":
             prop = db.get(Property, int(task.payload["property_id"]))
             if not prop:
@@ -62,21 +108,16 @@ def run_task(db: Session, task: OpsTask) -> OpsTask:
                     ranked.append({"buyer_id": buyer.id, "buyer_name": buyer.name,
                                    "score": score, "reasons": reasons})
             campaign = Campaign(
-                name=f"Disposition: {prop.address}",
-                campaign_type="buyer_disposition",
-                status="pending_approval",
-                property_id=prop.id,
-                audience_count=len(ranked),
-                payload={"buyers": ranked, "property": {
-                    "address": prop.address, "zip_code": prop.zip_code,
-                    "arv": prop.arv, "repairs": prop.repairs, "mao": prop.mao,
-                }},
+                name=f"Disposition: {prop.address}", campaign_type="buyer_disposition",
+                status="pending_approval", property_id=prop.id, audience_count=len(ranked),
+                payload={"buyers": ranked, "property": {"address": prop.address,
+                    "zip_code": prop.zip_code, "arv": prop.arv, "repairs": prop.repairs,
+                    "mao": prop.mao}},
             )
             db.add(campaign)
             db.flush()
             approval = Approval(
-                action_type="launch_campaign", entity_type="campaign",
-                entity_id=campaign.id,
+                action_type="launch_campaign", entity_type="campaign", entity_id=campaign.id,
                 summary=f"Launch disposition campaign to {len(ranked)} matched buyers",
                 payload={"campaign_id": campaign.id, "audience_count": len(ranked)},
             )
@@ -107,10 +148,8 @@ def run_task(db: Session, task: OpsTask) -> OpsTask:
 
 
 def execute_next_tasks(db: Session, limit: int = 10) -> list[OpsTask]:
-    tasks = db.scalars(
-        select(OpsTask).where(OpsTask.status == "queued")
-        .order_by(OpsTask.priority.desc(), OpsTask.created_at.asc()).limit(limit)
-    ).all()
+    tasks = db.scalars(select(OpsTask).where(OpsTask.status == "queued")
+        .order_by(OpsTask.priority.desc(), OpsTask.created_at.asc()).limit(limit)).all()
     return [run_task(db, task) for task in tasks]
 
 
