@@ -11,7 +11,14 @@ from .services import calculate_mao, distress_score, lead_score, match_buyer
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="SAHJONY Wholesale Ops API", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=[settings.app_url, "http://localhost:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.app_url, "http://localhost:3000"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
