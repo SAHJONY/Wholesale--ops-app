@@ -1,0 +1,69 @@
+project:
+  name: SAHJONY Autonomous Wholesale Workforce
+  version: 0.1.0
+  primary_focus: [single_family_homes, distressed_properties]
+  secondary_focus: [commercial_wholesale]
+
+orchestrator:
+  provider: anthropic
+  model_env: CLAUDE_MODEL
+  output: structured_json
+  approval_gates: [contracts, assignments, payments, mass_campaigns, legal_representations]
+
+integrations:
+  voice: bland_ai
+  realtime_state: upstash_redis
+  jobs: upstash_qstash
+  maps: google_maps_platform
+  crm: hubspot_optional
+
+agents:
+  - market_intelligence
+  - distressed_property_scoring
+  - seller_acquisition
+  - residential_underwriting
+  - commercial_underwriting
+  - buyer_intelligence
+  - predictive_buyer_matching
+  - disposition
+  - driving_for_dollars
+  - compliance
+
+workflows:
+  lead_to_close:
+    - ingest_lead
+    - enrich_property
+    - calculate_distress_score
+    - qualify_seller
+    - calculate_arv_repairs_mao
+    - human_offer_approval
+    - prepare_contract
+    - human_contract_approval
+    - rank_cash_buyers
+    - run_disposition_sequence
+    - collect_offers_and_proof_of_funds
+    - human_assignment_approval
+    - coordinate_closing
+    - update_learning_records
+
+scoring:
+  residential_mao: "arv * 0.70 - repairs - assignment_fee"
+  lead:
+    motivation: 0.30
+    equity: 0.25
+    distress: 0.25
+    buyer_demand: 0.20
+  buyer_match:
+    location: 30
+    asset: 25
+    price: 20
+    rehab: 10
+    response_history: 10
+    closing_reliability: 5
+
+compliance:
+  prohibit_scraping_google_maps: true
+  use_licensed_property_data: true
+  enforce_opt_outs: true
+  enforce_calling_hours: true
+  retain_audit_logs: true
