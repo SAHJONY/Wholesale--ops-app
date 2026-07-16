@@ -3,7 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import styles from './owner.module.css';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://backend-pi-opal-65.vercel.app';
+const VERIFIED_BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const API_URL = configuredApiUrl && /^https:\/\/[^\s]+$/i.test(configuredApiUrl) && !configuredApiUrl.includes('localhost')
+  ? configuredApiUrl.replace(/\/$/, '')
+  : VERIFIED_BACKEND_URL;
 const KEY_STORAGE = 'sahjony_owner_api_key';
 
 type Principal = { organization_id: number; organization_name: string; user_id: number; email: string; name: string; role: string };
@@ -29,17 +33,27 @@ export default function OwnerWorkspace() {
 
   const request = useCallback(async (path: string, options: RequestInit = {}, keyOverride?: string) => {
     const key = keyOverride || apiKey;
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(key ? { 'X-API-Key': key } : {}),
-        ...(options.headers || {}),
-      },
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Request failed');
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(key ? { 'X-API-Key': key } : {}),
+          ...(options.headers || {}),
+        },
+      });
+    } catch {
+      throw new Error(`Cannot reach the backend API at ${API_URL}`);
+    }
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(`Backend returned an invalid response (${response.status})`);
+    }
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
     return data;
   }, [apiKey]);
 
@@ -143,6 +157,7 @@ export default function OwnerWorkspace() {
     setLeads([]);
     setFollowUps([]);
     setTeam([]);
+    setError('');
   }
 
   if (!principal) {
@@ -151,6 +166,7 @@ export default function OwnerWorkspace() {
         <span className={styles.eyebrow}>SAHJONY WHOLESALE OS</span>
         <h1>Owner Workspace</h1>
         <p>Create the first organization and owner credential, or connect an existing API key.</p>
+        <small>API: {API_URL}</small>
         {error && <div className={styles.error}>{error}</div>}
         <form onSubmit={bootstrap} className={styles.form}>
           <input name="organization_name" defaultValue="SAHJONY Wholesale Operations" required placeholder="Organization name" />
@@ -161,8 +177,9 @@ export default function OwnerWorkspace() {
         <div className={styles.divider}>or</div>
         <form onSubmit={(event) => { event.preventDefault(); window.localStorage.setItem(KEY_STORAGE, apiKey); void loadWorkspace(apiKey); }} className={styles.form}>
           <input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" placeholder="Existing SAHJONY API key" required />
-          <button disabled={loading}>Connect workspace</button>
+          <button disabled={loading}>{loading ? 'Connecting…' : 'Connect workspace'}</button>
         </form>
+        {apiKey && <button type="button" onClick={disconnect}>Clear saved key</button>}
       </section>
     </main>;
   }
