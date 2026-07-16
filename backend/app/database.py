@@ -10,6 +10,10 @@ def resolve_database_url() -> str:
     url = settings.database_url
     if os.getenv("VERCEL") and url.startswith("sqlite"):
         return "sqlite:////tmp/wholesale_ops.db"
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
     return url
 
 
