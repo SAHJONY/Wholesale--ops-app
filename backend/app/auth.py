@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .auth_models import ApiCredential, AppUser, Membership, Organization
+from .auth_models import ApiCredential, AppUser, CrmActivity, Membership, Organization
 from .database import get_db
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -47,6 +47,13 @@ def _slugify(value: str) -> str:
 
 def _new_key() -> str:
     return f"sahjony_live_{secrets.token_urlsafe(32)}"
+
+
+def _valid_bootstrap_secret(provided: str | None) -> bool:
+    configured = os.getenv("BOOTSTRAP_SECRET")
+    if not configured or not provided:
+        return False
+    return secrets.compare_digest(provided, configured)
 
 
 def _extract_token(authorization: str | None, x_api_key: str | None) -> str | None:
@@ -104,8 +111,7 @@ def require_role(*roles: str):
 @router.post("/bootstrap")
 def bootstrap(payload: dict, x_bootstrap_secret: str | None = Header(default=None), db: Session = Depends(get_db)):
     existing = db.scalar(select(func.count(Organization.id))) or 0
-    configured_secret = os.getenv("BOOTSTRAP_SECRET")
-    if existing > 0 and (not configured_secret or x_bootstrap_secret != configured_secret):
+    if existing > 0 and not _valid_bootstrap_secret(x_bootstrap_secret):
         raise HTTPException(403, "Bootstrap is locked")
 
     organization_name = str(payload.get("organization_name") or "SAHJONY Wholesale Operations").strip()
@@ -140,6 +146,81 @@ def bootstrap(payload: dict, x_bootstrap_secret: str | None = Header(default=Non
         "organization": {"id": organization.id, "name": organization.name, "slug": organization.slug},
         "owner": {"id": user.id, "email": user.email, "name": user.name, "role": "owner"},
         "api_key": raw_key,
+        "warning": "Store this key securely. It is shown only once.",
+    }
+
+
+@router.post("/recover-owner-key")
+def recover_owner_key(
+    payload: dict,
+    x_bootstrap_secret: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if not _valid_bootstrap_secret(x_bootstrap_secret):
+        raise HTTPException(403, "Invalid recovery secret")
+
+    owner_email = str(payload.get("owner_email") or "").strip().lower()
+    organization_slug = str(payload.get("organization_slug") or "").strip().lower()
+    if not owner_email or "@" not in owner_email:
+        raise HTTPException(422, "Valid owner_email is required")
+
+    query = (
+        select(Membership)
+        .join(AppUser, AppUser.id == Membership.user_id)
+        .join(Organization, Organization.id == Membership.organization_id)
+        .where(
+            Membership.role == "owner",
+            AppUser.email == owner_email,
+            AppUser.is_active.is_(True),
+            Organization.is_active.is_(True),
+        )
+    )
+    if organization_slug:
+        query = query.where(Organization.slug == organization_slug)
+
+    memberships = db.scalars(query).all()
+    if len(memberships) != 1:
+        raise HTTPException(404, "Unique active owner workspace not found")
+
+    membership = memberships[0]
+    user = db.get(AppUser, membership.user_id)
+    organization = db.get(Organization, membership.organization_id)
+    if not user or not organization:
+        raise HTTPException(404, "Owner workspace not found")
+
+    now = datetime.utcnow()
+    active_credentials = db.scalars(select(ApiCredential).where(
+        ApiCredential.organization_id == organization.id,
+        ApiCredential.user_id == user.id,
+        ApiCredential.revoked_at.is_(None),
+    )).all()
+    for credential in active_credentials:
+        credential.revoked_at = now
+
+    raw_key = _new_key()
+    replacement = ApiCredential(
+        organization_id=organization.id,
+        user_id=user.id,
+        name="Owner recovery key",
+        key_prefix=raw_key[:18],
+        key_hash=_hash_key(raw_key),
+    )
+    audit = CrmActivity(
+        organization_id=organization.id,
+        user_id=user.id,
+        activity_type="owner_key_recovered",
+        summary="Owner API key was securely recovered and previous owner keys were revoked",
+        metadata_json={"revoked_key_count": len(active_credentials), "new_key_prefix": replacement.key_prefix},
+    )
+    db.add_all([replacement, audit])
+    db.commit()
+    db.refresh(replacement)
+
+    return {
+        "organization": {"id": organization.id, "name": organization.name, "slug": organization.slug},
+        "owner": {"id": user.id, "email": user.email, "name": user.name, "role": "owner"},
+        "api_key": raw_key,
+        "revoked_key_count": len(active_credentials),
         "warning": "Store this key securely. It is shown only once.",
     }
 
