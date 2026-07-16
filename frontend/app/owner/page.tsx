@@ -3,11 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import styles from './owner.module.css';
 
-const VERIFIED_BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
-const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-const API_URL = configuredApiUrl && /^https:\/\/[^\s]+$/i.test(configuredApiUrl) && !configuredApiUrl.includes('localhost')
-  ? configuredApiUrl.replace(/\/$/, '')
-  : VERIFIED_BACKEND_URL;
+const API_URL = 'https://backend-pi-opal-65.vercel.app';
 const KEY_STORAGE = 'sahjony_owner_api_key';
 
 type Principal = { organization_id: number; organization_name: string; user_id: number; email: string; name: string; role: string };
