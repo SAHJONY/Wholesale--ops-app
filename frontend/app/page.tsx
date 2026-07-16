@@ -7,14 +7,16 @@ const modules = [
   ["Disposition", "Launch buyer campaigns, collect offers and track closing probability."],
 ];
 
+const DEFAULT_API_URL = "https://backend-pi-opal-65.vercel.app";
+
 async function getStats() {
-  const url = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const url = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
   try {
     const response = await fetch(`${url}/dashboard`, { cache: "no-store" });
-    if (!response.ok) throw new Error("API unavailable");
-    return await response.json();
+    if (!response.ok) throw new Error(`API unavailable: ${response.status}`);
+    return { ...(await response.json()), api_online: true };
   } catch {
-    return { total_leads: 0, hot_leads: 0, buyers: 0, calls: 0 };
+    return { total_leads: 0, hot_leads: 0, buyers: 0, calls: 0, api_online: false };
   }
 }
 
@@ -31,7 +33,7 @@ export default async function Home() {
       </aside>
       <section className="content">
         <header>
-          <div><span className="eyebrow">AUTONOMOUS WORKFORCE</span><h1>Wholesale Command Center</h1><p>Residential and commercial deal operations in one system.</p></div>
+          <div><span className="eyebrow">AUTONOMOUS WORKFORCE</span><h1>Wholesale Command Center</h1><p>Residential and commercial deal operations in one system.</p><p className="apiStatus">API: {stats.api_online ? "Connected" : "Offline"}</p></div>
           <button>+ Add Lead</button>
         </header>
         <div className="stats">
