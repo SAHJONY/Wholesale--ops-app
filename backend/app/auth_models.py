@@ -96,7 +96,7 @@ class FollowUpTask(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id"), nullable=True, index=True)
     deal_id: Mapped[int | None] = mapped_column(ForeignKey("deals.id"), nullable=True, index=True)
-    assigned_user_id: Mapped[int | None] = mapped_column(ForeKey("app_users.id"), nullable=True)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(220))
     status: Mapped[str] = mapped_column(String(30), default="open", index=True)
     priority: Mapped[int] = mapped_column(Integer, default=50)
