@@ -4,11 +4,20 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth_models import ApiCredential, AppUser, CrmActivity, Membership, Organization, UserPassword
+from .auth_models import (
+    ApiCredential,
+    AppUser,
+    CrmActivity,
+    Membership,
+    Organization,
+    PasswordResetCode,
+    UserPassword,
+)
 from .database import get_db
 
 router = APIRouter(prefix="/human-auth", tags=["human-authentication"])
@@ -71,6 +80,32 @@ def _find_owner(db: Session, email: str | None = None):
     return rows[0]
 
 
+def _send_reset_email(email: str, code: str) -> None:
+    api_key = os.getenv("RESEND_API_KEY")
+    if not api_key:
+        raise HTTPException(503, "Password-reset email is not configured yet")
+    from_email = os.getenv("AUTH_FROM_EMAIL", "SAHJONY Wholesale OS <onboarding@resend.dev>")
+    response = httpx.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "from": from_email,
+            "to": [email],
+            "subject": "Your SAHJONY password reset code",
+            "html": (
+                "<div style='font-family:Arial,sans-serif'>"
+                "<h2>SAHJONY Wholesale OS</h2>"
+                f"<p>Your password reset code is <strong style='font-size:24px'>{code}</strong>.</p>"
+                "<p>This code expires in 10 minutes. If you did not request it, ignore this email.</p>"
+                "</div>"
+            ),
+        },
+        timeout=15,
+    )
+    if response.status_code >= 300:
+        raise HTTPException(502, "Unable to send password-reset email")
+
+
 @router.post("/set-password")
 def set_password(
     payload: dict,
@@ -80,7 +115,7 @@ def set_password(
     if not _valid_recovery_secret(x_bootstrap_secret):
         raise HTTPException(403, "Invalid recovery secret")
 
-    email = str(payload.get("email") or "").strip().lower()
+    email = str(payload.get("email") or payload.get("owner_email") or "").strip().lower()
     password = str(payload.get("password") or "")
     if email and "@" not in email:
         raise HTTPException(422, "Valid email is required")
@@ -111,6 +146,100 @@ def set_password(
         "organization": organization.name,
         "message": "Password configured. You can now sign in from any device.",
     }
+
+
+@router.post("/request-password-reset")
+def request_password_reset(payload: dict, db: Session = Depends(get_db)):
+    email = str(payload.get("email") or "").strip().lower()
+    if "@" not in email:
+        raise HTTPException(422, "Valid email is required")
+
+    user = db.scalar(select(AppUser).where(AppUser.email == email, AppUser.is_active.is_(True)))
+    if not user:
+        return {"accepted": True, "message": "If that account exists, a reset code was sent."}
+
+    now = datetime.utcnow()
+    existing = db.scalars(select(PasswordResetCode).where(
+        PasswordResetCode.user_id == user.id,
+        PasswordResetCode.used_at.is_(None),
+    )).all()
+    for item in existing:
+        item.used_at = now
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    reset = PasswordResetCode(
+        user_id=user.id,
+        code_hash=_hash_key(code),
+        expires_at=now + timedelta(minutes=10),
+    )
+    db.add(reset)
+    db.flush()
+    try:
+        _send_reset_email(user.email, code)
+    except Exception:
+        db.rollback()
+        raise
+    db.commit()
+    return {"accepted": True, "message": "If that account exists, a reset code was sent."}
+
+
+@router.post("/reset-password")
+def reset_password(payload: dict, db: Session = Depends(get_db)):
+    email = str(payload.get("email") or "").strip().lower()
+    code = str(payload.get("code") or "").strip()
+    password = str(payload.get("password") or "")
+    if "@" not in email or len(code) != 6 or not code.isdigit():
+        raise HTTPException(422, "Email and a valid 6-digit code are required")
+    if len(password) < 12:
+        raise HTTPException(422, "Password must contain at least 12 characters")
+
+    user = db.scalar(select(AppUser).where(AppUser.email == email, AppUser.is_active.is_(True)))
+    if not user:
+        raise HTTPException(400, "Invalid or expired reset code")
+
+    now = datetime.utcnow()
+    reset = db.scalar(select(PasswordResetCode).where(
+        PasswordResetCode.user_id == user.id,
+        PasswordResetCode.used_at.is_(None),
+        PasswordResetCode.expires_at > now,
+    ).order_by(PasswordResetCode.created_at.desc()))
+    if not reset:
+        raise HTTPException(400, "Invalid or expired reset code")
+    if reset.attempts >= 5:
+        raise HTTPException(429, "Too many invalid attempts. Request a new code.")
+    if not hmac.compare_digest(reset.code_hash, _hash_key(code)):
+        reset.attempts += 1
+        db.commit()
+        raise HTTPException(400, "Invalid or expired reset code")
+
+    record = db.scalar(select(UserPassword).where(UserPassword.user_id == user.id))
+    if record:
+        record.password_hash = _hash_password(password)
+        record.failed_attempts = 0
+        record.locked_until = None
+    else:
+        db.add(UserPassword(user_id=user.id, password_hash=_hash_password(password)))
+    reset.used_at = now
+
+    memberships = db.scalars(select(Membership).where(Membership.user_id == user.id)).all()
+    organization_id = memberships[0].organization_id if memberships else None
+    sessions = db.scalars(select(ApiCredential).where(
+        ApiCredential.user_id == user.id,
+        ApiCredential.name == "Human login session",
+        ApiCredential.revoked_at.is_(None),
+    )).all()
+    for session in sessions:
+        session.revoked_at = now
+    if organization_id:
+        db.add(CrmActivity(
+            organization_id=organization_id,
+            user_id=user.id,
+            activity_type="human_password_reset",
+            summary="User reset password using an emailed one-time code",
+            metadata_json={"email": user.email},
+        ))
+    db.commit()
+    return {"reset": True, "message": "Password updated. You can sign in now."}
 
 
 @router.post("/login")
