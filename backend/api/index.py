@@ -6,6 +6,7 @@ from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
 from app.continuous_ops import router as continuous_ops_router
+from app.county_verification import router as county_verification_router
 from app.crm import router as crm_router
 from app.database import Base, engine
 from app.deal_execution import router as deal_execution_router
@@ -39,6 +40,7 @@ app.include_router(owner_insights_router)
 app.include_router(integrations_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
+app.include_router(county_verification_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(deal_execution_router)
