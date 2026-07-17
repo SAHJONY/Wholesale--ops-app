@@ -8,6 +8,7 @@ from app.continuous_ops import router as continuous_ops_router
 from app.crm import router as crm_router
 from app.database import Base, engine
 from app.deal_execution import router as deal_execution_router
+from app.docuseal_events import router as docuseal_events_router
 from app.executive_ops import router as executive_ops_router
 from app.human_auth import router as human_auth_router
 from app.integrations import router as integrations_router
@@ -36,5 +37,6 @@ app.include_router(contact_enrichment_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(deal_execution_router)
+app.include_router(docuseal_events_router)
 
 __all__ = ["app"]
