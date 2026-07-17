@@ -1,5 +1,6 @@
 """Vercel Python entrypoint for the FastAPI application."""
 
+from app.activation import router as activation_router
 from app.auth import router as auth_router
 from app.crm import router as crm_router
 from app.database import Base, engine
@@ -17,5 +18,6 @@ app.include_router(human_auth_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
+app.include_router(activation_router)
 
 __all__ = ["app"]
