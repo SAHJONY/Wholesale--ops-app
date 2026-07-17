@@ -22,6 +22,9 @@ function normalizeKey(value: string) {
 
 export default function OwnerWorkspace() {
   const [apiKey, setApiKey] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -59,14 +62,7 @@ export default function OwnerWorkspace() {
 
   const loadWorkspace = useCallback(async (keyOverride?: string) => {
     const key = normalizeKey(keyOverride ?? apiKey);
-    if (!key) {
-      setError('Paste the complete API key first.');
-      return;
-    }
-    if (!key.startsWith('sahjony_live_')) {
-      setError('The key must begin with sahjony_live_.');
-      return;
-    }
+    if (!key) return;
     setLoading(true);
     setError('');
     try {
@@ -98,6 +94,32 @@ export default function OwnerWorkspace() {
     if (stored) void loadWorkspace(stored);
   }, [loadWorkspace]);
 
+  async function humanLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`${API_URL}/human-auth/login`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail.trim().toLowerCase(), password: loginPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Login failed');
+      const token = String(data.access_token || '');
+      if (!token) throw new Error('Login did not return a session token');
+      setLoginPassword('');
+      setNotice('Signed in successfully.');
+      await loadWorkspace(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function pasteKey() {
     setError('');
     try {
@@ -108,32 +130,6 @@ export default function OwnerWorkspace() {
       setNotice('API key pasted. Tap Connect workspace.');
     } catch {
       setError('Clipboard access was blocked. Press and hold inside the key box, then choose Paste.');
-    }
-  }
-
-  async function bootstrap(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
-    const form = new FormData(event.currentTarget);
-    try {
-      const data = await request('/auth/bootstrap', {
-        method: 'POST',
-        body: JSON.stringify({
-          organization_name: form.get('organization_name'),
-          owner_name: form.get('owner_name'),
-          owner_email: form.get('owner_email'),
-        }),
-      }, '');
-      const key = String(data.api_key);
-      window.localStorage.setItem(KEY_STORAGE, key);
-      setApiKey(key);
-      setNotice('Workspace created. Save the API key in a secure password manager.');
-      await loadWorkspace(key);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bootstrap failed');
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -172,6 +168,7 @@ export default function OwnerWorkspace() {
   }
 
   function disconnect() {
+    const token = apiKey;
     window.localStorage.removeItem(KEY_STORAGE);
     setApiKey('');
     setPrincipal(null);
@@ -181,42 +178,42 @@ export default function OwnerWorkspace() {
     setTeam([]);
     setError('');
     setNotice('');
+    if (token) void fetch(`${API_URL}/human-auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).catch(() => undefined);
   }
 
   if (!principal) {
     return <main className={styles.setup}>
       <section className={styles.setupCard}>
         <span className={styles.eyebrow}>SAHJONY WHOLESALE OS</span>
-        <h1>Owner Workspace</h1>
-        <p>Create the first organization and owner credential, or connect an existing API key.</p>
+        <h1>Owner Sign In</h1>
+        <p>Sign in with your owner email and password from any phone or computer.</p>
         <small>API: {API_URL}</small>
         {notice && <div className={styles.notice}>{notice}</div>}
         {error && <div className={styles.error}>{error}</div>}
-        <form onSubmit={bootstrap} className={styles.form}>
-          <input name="organization_name" defaultValue="SAHJONY Wholesale Operations" required placeholder="Organization name" />
-          <input name="owner_name" defaultValue="Juan Gonzalez" required placeholder="Owner name" />
-          <input name="owner_email" type="email" required placeholder="Owner email" />
-          <button disabled={loading}>{loading ? 'Creating…' : 'Create owner workspace'}</button>
+
+        <form onSubmit={humanLogin} className={styles.form}>
+          <label htmlFor="owner-email"><b>Email</b></label>
+          <input id="owner-email" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} type="email" autoComplete="email" required placeholder="owner@company.com" />
+          <label htmlFor="owner-password"><b>Password</b></label>
+          <input id="owner-password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} type="password" autoComplete="current-password" required minLength={12} placeholder="Your secure password" />
+          <button disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button>
         </form>
-        <div className={styles.divider}>or connect your existing workspace</div>
-        <form onSubmit={(event) => { event.preventDefault(); void loadWorkspace(apiKey); }} className={styles.form}>
+
+        <button type="button" className={styles.secondaryButton} onClick={() => setShowAdvanced(!showAdvanced)}>
+          {showAdvanced ? 'Hide integration key login' : 'Use an API key instead'}
+        </button>
+
+        {showAdvanced && <form onSubmit={(event) => { event.preventDefault(); void loadWorkspace(apiKey); }} className={styles.form}>
           <label htmlFor="owner-api-key"><b>Owner API key</b></label>
-          <textarea
-            id="owner-api-key"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="Paste the complete sahjony_live_... key here"
-            rows={4}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            inputMode="text"
-          />
+          <textarea id="owner-api-key" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste the complete sahjony_live_... key here" rows={4} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
           <small>{apiKey.length ? `${apiKey.length} characters entered` : 'No key entered yet'}</small>
           <button type="button" onClick={() => void pasteKey()} disabled={loading}>Paste key</button>
           <button type="submit" disabled={loading || !apiKey.trim()}>{loading ? 'Connecting…' : 'Connect workspace'}</button>
-        </form>
-        {apiKey && <button type="button" onClick={disconnect}>Clear saved key</button>}
+        </form>}
       </section>
     </main>;
   }
@@ -224,7 +221,7 @@ export default function OwnerWorkspace() {
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>OWNER CONTROL PLANE</span><h1>{principal.organization_name}</h1><p>{principal.name} · {principal.role}</p></div>
-      <div className={styles.actions}><button onClick={() => void loadWorkspace()} disabled={loading}>Refresh</button><button onClick={importExisting} disabled={loading}>Import existing</button><button onClick={disconnect}>Disconnect</button></div>
+      <div className={styles.actions}><button onClick={() => void loadWorkspace()} disabled={loading}>Refresh</button><button onClick={importExisting} disabled={loading}>Import existing</button><button onClick={disconnect}>Sign out</button></div>
     </header>
     {notice && <div className={styles.notice}>{notice}</div>}
     {error && <div className={styles.error}>{error}</div>}
