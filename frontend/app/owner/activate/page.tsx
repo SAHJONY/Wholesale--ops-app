@@ -54,6 +54,18 @@ type Buyer = {
 };
 
 type Snapshot = { leads: Lead[]; buyers: Buyer[]; deals: Array<Record<string, unknown>> };
+type ScheduledRun = {
+  id: number;
+  summary: string;
+  created_at: string;
+  metadata: {
+    agents_run?: number;
+    tasks_executed?: number;
+    tasks_completed?: number;
+    tasks_failed?: number;
+    followups_created?: number;
+  };
+};
 
 function numberValue(form: FormData, name: string) {
   const value = String(form.get(name) || '').trim();
@@ -63,6 +75,7 @@ function numberValue(form: FormData, name: string) {
 export default function ActivationConsole() {
   const [token, setToken] = useState('');
   const [snapshot, setSnapshot] = useState<Snapshot>({ leads: [], buyers: [], deals: [] });
+  const [history, setHistory] = useState<ScheduledRun[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -93,8 +106,12 @@ export default function ActivationConsole() {
   const load = useCallback(async (tokenOverride?: string) => {
     setLoading(true); setError('');
     try {
-      const data = await request('/activation/snapshot', {}, tokenOverride);
+      const [data, scheduledHistory] = await Promise.all([
+        request('/activation/snapshot', {}, tokenOverride),
+        request('/scheduled/history', {}, tokenOverride),
+      ]);
       setSnapshot(data);
+      setHistory(scheduledHistory);
       if (!selectedLeadId && data.leads?.length) setSelectedLeadId(data.leads[0].id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load activation console');
@@ -174,6 +191,8 @@ export default function ActivationConsole() {
 
   if (!token) return <main className={styles.setup}><section className={styles.setupCard}><h1>Owner session required</h1><p>Sign in on the owner dashboard, then reopen this activation console.</p><a className={styles.linkButton} href="/owner">Go to owner sign in</a></section></main>;
 
+  const latestScheduled = history[0];
+
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>OPERATIONAL ACTIVATION</span><h1>Wholesale Workforce Console</h1><p>Qualify leads, underwrite property, build buyer demand, and activate specialist agents.</p></div>
@@ -186,6 +205,11 @@ export default function ActivationConsole() {
       <article><span>Qualified buyers</span><strong>{snapshot.buyers.length}</strong></article>
       <article><span>Deals</span><strong>{snapshot.deals.length}</strong></article>
       <article><span>Selected score</span><strong>{Math.round(selectedLead?.lead_score || 0)}</strong></article>
+    </section>
+
+    <section className={styles.cardWide}>
+      <div className={styles.cardHeader}><div><span className={styles.eyebrow}>CONTINUOUS OPERATIONS</span><h2>Scheduled cycle history</h2></div><small>{latestScheduled ? `Last run ${new Date(latestScheduled.created_at).toLocaleString()}` : 'No scheduled cycle recorded yet'}</small></div>
+      <div className={styles.list}>{history.length ? history.slice(0, 10).map(item => <div key={item.id}><span><b>{item.summary}</b><small>{new Date(item.created_at).toLocaleString()} · {item.metadata.agents_run || 0} agents · {item.metadata.followups_created || 0} follow-ups</small></span><span className={styles.score}>{item.metadata.tasks_completed || 0} done · {item.metadata.tasks_failed || 0} failed</span></div>) : <p>The first secured Vercel cron run will appear here after deployment and CRON_SECRET configuration.</p>}</div>
     </section>
 
     <section className={styles.grid}>
