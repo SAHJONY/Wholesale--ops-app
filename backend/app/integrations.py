@@ -56,12 +56,20 @@ PROVIDERS = [
         "authority": "communications", "verification": "a2p_registration_consent_and_opt_out_enforcement",
     },
     {
-        "id": "docusign", "name": "DocuSign eSignature", "category": "contracts", "tier": "primary",
-        "env": ["DOCUSIGN_INTEGRATION_KEY", "DOCUSIGN_USER_ID", "DOCUSIGN_ACCOUNT_ID", "DOCUSIGN_ACCESS_TOKEN"],
+        "id": "docuseal", "name": "DocuSeal eSignature", "category": "contracts", "tier": "primary",
+        "env": ["DOCUSEAL_URL", "DOCUSEAL_API_KEY"],
+        "any_of_env": ["DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_GA"],
+        "optional_env": ["DOCUSEAL_TEMPLATE_ASSIGNMENT_AGREEMENT", "DOCUSEAL_SELLER_ROLE_NAME", "DOCUSEAL_COMPLETED_REDIRECT_URL", "DOCUSEAL_REPLY_TO", "DOCUSEAL_BCC_COMPLETED"],
+        "capabilities": ["submissions", "esignature", "prefill", "webhooks", "signed_documents", "self_hosting"],
+        "authority": "agreement_execution", "verification": "attorney_approved_state_template_and_owner_approval",
+    },
+    {
+        "id": "docusign", "name": "DocuSign eSignature (fallback)", "category": "contracts", "tier": "optional",
+        "env": ["DOCUSIGN_ACCOUNT_ID", "DOCUSIGN_ACCESS_TOKEN"],
         "any_of_env": ["DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_GA"],
         "optional_env": ["DOCUSIGN_BASE_PATH", "DOCUSIGN_TEMPLATE_ASSIGNMENT_AGREEMENT", "DOCUSIGN_SELLER_ROLE_NAME"],
         "capabilities": ["envelopes", "esignature", "audit_certificate", "webhooks"],
-        "authority": "agreement_execution", "verification": "attorney_approved_state_template_and_owner_approval",
+        "authority": "agreement_execution", "verification": "fallback_only_when_selected",
     },
     {
         "id": "object_storage", "name": "S3-Compatible Secure Document Storage", "category": "documents", "tier": "required",
@@ -100,6 +108,15 @@ def _provider_status(provider: dict) -> dict:
     }
 
 
+def _contracts_ready(providers: list[dict]) -> bool:
+    selected = str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
+    provider_id = "docusign" if selected == "docusign" else "docuseal"
+    signature = next((item for item in providers if item["id"] == provider_id), None)
+    storage = next((item for item in providers if item["id"] == "object_storage"), None)
+    ready_states = {"configured", "available_public_or_manual"}
+    return bool(signature and storage and signature["state"] in ready_states and storage["state"] in ready_states)
+
+
 @router.get("/catalog")
 def integration_catalog(principal: Principal = Depends(get_principal)):
     return {
@@ -111,7 +128,7 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
             "visual_inspection": "Google Street View with imagery date and human confirmation",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
             "outbound_policy": "No call or SMS before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
-            "contract_policy": "No envelope before attorney-approved state template and owner approval",
+            "contract_policy": "DocuSeal-first provider-neutral signing; no submission before attorney-approved state template and owner approval",
             "texas_policy": "Excluded from acquisition and outreach workflows",
         },
         "providers": [_provider_status(provider) for provider in PROVIDERS],
@@ -126,9 +143,10 @@ def integration_readiness(principal: Principal = Depends(get_principal)):
     blocking = [provider for provider in providers if provider["tier"] in {"primary", "required"} and provider["state"] not in ready_states]
     return {
         "organization_id": principal.organization_id,
+        "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
         "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking),
         "ready_for_outbound": all(provider["id"] not in {"bland", "twilio"} for provider in blocking),
-        "ready_for_contracts": all(provider["id"] not in {"docusign", "object_storage"} for provider in blocking),
+        "ready_for_contracts": _contracts_ready(providers),
         "configured_count": len(configured),
         "provider_count": len(providers),
         "blocking_integrations": [
