@@ -11,12 +11,14 @@ from app.executive_ops import router as executive_ops_router
 from app.human_auth import router as human_auth_router
 from app.integrations import router as integrations_router
 from app.main import app
+from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
 from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
-# registers additive workspace, identity, CRM, password, and tenant-operation tables.
+# registers additive workspace, identity, CRM, password, compliance, outbound,
+# and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
@@ -31,5 +33,6 @@ app.include_router(integrations_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
 app.include_router(compliance_router)
+app.include_router(outbound_gateway_router)
 
 __all__ = ["app"]
