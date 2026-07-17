@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import Principal, get_principal
+from .auth import Principal, get_principal, require_role
 from .auth_models import AppUser, CrmActivity, FollowUpTask, Membership, Organization, WorkspaceEntity
 from .autonomy import AUTONOMY_AGENTS, execute_next_tasks, run_agent
 from .database import get_db
-from .models import AgentRun, Lead, OpsTask
+from .models import Lead
 from .services import lead_score
 
 router = APIRouter(prefix="/scheduled", tags=["scheduled autonomous operations"])
@@ -47,7 +47,7 @@ def _authorized_cron(authorization: str | None) -> None:
         raise HTTPException(401, "Invalid cron authorization")
 
 
-def _run_workspace_cycle(db: Session, organization: Organization) -> dict:
+def _run_workspace_cycle(db: Session, organization: Organization, trigger: str = "vercel_cron") -> dict:
     membership = db.scalar(select(Membership).where(
         Membership.organization_id == organization.id,
         Membership.role == "owner",
@@ -88,7 +88,7 @@ def _run_workspace_cycle(db: Session, organization: Organization) -> dict:
             db,
             definition["name"],
             f"Scheduled tenant cycle: {definition['role']}",
-            {"organization_id": organization.id, "trigger": "vercel_cron"},
+            {"organization_id": organization.id, "trigger": trigger},
         )
         _link(db, organization.id, "agent_run", run.id)
         task_id = run.output_json.get("task_id") if isinstance(run.output_json, dict) else None
@@ -104,6 +104,7 @@ def _run_workspace_cycle(db: Session, organization: Organization) -> dict:
         "organization_id": organization.id,
         "organization": organization.name,
         "status": "completed",
+        "trigger": trigger,
         "agents_run": len(runs),
         "tasks_executed": len(completed),
         "tasks_completed": len([item for item in completed if item.status == "completed"]),
@@ -128,12 +129,46 @@ def scheduled_operations(
 ):
     _authorized_cron(authorization)
     organizations = db.scalars(select(Organization).where(Organization.is_active.is_(True))).all()
-    results = [_run_workspace_cycle(db, organization) for organization in organizations]
+    results = [_run_workspace_cycle(db, organization, "vercel_cron") for organization in organizations]
     return {
         "generated_at": datetime.utcnow().isoformat(),
         "mode": "supervised_autonomous",
         "organizations_processed": len(results),
         "results": results,
+    }
+
+
+@router.post("/run-now")
+def run_now(
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    organization = db.get(Organization, principal.organization_id)
+    if not organization or not organization.is_active:
+        raise HTTPException(404, "Active organization not found")
+    return _run_workspace_cycle(db, organization, "owner_manual_schedule")
+
+
+@router.get("/status")
+def scheduled_status(
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    latest = db.scalar(select(CrmActivity).where(
+        CrmActivity.organization_id == principal.organization_id,
+        CrmActivity.activity_type == "scheduled_cycle",
+    ).order_by(CrmActivity.created_at.desc()))
+    return {
+        "mode": "supervised_autonomous",
+        "schedule": "0 13 * * *",
+        "schedule_label": "Daily at 8:00 AM Central during daylight saving time",
+        "cron_secret_configured": bool(os.getenv("CRON_SECRET")),
+        "last_run": None if not latest else {
+            "id": latest.id,
+            "summary": latest.summary,
+            "metadata": latest.metadata_json,
+            "created_at": latest.created_at,
+        },
     }
 
 
