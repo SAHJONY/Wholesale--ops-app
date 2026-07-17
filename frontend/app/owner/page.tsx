@@ -3,8 +3,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import styles from './owner.module.css';
 
-const API_URL = 'https://backend-pi-opal-65.vercel.app';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://backend-pi-opal-65.vercel.app').replace(/\/$/, '');
 const SESSION_STORAGE = 'sahjony_owner_session';
+const OWNER_EMAIL = 'sahjonycapitalllc@outlook.com';
+const REQUEST_TIMEOUT_MS = 15000;
 
 type Principal = { organization_id: number; organization_name: string; user_id: number; email: string; name: string; role: string };
 type Pipeline = { total_leads: number; active_deals: number; projected_assignment_revenue: number; stages: Array<{ stage: string; count: number }> };
@@ -12,6 +14,7 @@ type Lead = { id: number; seller_name: string; phone: string; status: string; ad
 type FollowUp = { id: number; title: string; status: string; priority: number; due_at?: string; lead_id?: number };
 type TeamMember = { user_id: number; name: string; email: string; role: string; active: boolean };
 type AuthMode = 'login' | 'request-reset' | 'reset-password';
+type ApiState = 'checking' | 'online' | 'offline';
 type CommandCenter = {
   generated_at: string;
   mode: string;
@@ -31,13 +34,39 @@ function safeReturnPath() {
   return value.startsWith('/owner/') && !value.startsWith('//') ? value : '';
 }
 
+async function fetchJson(path: string, options: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_URL}${path}`, { ...options, cache: 'no-store', signal: controller.signal });
+    const text = await response.text();
+    let data: any = {};
+    if (text) {
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Backend returned an unreadable response (HTTP ${response.status}).`); }
+    }
+    if (!response.ok) {
+      const detail = typeof data.detail === 'string' ? data.detail : typeof data.message === 'string' ? data.message : 'Request failed';
+      throw new Error(`${detail} (HTTP ${response.status})`);
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('The backend did not respond within 15 seconds.');
+    if (error instanceof TypeError) throw new Error(`Cannot connect to the backend at ${API_URL}.`);
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export default function OwnerWorkspace() {
   const [sessionToken, setSessionToken] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(OWNER_EMAIL);
   const [password, setPassword] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [apiState, setApiState] = useState<ApiState>('checking');
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -52,15 +81,17 @@ export default function OwnerWorkspace() {
 
   const request = useCallback(async (path: string, options: RequestInit = {}, tokenOverride?: string) => {
     const token = (tokenOverride ?? sessionToken).trim();
-    let response: Response;
-    try {
-      response = await fetch(`${API_URL}${path}`, { ...options, cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) } });
-    } catch { throw new Error(`Cannot reach the backend API at ${API_URL}`); }
-    let data: any = {};
-    try { data = await response.json(); } catch { throw new Error(`Backend returned an invalid response (${response.status})`); }
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
-    return data;
+    return fetchJson(path, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) },
+    });
   }, [sessionToken]);
+
+  const checkApi = useCallback(async () => {
+    setApiState('checking');
+    try { await fetchJson('/health'); setApiState('online'); }
+    catch (err) { setApiState('offline'); setError(err instanceof Error ? err.message : 'Backend unavailable'); }
+  }, []);
 
   const loadWorkspace = useCallback(async (tokenOverride?: string) => {
     const token = (tokenOverride ?? sessionToken).trim();
@@ -79,30 +110,36 @@ export default function OwnerWorkspace() {
     } finally { setLoading(false); }
   }, [request, sessionToken]);
 
-  useEffect(() => { const stored = window.localStorage.getItem(SESSION_STORAGE) || ''; if (stored) void loadWorkspace(stored); }, [loadWorkspace]);
+  useEffect(() => {
+    void checkApi();
+    const stored = window.localStorage.getItem(SESSION_STORAGE) || '';
+    if (stored) void loadWorkspace(stored);
+  }, [checkApi, loadWorkspace]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const response = await fetch(`${API_URL}/human-auth/login`, { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase(), password }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Login failed');
+      const data = await fetchJson('/human-auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
       const token = String(data.access_token || '');
-      if (!token) throw new Error('Login did not return a session token');
+      if (!token) throw new Error('Login succeeded but no session token was returned.');
       setPassword('');
       const loaded = await loadWorkspace(token);
       const returnTo = safeReturnPath();
       if (loaded && returnTo) window.location.replace(returnTo);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to sign in'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to sign in';
+      setError(message);
+      if (/invalid email or password|not configured|temporarily locked/i.test(message)) setNotice('Use Forgot password below to create a fresh owner password and clear any account lock.');
+    } finally { setLoading(false); }
   }
 
   async function requestReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const response = await fetch(`${API_URL}/human-auth/request-password-reset`, { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase() }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to send reset code');
+      const data = await fetchJson('/human-auth/request-password-reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase() }) });
       setNotice(data.message || 'Reset code sent. Check your email.'); setAuthMode('reset-password');
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to send reset code'); }
     finally { setLoading(false); }
@@ -111,10 +148,8 @@ export default function OwnerWorkspace() {
   async function resetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const response = await fetch(`${API_URL}/human-auth/reset-password`, { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase(), code: resetCode.trim(), password: newPassword }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to reset password');
-      setPassword(newPassword); setNewPassword(''); setResetCode(''); setNotice('Password updated. Sign in with your new password.'); setAuthMode('login');
+      await fetchJson('/human-auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase(), code: resetCode.trim(), password: newPassword }) });
+      setPassword(newPassword); setNewPassword(''); setResetCode(''); setNotice('Password updated. Click Sign in using the new password.'); setAuthMode('login');
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to reset password'); }
     finally { setLoading(false); }
   }
@@ -157,10 +192,11 @@ export default function OwnerWorkspace() {
     <h1>{authMode === 'login' ? 'Owner Sign In' : authMode === 'request-reset' ? 'Forgot Password' : 'Reset Password'}</h1>
     <p>{authMode === 'login' ? (safeReturnPath() ? 'Sign in to continue to the requested owner workspace.' : 'Sign in from any phone or computer.') : authMode === 'request-reset' ? 'We will email you a six-digit reset code.' : 'Enter the code from your email and choose a new password.'}</p>
     <small>API: {API_URL}</small>
+    <div className={apiState === 'online' ? styles.notice : apiState === 'offline' ? styles.error : styles.cycleSummary}>Backend: {apiState === 'checking' ? 'Checking…' : apiState === 'online' ? 'Online' : 'Offline'} {apiState === 'offline' && <button type="button" onClick={() => void checkApi()}>Retry connection</button>}</div>
     {notice && <div className={styles.notice}>{notice}</div>}{error && <div className={styles.error}>{error}</div>}
-    {authMode === 'login' && <form onSubmit={signIn} className={styles.form}><label htmlFor="owner-email"><b>Email</b></label><input id="owner-email" value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required /><label htmlFor="owner-password"><b>Password</b></label><input id="owner-password" value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" required /><button disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button><button type="button" className={styles.secondaryButton} onClick={() => setAuthMode('request-reset')}>Forgot password?</button></form>}
-    {authMode === 'request-reset' && <form onSubmit={requestReset} className={styles.form}><label htmlFor="reset-email"><b>Email</b></label><input id="reset-email" value={email} onChange={e => setEmail(e.target.value)} type="email" required /><button disabled={loading}>{loading ? 'Sending…' : 'Send reset code'}</button><button type="button" className={styles.secondaryButton} onClick={() => setAuthMode('login')}>Back to sign in</button></form>}
-    {authMode === 'reset-password' && <form onSubmit={resetPassword} className={styles.form}><label><b>Email</b></label><input value={email} onChange={e => setEmail(e.target.value)} type="email" required /><label><b>Six-digit code</b></label><input value={resetCode} onChange={e => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" required minLength={6} maxLength={6} /><label><b>New password</b></label><input value={newPassword} onChange={e => setNewPassword(e.target.value)} type="password" required minLength={12} /><button disabled={loading}>{loading ? 'Updating…' : 'Reset password'}</button><button type="button" className={styles.secondaryButton} onClick={() => setAuthMode('request-reset')}>Request another code</button></form>}
+    {authMode === 'login' && <form onSubmit={signIn} className={styles.form}><label htmlFor="owner-email"><b>Email</b></label><input id="owner-email" value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required /><label htmlFor="owner-password"><b>Password</b></label><input id="owner-password" value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" required /><button type="submit" disabled={loading || apiState !== 'online'}>{loading ? 'Signing in…' : 'Sign in'}</button><button type="button" className={styles.secondaryButton} onClick={() => { setError(''); setNotice(''); setAuthMode('request-reset'); }}>Forgot password?</button></form>}
+    {authMode === 'request-reset' && <form onSubmit={requestReset} className={styles.form}><label htmlFor="reset-email"><b>Email</b></label><input id="reset-email" value={email} onChange={e => setEmail(e.target.value)} type="email" required /><button type="submit" disabled={loading || apiState !== 'online'}>{loading ? 'Sending…' : 'Send reset code'}</button><button type="button" className={styles.secondaryButton} onClick={() => setAuthMode('login')}>Back to sign in</button></form>}
+    {authMode === 'reset-password' && <form onSubmit={resetPassword} className={styles.form}><label><b>Email</b></label><input value={email} onChange={e => setEmail(e.target.value)} type="email" required /><label><b>Six-digit code</b></label><input value={resetCode} onChange={e => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" required minLength={6} maxLength={6} /><label><b>New password</b></label><input value={newPassword} onChange={e => setNewPassword(e.target.value)} type="password" required minLength={12} /><button type="submit" disabled={loading || apiState !== 'online'}>{loading ? 'Updating…' : 'Reset password'}</button><button type="button" className={styles.secondaryButton} onClick={() => setAuthMode('request-reset')}>Request another code</button></form>}
   </section></main>;
 
   const kpis = commandCenter?.kpis;
