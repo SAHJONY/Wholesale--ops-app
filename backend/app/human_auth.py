@@ -2,7 +2,9 @@ import hashlib
 import hmac
 import os
 import secrets
+import smtplib
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -80,10 +82,54 @@ def _find_owner(db: Session, email: str | None = None):
     return rows[0]
 
 
-def _send_reset_email(email: str, code: str) -> None:
-    api_key = os.getenv("RESEND_API_KEY")
+def _email_html(code: str) -> str:
+    return (
+        "<div style='font-family:Arial,sans-serif'>"
+        "<h2>SAHJONY Wholesale OS</h2>"
+        f"<p>Your password reset code is <strong style='font-size:24px'>{code}</strong>.</p>"
+        "<p>This code expires in 10 minutes. If you did not request it, ignore this email.</p>"
+        "</div>"
+    )
+
+
+def _send_with_smtp(email: str, code: str) -> bool:
+    username = (os.getenv("SMTP_USER") or "").strip()
+    password = (os.getenv("SMTP_PASS") or "").strip()
+    if not username or not password:
+        return False
+
+    host = (os.getenv("SMTP_HOST") or "smtp.gmail.com").strip()
+    port = int(os.getenv("SMTP_PORT") or "587")
+    sender = (os.getenv("AUTH_FROM_EMAIL") or username).strip()
+
+    message = EmailMessage()
+    message["Subject"] = "Your SAHJONY password reset code"
+    message["From"] = sender
+    message["To"] = email
+    message.set_content(
+        f"Your SAHJONY Wholesale OS password reset code is {code}. "
+        "This code expires in 10 minutes."
+    )
+    message.add_alternative(_email_html(code), subtype="html")
+
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+            server.login(username, password)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(username, password)
+            server.send_message(message)
+    return True
+
+
+def _send_with_resend(email: str, code: str) -> bool:
+    api_key = (os.getenv("RESEND_API_KEY") or "").strip()
     if not api_key:
-        raise HTTPException(503, "Password-reset email is not configured yet")
+        return False
     from_email = os.getenv("AUTH_FROM_EMAIL", "SAHJONY Wholesale OS <onboarding@resend.dev>")
     response = httpx.post(
         "https://api.resend.com/emails",
@@ -92,18 +138,35 @@ def _send_reset_email(email: str, code: str) -> None:
             "from": from_email,
             "to": [email],
             "subject": "Your SAHJONY password reset code",
-            "html": (
-                "<div style='font-family:Arial,sans-serif'>"
-                "<h2>SAHJONY Wholesale OS</h2>"
-                f"<p>Your password reset code is <strong style='font-size:24px'>{code}</strong>.</p>"
-                "<p>This code expires in 10 minutes. If you did not request it, ignore this email.</p>"
-                "</div>"
-            ),
+            "html": _email_html(code),
         },
         timeout=15,
     )
     if response.status_code >= 300:
-        raise HTTPException(502, "Unable to send password-reset email")
+        raise RuntimeError(f"Resend rejected email with status {response.status_code}")
+    return True
+
+
+def _send_reset_email(email: str, code: str) -> None:
+    errors: list[str] = []
+
+    try:
+        if _send_with_smtp(email, code):
+            return
+    except Exception as exc:
+        errors.append(f"smtp:{type(exc).__name__}")
+
+    try:
+        if _send_with_resend(email, code):
+            return
+    except Exception as exc:
+        errors.append(f"resend:{type(exc).__name__}")
+
+    smtp_configured = bool((os.getenv("SMTP_USER") or "").strip() and (os.getenv("SMTP_PASS") or "").strip())
+    resend_configured = bool((os.getenv("RESEND_API_KEY") or "").strip())
+    if not smtp_configured and not resend_configured:
+        raise HTTPException(503, "Password-reset email is not configured yet")
+    raise HTTPException(502, "Unable to send password-reset email")
 
 
 @router.post("/set-password")
