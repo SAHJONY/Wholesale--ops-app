@@ -11,6 +11,7 @@ from .auth import Principal, require_role
 from .auth_models import CrmActivity
 from .database import get_db
 from .deal_execution_models import ContractPacket, DealDocument
+from .event_bus import emit_event
 from .models import Deal
 from .operating_system import initialize_closing
 
@@ -104,6 +105,16 @@ def _apply_status(db: Session, packet: ContractPacket, provider_status: str, pay
             initialize_closing(db, deal.id)
             deal.stage = "closing"
             deal.next_action = "Coordinate title, earnest money, and closing milestones"
+        emit_event(
+            db,
+            packet.organization_id,
+            "ContractSigned",
+            "deal",
+            packet.deal_id,
+            payload={"packet_id": packet.id, "packet_type": packet.packet_type, "submission_id": packet.docusign_envelope_id},
+            source="docuseal",
+            event_key=f"docuseal:contract-signed:{packet.id}",
+        )
 
     db.add(CrmActivity(
         organization_id=packet.organization_id,
