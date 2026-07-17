@@ -7,6 +7,7 @@ from app.crm import router as crm_router
 from app.database import Base, engine
 from app.executive_ops import router as executive_ops_router
 from app.human_auth import router as human_auth_router
+from app.integrations import router as integrations_router
 from app.main import app
 from app.owner_insights import router as owner_insights_router
 from app.tenant_ops import router as tenant_ops_router
@@ -23,5 +24,6 @@ app.include_router(executive_ops_router)
 app.include_router(activation_router)
 app.include_router(continuous_ops_router)
 app.include_router(owner_insights_router)
+app.include_router(integrations_router)
 
 __all__ = ["app"]
