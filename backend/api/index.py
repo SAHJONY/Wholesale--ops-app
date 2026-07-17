@@ -10,6 +10,7 @@ from app.human_auth import router as human_auth_router
 from app.integrations import router as integrations_router
 from app.main import app
 from app.owner_insights import router as owner_insights_router
+from app.property_enrichment import router as property_enrichment_router
 from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
@@ -25,5 +26,6 @@ app.include_router(activation_router)
 app.include_router(continuous_ops_router)
 app.include_router(owner_insights_router)
 app.include_router(integrations_router)
+app.include_router(property_enrichment_router)
 
 __all__ = ["app"]
