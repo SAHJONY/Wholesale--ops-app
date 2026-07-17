@@ -108,7 +108,7 @@ export default function DealExecutionCenter() {
   if (!authenticated) return <main className={styles.setup}><section className={styles.setupCard}><span className={styles.eyebrow}>DEAL EXECUTION</span><h1>{loading ? 'Checking owner session…' : 'Owner session required'}</h1><p>{error || 'Redirecting to secure owner sign-in.'}</p><a className={styles.linkButton} href={SIGN_IN_URL}>Sign in</a></section></main>;
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>DEAL EXECUTION</span><h1>Contracts & Closing Center</h1><p>Prepare approved templates, control signatures, and move deals into closing.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner">Control Plane</a><a className={styles.linkButton} href="/owner/communications">Communications</a></div></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>DEAL EXECUTION</span><h1>Contracts & Closing Center</h1><p>Prepare approved templates, control signatures, and move deals into closing.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/closing">Closing Command</a><a className={styles.linkButton} href="/owner">Control Plane</a><a className={styles.linkButton} href="/owner/communications">Communications</a></div></header>
     {notice&&<div className={styles.notice}>{notice}</div>}{error&&<div className={styles.error}>{error}</div>}
 
     <section className={styles.metrics}>
