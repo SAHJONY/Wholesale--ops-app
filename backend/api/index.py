@@ -2,6 +2,7 @@
 
 from app.activation import router as activation_router
 from app.auth import router as auth_router
+from app.contact_enrichment import router as contact_enrichment_router
 from app.continuous_ops import router as continuous_ops_router
 from app.crm import router as crm_router
 from app.database import Base, engine
@@ -27,5 +28,6 @@ app.include_router(continuous_ops_router)
 app.include_router(owner_insights_router)
 app.include_router(integrations_router)
 app.include_router(property_enrichment_router)
+app.include_router(contact_enrichment_router)
 
 __all__ = ["app"]
