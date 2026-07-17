@@ -4,27 +4,26 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import styles from './owner.module.css';
 
 const API_URL = 'https://backend-pi-opal-65.vercel.app';
-const KEY_STORAGE = 'sahjony_owner_api_key';
+const SESSION_STORAGE = 'sahjony_owner_session';
 
 type Principal = { organization_id: number; organization_name: string; user_id: number; email: string; name: string; role: string };
 type Pipeline = { total_leads: number; active_deals: number; projected_assignment_revenue: number; stages: Array<{ stage: string; count: number }> };
 type Lead = { id: number; seller_name: string; phone: string; status: string; address?: string; city?: string; state?: string; mao?: number };
 type FollowUp = { id: number; title: string; status: string; priority: number; due_at?: string; lead_id?: number };
 type TeamMember = { user_id: number; name: string; email: string; role: string; active: boolean };
+type AuthMode = 'login' | 'request-reset' | 'reset-password';
 
 function money(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value || 0);
 }
 
-function normalizeKey(value: string) {
-  return value.trim().replace(/^['"]|['"]$/g, '');
-}
-
 export default function OwnerWorkspace() {
-  const [apiKey, setApiKey] = useState('');
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [sessionToken, setSessionToken] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -34,8 +33,8 @@ export default function OwnerWorkspace() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const request = useCallback(async (path: string, options: RequestInit = {}, keyOverride?: string) => {
-    const key = normalizeKey(keyOverride ?? apiKey);
+  const request = useCallback(async (path: string, options: RequestInit = {}, tokenOverride?: string) => {
+    const token = (tokenOverride ?? sessionToken).trim();
     let response: Response;
     try {
       response = await fetch(`${API_URL}${path}`, {
@@ -43,7 +42,7 @@ export default function OwnerWorkspace() {
         cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
-          ...(key ? { 'X-API-Key': key } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(options.headers || {}),
         },
       });
@@ -58,43 +57,44 @@ export default function OwnerWorkspace() {
     }
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
     return data;
-  }, [apiKey]);
+  }, [sessionToken]);
 
-  const loadWorkspace = useCallback(async (keyOverride?: string) => {
-    const key = normalizeKey(keyOverride ?? apiKey);
-    if (!key) return;
+  const loadWorkspace = useCallback(async (tokenOverride?: string) => {
+    const token = (tokenOverride ?? sessionToken).trim();
+    if (!token) return;
     setLoading(true);
     setError('');
     try {
       const [me, pipelineData, leadData, followUpData, teamData] = await Promise.all([
-        request('/auth/me', {}, key),
-        request('/crm/pipeline', {}, key),
-        request('/crm/leads', {}, key),
-        request('/crm/follow-ups', {}, key),
-        request('/auth/team', {}, key),
+        request('/auth/me', {}, token),
+        request('/crm/pipeline', {}, token),
+        request('/crm/leads', {}, token),
+        request('/crm/follow-ups', {}, token),
+        request('/auth/team', {}, token),
       ]);
-      window.localStorage.setItem(KEY_STORAGE, key);
-      setApiKey(key);
+      window.localStorage.setItem(SESSION_STORAGE, token);
+      setSessionToken(token);
       setPrincipal(me);
       setPipeline(pipelineData);
       setLeads(leadData);
       setFollowUps(followUpData);
       setTeam(teamData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load workspace');
+      window.localStorage.removeItem(SESSION_STORAGE);
+      setSessionToken('');
       setPrincipal(null);
+      setError(err instanceof Error ? err.message : 'Unable to load workspace');
     } finally {
       setLoading(false);
     }
-  }, [apiKey, request]);
+  }, [request, sessionToken]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(KEY_STORAGE) || '';
-    setApiKey(stored);
+    const stored = window.localStorage.getItem(SESSION_STORAGE) || '';
     if (stored) void loadWorkspace(stored);
   }, [loadWorkspace]);
 
-  async function humanLogin(event: FormEvent<HTMLFormElement>) {
+  async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError('');
@@ -104,14 +104,13 @@ export default function OwnerWorkspace() {
         method: 'POST',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail.trim().toLowerCase(), password: loginPassword }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Login failed');
       const token = String(data.access_token || '');
       if (!token) throw new Error('Login did not return a session token');
-      setLoginPassword('');
-      setNotice('Signed in successfully.');
+      setPassword('');
       await loadWorkspace(token);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in');
@@ -120,16 +119,56 @@ export default function OwnerWorkspace() {
     }
   }
 
-  async function pasteKey() {
+  async function requestReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
     setError('');
+    setNotice('');
     try {
-      const value = await navigator.clipboard.readText();
-      const key = normalizeKey(value);
-      if (!key) throw new Error('Clipboard is empty.');
-      setApiKey(key);
-      setNotice('API key pasted. Tap Connect workspace.');
-    } catch {
-      setError('Clipboard access was blocked. Press and hold inside the key box, then choose Paste.');
+      const response = await fetch(`${API_URL}/human-auth/request-password-reset`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to send reset code');
+      setNotice(data.message || 'Reset code sent. Check your email.');
+      setAuthMode('reset-password');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send reset code');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`${API_URL}/human-auth/reset-password`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: resetCode.trim(),
+          password: newPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to reset password');
+      setPassword(newPassword);
+      setNewPassword('');
+      setResetCode('');
+      setNotice('Password updated. Sign in with your new password.');
+      setAuthMode('login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to reset password');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -167,10 +206,10 @@ export default function OwnerWorkspace() {
     }
   }
 
-  function disconnect() {
-    const token = apiKey;
-    window.localStorage.removeItem(KEY_STORAGE);
-    setApiKey('');
+  function signOut() {
+    const token = sessionToken;
+    window.localStorage.removeItem(SESSION_STORAGE);
+    setSessionToken('');
     setPrincipal(null);
     setPipeline(null);
     setLeads([]);
@@ -189,30 +228,37 @@ export default function OwnerWorkspace() {
     return <main className={styles.setup}>
       <section className={styles.setupCard}>
         <span className={styles.eyebrow}>SAHJONY WHOLESALE OS</span>
-        <h1>Owner Sign In</h1>
-        <p>Sign in with your owner email and password from any phone or computer.</p>
+        <h1>{authMode === 'login' ? 'Owner Sign In' : authMode === 'request-reset' ? 'Forgot Password' : 'Reset Password'}</h1>
+        <p>{authMode === 'login' ? 'Sign in from any phone or computer.' : authMode === 'request-reset' ? 'We will email you a six-digit reset code.' : 'Enter the code from your email and choose a new password.'}</p>
         <small>API: {API_URL}</small>
         {notice && <div className={styles.notice}>{notice}</div>}
         {error && <div className={styles.error}>{error}</div>}
 
-        <form onSubmit={humanLogin} className={styles.form}>
+        {authMode === 'login' && <form onSubmit={signIn} className={styles.form}>
           <label htmlFor="owner-email"><b>Email</b></label>
-          <input id="owner-email" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} type="email" autoComplete="email" required placeholder="owner@company.com" />
+          <input id="owner-email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required placeholder="owner@company.com" />
           <label htmlFor="owner-password"><b>Password</b></label>
-          <input id="owner-password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} type="password" autoComplete="current-password" required minLength={12} placeholder="Your secure password" />
+          <input id="owner-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" required placeholder="Your password" />
           <button disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button>
-        </form>
+          <button type="button" className={styles.secondaryButton} onClick={() => { setError(''); setNotice(''); setAuthMode('request-reset'); }}>Forgot password?</button>
+        </form>}
 
-        <button type="button" className={styles.secondaryButton} onClick={() => setShowAdvanced(!showAdvanced)}>
-          {showAdvanced ? 'Hide integration key login' : 'Use an API key instead'}
-        </button>
+        {authMode === 'request-reset' && <form onSubmit={requestReset} className={styles.form}>
+          <label htmlFor="reset-email"><b>Email</b></label>
+          <input id="reset-email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required placeholder="owner@company.com" />
+          <button disabled={loading}>{loading ? 'Sending…' : 'Send reset code'}</button>
+          <button type="button" className={styles.secondaryButton} onClick={() => { setError(''); setNotice(''); setAuthMode('login'); }}>Back to sign in</button>
+        </form>}
 
-        {showAdvanced && <form onSubmit={(event) => { event.preventDefault(); void loadWorkspace(apiKey); }} className={styles.form}>
-          <label htmlFor="owner-api-key"><b>Owner API key</b></label>
-          <textarea id="owner-api-key" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste the complete sahjony_live_... key here" rows={4} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
-          <small>{apiKey.length ? `${apiKey.length} characters entered` : 'No key entered yet'}</small>
-          <button type="button" onClick={() => void pasteKey()} disabled={loading}>Paste key</button>
-          <button type="submit" disabled={loading || !apiKey.trim()}>{loading ? 'Connecting…' : 'Connect workspace'}</button>
+        {authMode === 'reset-password' && <form onSubmit={resetPassword} className={styles.form}>
+          <label htmlFor="code-email"><b>Email</b></label>
+          <input id="code-email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required />
+          <label htmlFor="reset-code"><b>Six-digit code</b></label>
+          <input id="reset-code" value={resetCode} onChange={(event) => setResetCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={6} placeholder="000000" />
+          <label htmlFor="new-password"><b>New password</b></label>
+          <input id="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} type="password" autoComplete="new-password" required minLength={12} placeholder="At least 12 characters" />
+          <button disabled={loading}>{loading ? 'Updating…' : 'Reset password'}</button>
+          <button type="button" className={styles.secondaryButton} onClick={() => { setError(''); setNotice(''); setAuthMode('request-reset'); }}>Request another code</button>
         </form>}
       </section>
     </main>;
@@ -221,7 +267,7 @@ export default function OwnerWorkspace() {
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>OWNER CONTROL PLANE</span><h1>{principal.organization_name}</h1><p>{principal.name} · {principal.role}</p></div>
-      <div className={styles.actions}><button onClick={() => void loadWorkspace()} disabled={loading}>Refresh</button><button onClick={importExisting} disabled={loading}>Import existing</button><button onClick={disconnect}>Sign out</button></div>
+      <div className={styles.actions}><button onClick={() => void loadWorkspace()} disabled={loading}>Refresh</button><button onClick={importExisting} disabled={loading}>Import existing</button><button onClick={signOut}>Sign out</button></div>
     </header>
     {notice && <div className={styles.notice}>{notice}</div>}
     {error && <div className={styles.error}>{error}</div>}
