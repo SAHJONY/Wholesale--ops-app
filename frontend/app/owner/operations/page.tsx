@@ -39,6 +39,15 @@ export default function OperationsConsole() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  const expireSession = useCallback(() => {
+    window.localStorage.removeItem(SESSION_STORAGE);
+    setToken('');
+    setStatus(null);
+    setHistory([]);
+    setSessionExpired(true);
+  }, []);
 
   const request = useCallback(async (path: string, options: RequestInit = {}, tokenOverride?: string) => {
     const activeToken = tokenOverride || token;
@@ -53,9 +62,13 @@ export default function OperationsConsole() {
       },
     });
     const data = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      expireSession();
+      throw new Error('Your owner session expired or was revoked. Sign in again to continue.');
+    }
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
     return data;
-  }, [token]);
+  }, [expireSession, token]);
 
   const load = useCallback(async (tokenOverride?: string) => {
     setLoading(true);
@@ -97,9 +110,10 @@ export default function OperationsConsole() {
 
   if (!token) {
     return <main className={styles.setup}><section className={styles.setupCard}>
-      <h1>Owner session required</h1>
-      <p>Sign in on the owner dashboard, then reopen scheduled operations.</p>
-      <a className={styles.linkButton} href="/owner">Go to owner sign in</a>
+      <span className={styles.eyebrow}>CONTINUOUS OPERATIONS</span>
+      <h1>{sessionExpired ? 'Owner session expired' : 'Owner session required'}</h1>
+      <p>{sessionExpired ? 'Your previous session was revoked or expired. Sign in again, then return to scheduled operations.' : 'Sign in on the owner dashboard, then reopen scheduled operations.'}</p>
+      <a className={styles.linkButton} href="/owner">Sign in again</a>
     </section></main>;
   }
 
