@@ -10,7 +10,7 @@ from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity
 from .compliance import normalize_contact
 from .compliance_models import ComplianceDecision, ContactSuppression
-from .crm import _assert_linked
+from .crm import _assert_linked, _workspace_link
 from .database import get_db
 from .models import Approval, Lead
 from .outbound_models import OutboundRequest
@@ -21,10 +21,7 @@ DECISION_TTL = timedelta(minutes=15)
 
 
 def _validate_channel_provider(channel: str, provider: str) -> None:
-    allowed = {
-        ("sms", "twilio"),
-        ("automated_call", "bland"),
-    }
+    allowed = {("sms", "twilio"), ("automated_call", "bland")}
     if (channel, provider) not in allowed:
         raise HTTPException(422, "Supported combinations are sms/twilio and automated_call/bland")
 
@@ -109,6 +106,7 @@ def create_outbound_request(
     )
     db.add(request)
     db.flush()
+    _workspace_link(db, principal.organization_id, "outbound_request", request.id)
 
     approval = Approval(
         action_type=f"dispatch_{channel}",
@@ -125,6 +123,8 @@ def create_outbound_request(
         },
     )
     db.add(approval)
+    db.flush()
+    _workspace_link(db, principal.organization_id, "approval", approval.id)
     db.add(CrmActivity(
         organization_id=principal.organization_id,
         user_id=principal.user_id,
