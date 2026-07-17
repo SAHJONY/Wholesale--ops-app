@@ -9,6 +9,7 @@ from .auth import Principal, require_role
 from .auth_models import CrmActivity
 from .crm import _assert_linked
 from .database import get_db
+from .intelligence_ingest import ingest_provider_facts
 from .models import Lead
 
 router = APIRouter(prefix="/enrichment", tags=["property enrichment"])
@@ -29,20 +30,12 @@ def _preview(lead: Lead, evidence: dict) -> dict:
     prop = lead.property
     remote = evidence.get("property") or {}
     mappings = {
-        "address": remote.get("address"),
-        "city": remote.get("city"),
-        "state": remote.get("state"),
-        "zip_code": remote.get("zip_code"),
-        "property_type": remote.get("property_type"),
-        "bedrooms": remote.get("bedrooms"),
-        "bathrooms": remote.get("bathrooms"),
-        "sqft": remote.get("sqft"),
-        "latitude": remote.get("latitude"),
-        "longitude": remote.get("longitude"),
+        "address": remote.get("address"), "city": remote.get("city"), "state": remote.get("state"),
+        "zip_code": remote.get("zip_code"), "property_type": remote.get("property_type"),
+        "bedrooms": remote.get("bedrooms"), "bathrooms": remote.get("bathrooms"), "sqft": remote.get("sqft"),
+        "latitude": remote.get("latitude"), "longitude": remote.get("longitude"),
     }
-    proposed = {}
-    conflicts = []
-    unchanged = []
+    proposed, conflicts, unchanged = {}, [], []
     for field, incoming in mappings.items():
         current = getattr(prop, field)
         if incoming in (None, ""):
@@ -55,18 +48,8 @@ def _preview(lead: Lead, evidence: dict) -> dict:
             conflicts.append({"field": field, "current": current, "incoming": incoming})
     owner = evidence.get("owner") or {}
     if owner.get("name") and lead.seller_name and not _same(lead.seller_name, owner.get("name")):
-        conflicts.append({
-            "field": "legal_owner_vs_seller",
-            "current": lead.seller_name,
-            "incoming": owner.get("name"),
-            "requires": "county_record_verification",
-        })
-    return {
-        "proposed_updates": proposed,
-        "conflicts": conflicts,
-        "unchanged_fields": unchanged,
-        "requires_human_review": bool(conflicts),
-    }
+        conflicts.append({"field": "legal_owner_vs_seller", "current": lead.seller_name, "incoming": owner.get("name"), "requires": "county_record_verification"})
+    return {"proposed_updates": proposed, "conflicts": conflicts, "unchanged_fields": unchanged, "requires_human_review": bool(conflicts)}
 
 
 async def _lookup_for_lead(lead: Lead) -> dict:
@@ -88,32 +71,17 @@ async def _lookup_for_lead(lead: Lead) -> dict:
 
 
 @router.post("/leads/{lead_id}/attom-preview")
-async def preview_attom_enrichment(
-    lead_id: int,
-    principal: Principal = Depends(require_role("acquisitions")),
-    db: Session = Depends(get_db),
-):
+async def preview_attom_enrichment(lead_id: int, principal: Principal = Depends(require_role("acquisitions")), db: Session = Depends(get_db)):
     _assert_linked(db, principal, "lead", lead_id)
     lead = db.get(Lead, lead_id)
     if not lead:
         raise HTTPException(404, "Lead not found")
     evidence = await _lookup_for_lead(lead)
-    return {
-        "lead_id": lead.id,
-        "provider": "attom",
-        "evidence": evidence,
-        "review": _preview(lead, evidence),
-        "applied": False,
-    }
+    return {"lead_id": lead.id, "provider": "attom", "evidence": evidence, "review": _preview(lead, evidence), "applied": False}
 
 
 @router.post("/leads/{lead_id}/attom-apply")
-async def apply_attom_enrichment(
-    lead_id: int,
-    payload: dict | None = None,
-    principal: Principal = Depends(require_role("manager")),
-    db: Session = Depends(get_db),
-):
+async def apply_attom_enrichment(lead_id: int, payload: dict | None = None, principal: Principal = Depends(require_role("manager")), db: Session = Depends(get_db)):
     _assert_linked(db, principal, "lead", lead_id)
     lead = db.get(Lead, lead_id)
     if not lead or not lead.property:
@@ -123,12 +91,10 @@ async def apply_attom_enrichment(
     payload = payload or {}
     approved_conflict_fields = {str(item) for item in payload.get("approved_conflict_fields", [])}
     force = bool(payload.get("force", False))
-
     prop = lead.property
     remote = evidence.get("property") or {}
     allowed = ("address", "city", "state", "zip_code", "property_type", "bedrooms", "bathrooms", "sqft", "latitude", "longitude")
-    applied = {}
-    skipped_conflicts = []
+    applied, skipped_conflicts = {}, []
     conflict_fields = {item["field"] for item in review["conflicts"]}
     for field in allowed:
         incoming = remote.get(field)
@@ -143,35 +109,32 @@ async def apply_attom_enrichment(
             setattr(prop, field, incoming)
             applied[field] = incoming
 
-    activity = CrmActivity(
-        organization_id=principal.organization_id,
-        user_id=principal.user_id,
-        lead_id=lead.id,
-        activity_type="property_enriched",
-        summary=f"ATTOM evidence reviewed for {lead.seller_name}; {len(applied)} fields applied",
-        metadata_json={
-            "provider": "attom",
-            "observed_at": evidence.get("observed_at") or datetime.utcnow().isoformat(),
-            "confidence": evidence.get("confidence"),
-            "identifiers": evidence.get("identifiers"),
-            "owner_evidence": evidence.get("owner"),
-            "valuation_evidence": evidence.get("valuation"),
-            "last_sale_evidence": evidence.get("last_sale"),
-            "source_reference": evidence.get("raw_reference"),
-            "verification_required": evidence.get("verification_required"),
-            "applied_fields": applied,
-            "conflicts": review.get("conflicts"),
-            "skipped_conflicts": skipped_conflicts,
-        },
-    )
-    db.add(activity)
-    db.commit()
-    return {
-        "lead_id": lead.id,
-        "provider": "attom",
-        "applied": applied,
-        "skipped_conflicts": skipped_conflicts,
-        "conflicts": review["conflicts"],
-        "confidence": evidence.get("confidence"),
-        "verification_required": evidence.get("verification_required"),
+    owner = evidence.get("owner") or {}
+    valuation = evidence.get("valuation") or {}
+    last_sale = evidence.get("last_sale") or {}
+    identifiers = evidence.get("identifiers") or {}
+    observed_text = evidence.get("observed_at")
+    try:
+        observed = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00")).replace(tzinfo=None) if observed_text else datetime.utcnow()
+    except ValueError:
+        observed = datetime.utcnow()
+    property_facts = {
+        **remote,
+        "attom_id": identifiers.get("attom_id"), "apn": identifiers.get("apn"), "fips": identifiers.get("fips"),
+        "owner_name": owner.get("name"), "owner_mailing_address": owner.get("mailing_address"), "absentee_owner": owner.get("absentee_owner"),
+        "assessed_value": valuation.get("assessed_value"), "market_value": valuation.get("market_value"), "tax_amount": valuation.get("tax_amount"),
+        "last_sale_price": last_sale.get("price"), "last_sale_date": last_sale.get("date"),
     }
+    intelligence = ingest_provider_facts(
+        db, principal.organization_id, "property", prop.id, "attom", property_facts,
+        confidence=float(evidence.get("confidence") or 0), source_reference=str(evidence.get("raw_reference") or "") or None,
+        verification_status="partially_verified", observed_at=observed,
+        metadata={"verification_required": evidence.get("verification_required"), "lead_id": lead.id},
+    )
+    db.add(CrmActivity(
+        organization_id=principal.organization_id, user_id=principal.user_id, lead_id=lead.id,
+        activity_type="property_enriched", summary=f"ATTOM evidence reviewed for {lead.seller_name}; {len(applied)} fields applied",
+        metadata_json={"provider": "attom", "observed_at": evidence.get("observed_at") or datetime.utcnow().isoformat(), "confidence": evidence.get("confidence"), "identifiers": identifiers, "owner_evidence": owner, "valuation_evidence": valuation, "last_sale_evidence": last_sale, "source_reference": evidence.get("raw_reference"), "verification_required": evidence.get("verification_required"), "applied_fields": applied, "conflicts": review.get("conflicts"), "skipped_conflicts": skipped_conflicts, "intelligence": intelligence},
+    ))
+    db.commit()
+    return {"lead_id": lead.id, "provider": "attom", "applied": applied, "skipped_conflicts": skipped_conflicts, "conflicts": review["conflicts"], "confidence": evidence.get("confidence"), "verification_required": evidence.get("verification_required"), "intelligence": intelligence}
