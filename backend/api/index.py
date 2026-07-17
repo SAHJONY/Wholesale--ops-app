@@ -2,6 +2,7 @@
 
 from app.activation import router as activation_router
 from app.auth import router as auth_router
+from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
 from app.continuous_ops import router as continuous_ops_router
@@ -20,7 +21,7 @@ from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
 # registers additive workspace, identity, CRM, password, compliance, outbound,
-# deal-execution, and tenant-operation tables.
+# deal-execution, title/closing, and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
@@ -37,6 +38,7 @@ app.include_router(contact_enrichment_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(deal_execution_router)
+app.include_router(closing_command_router)
 app.include_router(docuseal_events_router)
 
 __all__ = ["app"]
