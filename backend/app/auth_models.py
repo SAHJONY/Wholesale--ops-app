@@ -52,6 +52,18 @@ class ApiCredential(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class UserPassword(Base):
+    __tablename__ = "user_passwords"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class WorkspaceEntity(Base):
     __tablename__ = "workspace_entities"
     __table_args__ = (UniqueConstraint("organization_id", "entity_type", "entity_id", name="uq_workspace_entity"),)
@@ -84,7 +96,7 @@ class FollowUpTask(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id"), nullable=True, index=True)
     deal_id: Mapped[int | None] = mapped_column(ForeignKey("deals.id"), nullable=True, index=True)
-    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeKey("app_users.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(220))
     status: Mapped[str] = mapped_column(String(30), default="open", index=True)
     priority: Mapped[int] = mapped_column(Integer, default=50)
