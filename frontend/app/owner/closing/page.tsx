@@ -1,0 +1,95 @@
+'use client';
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import styles from '../owner.module.css';
+
+const API_URL = 'https://backend-pi-opal-65.vercel.app';
+const SESSION_STORAGE = 'sahjony_owner_session';
+
+type Milestone = { id:number; milestone_type:string; label:string; status:string; due_at?:string; completed_at?:string; owner?:string; notes?:string };
+type Issue = { id:number; issue_type:string; severity:string; status:string; title:string; description?:string; owner?:string; due_at?:string; resolution?:string };
+type Closing = {
+  deal:{ id:number; stage:string; strategy:string; target_contract_price?:number; target_buyer_price?:number; projected_assignment_fee?:number; next_action?:string };
+  property:{ address?:string; city?:string; state?:string; zip_code?:string };
+  title_order?:{ title_company?:string; contact_name?:string; contact_email?:string; contact_phone?:string; order_number?:string; status:string; ordered_at?:string; commitment_due_at?:string; commitment_received_at?:string; closing_date?:string };
+  earnest_money?:{ amount:number; holder?:string; status:string; due_at?:string; received_at?:string; receipt_reference?:string; notes?:string };
+  funding?:{ buyer_name?:string; source_type:string; proof_of_funds_status:string; proof_of_funds_reference?:string; required_amount?:number; verified_amount?:number; funds_due_at?:string; funds_received_at?:string; status:string; notes?:string };
+  issues:Issue[];
+  milestones:Milestone[];
+};
+
+type Snapshot = { closings:Closing[] };
+
+function money(value?:number) { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value||0); }
+function localDate(value?:string) { return value ? new Date(value).toLocaleString() : '—'; }
+
+export default function ClosingCommandCenter() {
+  const [token,setToken]=useState('');
+  const [snapshot,setSnapshot]=useState<Snapshot>({closings:[]});
+  const [dealId,setDealId]=useState<number|null>(null);
+  const [loading,setLoading]=useState(false);
+  const [notice,setNotice]=useState('');
+  const [error,setError]=useState('');
+
+  const selected=useMemo(()=>snapshot.closings.find(x=>x.deal.id===dealId)||snapshot.closings[0],[snapshot.closings,dealId]);
+
+  const request=useCallback(async(path:string, options:RequestInit={})=>{
+    const active=token||window.localStorage.getItem(SESSION_STORAGE)||'';
+    if(!active) throw new Error('Owner session required.');
+    const response=await fetch(`${API_URL}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});
+    const data=await response.json().catch(()=>({}));
+    if(response.status===401||response.status===403){window.localStorage.removeItem(SESSION_STORAGE);window.location.replace('/owner-access');throw new Error('Owner session expired.');}
+    if(!response.ok) throw new Error(typeof data.detail==='string'?data.detail:`Request failed (${response.status})`);
+    return data;
+  },[token]);
+
+  const load=useCallback(async()=>{
+    setLoading(true);setError('');
+    try{const data=await request('/closing-command/snapshot');setSnapshot(data);if(!dealId&&data.closings?.length)setDealId(data.closings[0].deal.id);}
+    catch(err){setError(err instanceof Error?err.message:'Unable to load closings');}
+    finally{setLoading(false);}
+  },[request,dealId]);
+
+  useEffect(()=>{const stored=window.localStorage.getItem(SESSION_STORAGE)||'';if(!stored){window.location.replace('/owner-access');return;}setToken(stored);},[]);
+  useEffect(()=>{if(token)void load();},[token,load]);
+
+  async function initialize(){if(!selected)return;setLoading(true);setError('');try{await request(`/closing-command/deals/${selected.deal.id}/initialize`,{method:'POST',body:'{}'});setNotice('Closing command initialized.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to initialize');}finally{setLoading(false);}}
+
+  async function updateTitle(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!selected)return;const f=new FormData(event.currentTarget);setLoading(true);setError('');try{await request(`/closing-command/deals/${selected.deal.id}/title-order`,{method:'PATCH',body:JSON.stringify({title_company:f.get('title_company'),contact_name:f.get('contact_name'),contact_email:f.get('contact_email'),contact_phone:f.get('contact_phone'),order_number:f.get('order_number'),status:f.get('status'),commitment_due_at:f.get('commitment_due_at')||null,closing_date:f.get('closing_date')||null})});setNotice('Title order updated.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to update title');}finally{setLoading(false);}}
+
+  async function updateEmd(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!selected)return;const f=new FormData(event.currentTarget);setLoading(true);setError('');try{await request(`/closing-command/deals/${selected.deal.id}/earnest-money`,{method:'PATCH',body:JSON.stringify({amount:Number(f.get('amount')||100),holder:f.get('holder'),status:f.get('status'),due_at:f.get('due_at')||null,received_at:f.get('received_at')||null,receipt_reference:f.get('receipt_reference'),notes:f.get('notes')})});setNotice('Earnest money updated.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to update earnest money');}finally{setLoading(false);}}
+
+  async function updateFunding(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!selected)return;const f=new FormData(event.currentTarget);setLoading(true);setError('');try{await request(`/closing-command/deals/${selected.deal.id}/funding`,{method:'PATCH',body:JSON.stringify({buyer_name:f.get('buyer_name'),source_type:f.get('source_type'),proof_of_funds_status:f.get('proof_of_funds_status'),proof_of_funds_reference:f.get('proof_of_funds_reference'),required_amount:Number(f.get('required_amount')||0),verified_amount:Number(f.get('verified_amount')||0),status:f.get('status'),funds_due_at:f.get('funds_due_at')||null,notes:f.get('notes')})});setNotice('Buyer funding updated.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to update funding');}finally{setLoading(false);}}
+
+  async function createIssue(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!selected)return;const form=event.currentTarget;const f=new FormData(form);setLoading(true);setError('');try{await request(`/closing-command/deals/${selected.deal.id}/issues`,{method:'POST',body:JSON.stringify({issue_type:f.get('issue_type'),severity:f.get('severity'),title:f.get('title'),description:f.get('description'),owner:f.get('owner'),due_at:f.get('due_at')||null})});form.reset();setNotice('Closing issue created.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to create issue');}finally{setLoading(false);}}
+
+  async function resolveIssue(id:number){setLoading(true);setError('');try{await request(`/closing-command/issues/${id}`,{method:'PATCH',body:JSON.stringify({status:'resolved',resolution:'Resolved from owner closing command center'})});setNotice('Issue resolved.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to resolve issue');}finally{setLoading(false);}}
+  async function completeMilestone(id:number){setLoading(true);setError('');try{await request(`/closing-command/milestones/${id}`,{method:'PATCH',body:JSON.stringify({status:'completed'})});setNotice('Milestone completed.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to update milestone');}finally{setLoading(false);}}
+
+  if(!token)return null;
+  return <main className={styles.page}>
+    <header className={styles.header}><div><span className={styles.eyebrow}>TITLE & CLOSING</span><h1>Closing Command Center</h1><p>Control title, earnest money, funding, exceptions, deadlines, and closing completion.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/deals">Contracts</a><a className={styles.linkButton} href="/owner">Control Plane</a></div></header>
+    {notice&&<div className={styles.notice}>{notice}</div>}{error&&<div className={styles.error}>{error}</div>}
+    <section className={styles.metrics}>
+      <article><span>Active closings</span><strong>{snapshot.closings.length}</strong></article>
+      <article><span>Open issues</span><strong>{snapshot.closings.reduce((n,c)=>n+c.issues.filter(i=>i.status!=='resolved').length,0)}</strong></article>
+      <article><span>Pending EMD</span><strong>{snapshot.closings.filter(c=>c.earnest_money?.status!=='received').length}</strong></article>
+      <article><span>Funding unverified</span><strong>{snapshot.closings.filter(c=>c.funding?.proof_of_funds_status!=='verified').length}</strong></article>
+    </section>
+    <section className={styles.cardWide}><div className={styles.cardHeader}><div><span className={styles.eyebrow}>DEAL</span><h2>Closing file</h2></div><select value={selected?.deal.id||''} onChange={e=>setDealId(Number(e.target.value))}>{snapshot.closings.map(c=><option key={c.deal.id} value={c.deal.id}>Deal #{c.deal.id} · {c.property.city}, {c.property.state}</option>)}</select></div>{selected?<div><p><b>{selected.property.address}, {selected.property.city} {selected.property.state} {selected.property.zip_code}</b></p><p>Contract {money(selected.deal.target_contract_price)} · Buyer {money(selected.deal.target_buyer_price)} · Fee {money(selected.deal.projected_assignment_fee)}</p><p>{selected.deal.next_action}</p><button onClick={()=>void initialize()} disabled={loading}>Initialize / repair closing file</button></div>:<p>No workspace deals available. Create and link a deal first.</p>}</section>
+    {selected&&<>
+      <section className={styles.grid}>
+        <article className={styles.card}><span className={styles.eyebrow}>TITLE</span><h2>Title order</h2><form onSubmit={updateTitle} className={styles.activationForm}><input name="title_company" defaultValue={selected.title_order?.title_company||''} placeholder="Title company"/><input name="contact_name" defaultValue={selected.title_order?.contact_name||''} placeholder="Contact name"/><input name="contact_email" type="email" defaultValue={selected.title_order?.contact_email||''} placeholder="Contact email"/><input name="contact_phone" defaultValue={selected.title_order?.contact_phone||''} placeholder="Contact phone"/><input name="order_number" defaultValue={selected.title_order?.order_number||''} placeholder="Order number"/><select name="status" defaultValue={selected.title_order?.status||'not_ordered'}><option value="not_ordered">Not ordered</option><option value="ordered">Ordered</option><option value="commitment_received">Commitment received</option><option value="clear">Clear to close</option><option value="closed">Closed</option></select><label>Commitment due<input name="commitment_due_at" type="datetime-local"/></label><label>Closing date<input name="closing_date" type="datetime-local"/></label><button disabled={loading}>Save title</button></form></article>
+        <article className={styles.card}><span className={styles.eyebrow}>EMD</span><h2>Earnest money</h2><form onSubmit={updateEmd} className={styles.activationForm}><input name="amount" type="number" defaultValue={selected.earnest_money?.amount||100}/><input name="holder" defaultValue={selected.earnest_money?.holder||''} placeholder="Escrow holder"/><select name="status" defaultValue={selected.earnest_money?.status||'pending'}><option value="pending">Pending</option><option value="delivered">Delivered</option><option value="received">Received</option><option value="returned">Returned</option><option value="forfeited">Forfeited</option></select><label>Due<input name="due_at" type="datetime-local"/></label><label>Received<input name="received_at" type="datetime-local"/></label><input name="receipt_reference" defaultValue={selected.earnest_money?.receipt_reference||''} placeholder="Receipt reference"/><textarea name="notes" defaultValue={selected.earnest_money?.notes||''} placeholder="Notes"/><button disabled={loading}>Save EMD</button></form></article>
+      </section>
+      <section className={styles.grid}>
+        <article className={styles.card}><span className={styles.eyebrow}>FUNDING</span><h2>Buyer funds</h2><form onSubmit={updateFunding} className={styles.activationForm}><input name="buyer_name" defaultValue={selected.funding?.buyer_name||''} placeholder="Buyer name"/><select name="source_type" defaultValue={selected.funding?.source_type||'cash'}><option value="cash">Cash</option><option value="hard_money">Hard money</option><option value="private_money">Private money</option></select><select name="proof_of_funds_status" defaultValue={selected.funding?.proof_of_funds_status||'missing'}><option value="missing">POF missing</option><option value="received">POF received</option><option value="verified">POF verified</option><option value="rejected">POF rejected</option></select><input name="proof_of_funds_reference" defaultValue={selected.funding?.proof_of_funds_reference||''} placeholder="POF reference"/><input name="required_amount" type="number" defaultValue={selected.funding?.required_amount||selected.deal.target_buyer_price||''} placeholder="Required amount"/><input name="verified_amount" type="number" defaultValue={selected.funding?.verified_amount||''} placeholder="Verified amount"/><select name="status" defaultValue={selected.funding?.status||'pending'}><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="received">Funds received</option><option value="failed">Failed</option></select><label>Funds due<input name="funds_due_at" type="datetime-local"/></label><textarea name="notes" defaultValue={selected.funding?.notes||''} placeholder="Notes"/><button disabled={loading}>Save funding</button></form></article>
+        <article className={styles.card}><span className={styles.eyebrow}>EXCEPTION</span><h2>Add closing issue</h2><form onSubmit={createIssue} className={styles.activationForm}><select name="issue_type" defaultValue="lien"><option value="lien">Lien</option><option value="probate">Probate</option><option value="hoa">HOA</option><option value="judgment">Judgment</option><option value="ownership">Ownership</option><option value="survey">Survey</option><option value="payoff">Payoff</option><option value="other">Other</option></select><select name="severity" defaultValue="medium"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select><input name="title" placeholder="Issue title" required/><textarea name="description" placeholder="Description"/><input name="owner" placeholder="Responsible person"/><label>Due<input name="due_at" type="datetime-local"/></label><button disabled={loading}>Create issue</button></form></article>
+      </section>
+      <section className={styles.grid}>
+        <article className={styles.card}><div className={styles.cardHeader}><div><span className={styles.eyebrow}>MILESTONES</span><h2>Closing timeline</h2></div><strong>{selected.milestones.filter(x=>x.status==='completed').length}/{selected.milestones.length}</strong></div><div className={styles.list}>{selected.milestones.length?selected.milestones.map(m=><div key={m.id}><span><b>{m.label}</b><small>{m.status} · Due {localDate(m.due_at)}</small></span><button onClick={()=>void completeMilestone(m.id)} disabled={loading||m.status==='completed'}>{m.status==='completed'?'Done':'Complete'}</button></div>):<p>Initialize the closing file to create milestones.</p>}</div></article>
+        <article className={styles.card}><div className={styles.cardHeader}><div><span className={styles.eyebrow}>ISSUES</span><h2>Exception queue</h2></div><strong>{selected.issues.filter(i=>i.status!=='resolved').length}</strong></div><div className={styles.list}>{selected.issues.length?selected.issues.map(i=><div key={i.id}><span><b>{i.title}</b><small>{i.issue_type} · {i.severity} · {i.status}</small><small>{i.description||'No description'}</small></span><button onClick={()=>void resolveIssue(i.id)} disabled={loading||i.status==='resolved'}>{i.status==='resolved'?'Resolved':'Resolve'}</button></div>):<p>No closing issues.</p>}</div></article>
+      </section>
+    </>}
+  </main>;
+}
