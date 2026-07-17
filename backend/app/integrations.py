@@ -57,9 +57,11 @@ PROVIDERS = [
     },
     {
         "id": "docusign", "name": "DocuSign eSignature", "category": "contracts", "tier": "primary",
-        "env": ["DOCUSIGN_INTEGRATION_KEY", "DOCUSIGN_USER_ID", "DOCUSIGN_ACCOUNT_ID"],
+        "env": ["DOCUSIGN_INTEGRATION_KEY", "DOCUSIGN_USER_ID", "DOCUSIGN_ACCOUNT_ID", "DOCUSIGN_ACCESS_TOKEN"],
+        "any_of_env": ["DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_GA"],
+        "optional_env": ["DOCUSIGN_BASE_PATH", "DOCUSIGN_TEMPLATE_ASSIGNMENT_AGREEMENT", "DOCUSIGN_SELLER_ROLE_NAME"],
         "capabilities": ["envelopes", "esignature", "audit_certificate", "webhooks"],
-        "authority": "agreement_execution", "verification": "approved_templates_and_legal_review",
+        "authority": "agreement_execution", "verification": "attorney_approved_state_template_and_owner_approval",
     },
     {
         "id": "object_storage", "name": "S3-Compatible Secure Document Storage", "category": "documents", "tier": "required",
@@ -109,6 +111,7 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
             "visual_inspection": "Google Street View with imagery date and human confirmation",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
             "outbound_policy": "No call or SMS before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
+            "contract_policy": "No envelope before attorney-approved state template and owner approval",
             "texas_policy": "Excluded from acquisition and outreach workflows",
         },
         "providers": [_provider_status(provider) for provider in PROVIDERS],
