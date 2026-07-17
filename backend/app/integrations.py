@@ -7,9 +7,6 @@ from .auth import Principal, get_principal
 
 router = APIRouter(prefix="/integrations", tags=["production data integrations"])
 
-# SAHJONY-first provider policy. A provider is never treated as authoritative merely
-# because it returned data: every normalized record retains source, observed_at,
-# confidence, and verification requirements.
 PROVIDERS = [
     {
         "id": "attom",
@@ -23,13 +20,14 @@ PROVIDERS = [
     },
     {
         "id": "batchdata",
-        "name": "BatchData API",
+        "name": "BatchData Contact Enrichment API",
         "category": "contact_and_monitoring",
         "tier": "primary",
-        "env": ["BATCHDATA_API_KEY"],
+        "env": ["BATCHDATA_API_KEY", "BATCHDATA_SKIPTRACE_URL"],
+        "optional_env": ["BATCHDATA_AUTH_HEADER", "BATCHDATA_AUTH_SCHEME"],
         "capabilities": ["skip_trace", "phones", "emails", "property_search", "liens", "permits", "monitoring"],
         "authority": "aggregated_property_and_contact_data",
-        "verification": "multi_source_contact_confidence_and_opt_out_screening",
+        "verification": "right_party_confirmation_plus_fresh_dnc_opt_out_and_quiet_hour_screening",
     },
     {
         "id": "county_records",
@@ -105,9 +103,11 @@ PROVIDERS = [
 
 
 def _provider_status(provider: dict) -> dict:
-    required = provider["env"]
+    required = provider.get("env", [])
+    optional = provider.get("optional_env", [])
     configured = [name for name in required if bool(os.getenv(name))]
     missing = [name for name in required if not os.getenv(name)]
+    optional_configured = [name for name in optional if bool(os.getenv(name))]
     if not required:
         state = "available_public_or_manual"
     elif not missing:
@@ -116,7 +116,13 @@ def _provider_status(provider: dict) -> dict:
         state = "partial"
     else:
         state = "not_configured"
-    return {**provider, "state": state, "configured_variables": configured, "missing_variables": missing}
+    return {
+        **provider,
+        "state": state,
+        "configured_variables": configured,
+        "missing_variables": missing,
+        "optional_configured_variables": optional_configured,
+    }
 
 
 @router.get("/catalog")
@@ -126,10 +132,10 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
         "generated_at": datetime.utcnow().isoformat(),
         "strategy": {
             "property_system_of_record": "ATTOM normalized data with county-record verification",
-            "contact_enrichment": "BatchData with confidence scoring and compliance screening",
+            "contact_enrichment": "BatchData preview/apply with right-party and compliance screening",
             "visual_inspection": "Google Street View with imagery date and human confirmation",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
-            "outbound_policy": "No call or SMS before consent/DNC/quiet-hour checks",
+            "outbound_policy": "No call or SMS before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
             "texas_policy": "Excluded from acquisition and outreach workflows",
         },
         "providers": [_provider_status(provider) for provider in PROVIDERS],
@@ -139,15 +145,22 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
 @router.get("/readiness")
 def integration_readiness(principal: Principal = Depends(get_principal)):
     providers = [_provider_status(provider) for provider in PROVIDERS]
-    configured = [p for p in providers if p["state"] in {"configured", "available_public_or_manual"}]
-    blocking = [p for p in providers if p["tier"] in {"primary", "required"} and p["state"] not in {"configured", "available_public_or_manual"}]
+    ready_states = {"configured", "available_public_or_manual"}
+    configured = [provider for provider in providers if provider["state"] in ready_states]
+    blocking = [
+        provider for provider in providers
+        if provider["tier"] in {"primary", "required"} and provider["state"] not in ready_states
+    ]
     return {
         "organization_id": principal.organization_id,
-        "ready_for_live_acquisition": all(p["id"] not in {"attom", "batchdata"} for p in blocking),
-        "ready_for_outbound": all(p["id"] not in {"bland", "twilio"} for p in blocking),
-        "ready_for_contracts": all(p["id"] not in {"docusign", "object_storage"} for p in blocking),
+        "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking),
+        "ready_for_outbound": all(provider["id"] not in {"bland", "twilio"} for provider in blocking),
+        "ready_for_contracts": all(provider["id"] not in {"docusign", "object_storage"} for provider in blocking),
         "configured_count": len(configured),
         "provider_count": len(providers),
-        "blocking_integrations": [{"id": p["id"], "name": p["name"], "missing_variables": p["missing_variables"]} for p in blocking],
-        "next_required": [p["id"] for p in blocking],
+        "blocking_integrations": [
+            {"id": provider["id"], "name": provider["name"], "missing_variables": provider["missing_variables"]}
+            for provider in blocking
+        ],
+        "next_required": [provider["id"] for provider in blocking],
     }
