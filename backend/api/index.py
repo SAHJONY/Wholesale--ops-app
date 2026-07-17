@@ -2,6 +2,7 @@
 
 from app.activation import router as activation_router
 from app.auth import router as auth_router
+from app.continuous_ops import router as continuous_ops_router
 from app.crm import router as crm_router
 from app.database import Base, engine
 from app.executive_ops import router as executive_ops_router
@@ -19,5 +20,6 @@ app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
 app.include_router(activation_router)
+app.include_router(continuous_ops_router)
 
 __all__ = ["app"]
