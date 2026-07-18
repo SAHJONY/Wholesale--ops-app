@@ -21,6 +21,7 @@ from app.human_auth import router as human_auth_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.main import app
+from app.national_intelligence import router as national_intelligence_router
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
@@ -28,8 +29,9 @@ from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
 # registers additive workspace, identity, CRM, event-core, enterprise intelligence,
-# county verification queue, acquisition intake/worker, password, compliance,
-# outbound, deal-execution, title/closing, disposition, and tenant-operation tables.
+# county verification queue, acquisition intake/worker, national intelligence,
+# password, compliance, outbound, deal-execution, title/closing, disposition,
+# and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
@@ -54,6 +56,7 @@ app.include_router(closing_command_router)
 app.include_router(disposition_router)
 app.include_router(event_core_router)
 app.include_router(intelligence_platform_router)
+app.include_router(national_intelligence_router)
 app.include_router(docuseal_events_router)
 
 __all__ = ["app"]
