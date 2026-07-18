@@ -25,6 +25,8 @@ from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.main import app
 from app.national_intelligence_safe import router as national_intelligence_router
+from app.observability_api import router as observability_router
+from app.observability_middleware import install_observability
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
@@ -36,6 +38,7 @@ from app.tenant_ops import router as tenant_ops_router
 # integration health/reliability, password, compliance, outbound, deal-execution,
 # title/closing, disposition, and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
+install_observability(app)
 
 app.include_router(auth_router)
 app.include_router(human_auth_router)
@@ -64,5 +67,6 @@ app.include_router(intelligence_platform_router)
 app.include_router(national_intelligence_router)
 app.include_router(docuseal_events_router)
 app.include_router(deployment_diagnostics_router)
+app.include_router(observability_router)
 
 __all__ = ["app"]
