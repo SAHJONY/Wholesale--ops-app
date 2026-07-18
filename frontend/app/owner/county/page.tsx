@@ -1,0 +1,24 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import styles from '../owner.module.css';
+
+const API = '/api/county-queue';
+const SESSION = 'sahjony_owner_session';
+
+type CaseItem = { id:number; lead_id:number; property_id:number; county?:string; state:string; status:string; priority:number; confidence:number; due_at?:string; source_type?:string; source_reference?:string; proposed_evidence:Record<string,unknown>; reviewer_notes?:string };
+type Snapshot = { counts:Record<string,number>; overdue:number; cases:CaseItem[] };
+
+export default function CountyQueuePage(){
+  const [token,setToken]=useState(''); const [data,setData]=useState<Snapshot>({counts:{},overdue:0,cases:[]}); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [notice,setNotice]=useState('');
+  const request=useCallback(async(path:string,options:RequestInit={},override?:string)=>{const active=override||token;if(!active){location.replace('/owner-access');throw new Error('Owner session required');}const r=await fetch(`${API}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});const text=await r.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}if(r.status===401||r.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');throw new Error('Owner session expired');}if(!r.ok)throw new Error(body.detail||`Request failed (${r.status})`);return body;},[token]);
+  const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{setData(await request('/snapshot',{},override));}catch(e){setError(e instanceof Error?e.message:'Unable to load county queue');}finally{setLoading(false);}},[request]);
+  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  async function decide(item:CaseItem,decision:'verified'|'rejected'|'needs_review'){setLoading(true);setError('');try{await request(`/${item.id}/decision`,{method:'POST',body:JSON.stringify({decision,evidence:item.proposed_evidence,reviewer_notes:item.reviewer_notes||''})});setNotice(`Case #${item.id} marked ${decision}.`);await load();}catch(e){setError(e instanceof Error?e.message:'Unable to decide case');}finally{setLoading(false);}}
+  return <main className={styles.page}>
+    <header className={styles.header}><div><span className={styles.eyebrow}>COUNTY RECORDS</span><h1>Ownership Verification Queue</h1><p>Review authoritative assessor and recorder evidence before promoting ownership facts into the canonical record.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/intelligence">Intelligence</a><a className={styles.linkButton} href="/owner/events">Events</a><a className={styles.linkButton} href="/owner">Control Plane</a></div></header>
+    {notice&&<div className={styles.notice}>{notice}</div>}{error&&<div className={styles.error}>{error}</div>}
+    <section className={styles.metrics}><article><span>Pending</span><strong>{data.counts.pending||0}</strong></article><article><span>Assigned</span><strong>{data.counts.assigned||0}</strong></article><article><span>Needs review</span><strong>{data.counts.needs_review||0}</strong></article><article><span>Verified</span><strong>{data.counts.verified||0}</strong></article><article><span>Rejected</span><strong>{data.counts.rejected||0}</strong></article><article><span>Overdue</span><strong>{data.overdue}</strong></article></section>
+    <section className={styles.cardWide}><div className={styles.cardHeader}><div><span className={styles.eyebrow}>REVIEW QUEUE</span><h2>County evidence cases</h2></div><strong>{data.cases.length}</strong></div><div className={styles.list}>{data.cases.length?data.cases.map(item=><div key={item.id}><span><b>Case #{item.id} · Lead #{item.lead_id} · {item.county||'County pending'}, {item.state}</b><small>{item.status} · priority {item.priority} · confidence {item.confidence}%{item.due_at?` · due ${new Date(item.due_at).toLocaleDateString()}`:''}</small><small>{item.source_type||'manual'} · {item.source_reference||'No official source reference yet'}</small></span><span className={styles.decisionButtons}>{['pending','assigned','needs_review'].includes(item.status)&&<><button onClick={()=>void decide(item,'verified')} disabled={loading||item.confidence<80}>Verify</button><button onClick={()=>void decide(item,'needs_review')} disabled={loading}>Needs review</button><button onClick={()=>void decide(item,'rejected')} disabled={loading}>Reject</button></>}</span></div>):<p>No county verification cases yet.</p>}</div></section>
+  </main>;
+}
