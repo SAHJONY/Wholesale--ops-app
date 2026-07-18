@@ -6,6 +6,7 @@ from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
 from app.continuous_ops import router as continuous_ops_router
+from app.county_queue import router as county_queue_router
 from app.county_verification import router as county_verification_router
 from app.crm import router as crm_router
 from app.database import Base, engine
@@ -25,8 +26,8 @@ from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
 # registers additive workspace, identity, CRM, event-core, enterprise intelligence,
-# password, compliance, outbound, deal-execution, title/closing, disposition,
-# and tenant-operation tables.
+# county verification queue, password, compliance, outbound, deal-execution,
+# title/closing, disposition, and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
@@ -41,6 +42,7 @@ app.include_router(integrations_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
 app.include_router(county_verification_router)
+app.include_router(county_queue_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(deal_execution_router)
