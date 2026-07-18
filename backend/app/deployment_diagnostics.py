@@ -24,6 +24,7 @@ CRITICAL_ROUTES = [
     "/national-intelligence/snapshot",
     "/integration-hub/snapshot",
     "/integration-reliability/snapshot",
+    "/observability/snapshot",
     "/deal-execution/snapshot",
     "/closing-command/snapshot",
     "/disposition/snapshot",
