@@ -17,7 +17,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   if (!authorization?.toLowerCase().startsWith('bearer ')) return NextResponse.json({ detail: 'Owner session required' }, { status: 401 });
   const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text();
   try {
-    const response = await fetch(`${BACKEND_URL}/county-queue/${path.join('/')}`, {
+    const target = `${BACKEND_URL}/county-queue/${path.join('/')}`;
+    const response = await fetch(target, {
       method: request.method,
       headers: { Authorization: authorization, 'Content-Type': 'application/json' },
       body: body || undefined,
@@ -25,6 +26,12 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       signal: AbortSignal.timeout(20000),
     });
     const text = await response.text();
+    if (response.status === 404) {
+      return NextResponse.json(
+        { detail: 'County Queue API is not deployed on the backend yet. Redeploy the backend from the latest main branch, then refresh this page.' },
+        { status: 503 },
+      );
+    }
     return new NextResponse(text || null, { status: response.status, headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' } });
   } catch (error) {
     return NextResponse.json({ detail: `County queue backend unavailable: ${error instanceof Error ? error.message : 'request failed'}` }, { status: 502 });
