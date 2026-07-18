@@ -9,7 +9,7 @@ from .database import Base
 class IntegrationReliabilityAlert(Base):
     __tablename__ = "integration_reliability_alerts"
     __table_args__ = (
-        UniqueConstraint("organization_id", "provider_id", "status", name="uq_integration_alert_active"),
+        UniqueConstraint("organization_id", "provider_id", name="uq_integration_alert_provider"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
