@@ -21,7 +21,7 @@ from app.human_auth import router as human_auth_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.main import app
-from app.national_intelligence import router as national_intelligence_router
+from app.national_intelligence_safe import router as national_intelligence_router
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
