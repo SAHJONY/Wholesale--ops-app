@@ -1,6 +1,7 @@
 """Vercel Python entrypoint for the FastAPI application."""
 
 from app.acquisition_intake import router as acquisition_intake_router
+from app.acquisition_worker import router as acquisition_worker_router
 from app.activation import router as activation_router
 from app.auth import router as auth_router
 from app.closing_command import router as closing_command_router
@@ -27,8 +28,8 @@ from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
 # registers additive workspace, identity, CRM, event-core, enterprise intelligence,
-# county verification queue, acquisition intake, password, compliance, outbound,
-# deal-execution, title/closing, disposition, and tenant-operation tables.
+# county verification queue, acquisition intake/worker, password, compliance,
+# outbound, deal-execution, title/closing, disposition, and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
@@ -41,6 +42,7 @@ app.include_router(continuous_ops_router)
 app.include_router(owner_insights_router)
 app.include_router(integrations_router)
 app.include_router(acquisition_intake_router)
+app.include_router(acquisition_worker_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
 app.include_router(county_verification_router)
