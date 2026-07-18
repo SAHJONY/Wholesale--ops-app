@@ -1,7 +1,7 @@
 """Vercel Python entrypoint for the FastAPI application."""
 
 from app.acquisition_intake import router as acquisition_intake_router
-from app.acquisition_worker import router as acquisition_worker_router
+from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
 from app.auth import router as auth_router
 from app.closing_command import router as closing_command_router
