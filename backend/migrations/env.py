@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 from logging.config import fileConfig
 
@@ -8,17 +9,29 @@ from sqlalchemy import engine_from_config, pool
 
 from app.database import Base
 
-# Import all model modules so Base.metadata reflects the production schema.
-from app import auth_models  # noqa: F401
-from app import models  # noqa: F401
-from app import event_models  # noqa: F401
-from app import intelligence_models  # noqa: F401
-from app import county_queue_models  # noqa: F401
-from app import acquisition_intake_models  # noqa: F401
-from app import acquisition_worker_models  # noqa: F401
-from app import national_intelligence_models  # noqa: F401
-from app import integration_hub_models  # noqa: F401
-from app import integration_reliability_models  # noqa: F401
+# Import every production module that may declare SQLAlchemy models. Using
+# importlib keeps this list explicit while avoiding accidental circular imports
+# in the migration environment.
+MODEL_MODULES = (
+    "app.models",
+    "app.auth_models",
+    "app.event_models",
+    "app.intelligence_models",
+    "app.national_intelligence_models",
+    "app.integration_hub_models",
+    "app.integration_reliability_models",
+    "app.acquisition_intake",
+    "app.acquisition_worker",
+    "app.county_queue",
+    "app.compliance",
+    "app.outbound_gateway",
+    "app.deal_execution",
+    "app.closing_command",
+    "app.disposition",
+    "app.human_auth",
+)
+for module_name in MODEL_MODULES:
+    importlib.import_module(module_name)
 
 config = context.config
 if config.config_file_name is not None:
