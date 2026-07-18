@@ -7,6 +7,30 @@ function allowed(path: string[]) {
   return joined === 'snapshot' || joined === 'run-now';
 }
 
+function fallback(path: string[]) {
+  const joined = path.join('/');
+  if (joined === 'snapshot') {
+    return NextResponse.json({
+      summary: { open: 0, critical: 0, resolved: 0 },
+      alerts: [],
+      runs: [],
+      degraded_mode: true,
+      detail: 'Reliability backend is not deployed yet; provider readiness remains available.',
+    });
+  }
+  if (joined === 'run-now') {
+    return NextResponse.json({
+      run_id: 0,
+      status: 'degraded',
+      alerts_opened: 0,
+      alerts_resolved: 0,
+      degraded_mode: true,
+      detail: 'Reliability checks are unavailable until the backend route is deployed.',
+    });
+  }
+  return NextResponse.json({ detail: 'Unsupported integration reliability route' }, { status: 404 });
+}
+
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   if (!allowed(path)) return NextResponse.json({ detail: 'Unsupported integration reliability route' }, { status: 404 });
@@ -21,9 +45,11 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       cache: 'no-store',
       signal: AbortSignal.timeout(30000),
     });
+    if (response.status === 404) return fallback(path);
     const text = await response.text();
     return new NextResponse(text || null, { status: response.status, headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' } });
   } catch (error) {
+    if (path.join('/') === 'snapshot') return fallback(path);
     return NextResponse.json({ detail: `Integration reliability backend unavailable: ${error instanceof Error ? error.message : 'request failed'}` }, { status: 502 });
   }
 }
