@@ -30,6 +30,8 @@ from app.observability_middleware import install_observability
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
+from app.security_diagnostics import router as security_router
+from app.security_middleware import SecurityMiddleware
 from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
@@ -39,6 +41,7 @@ from app.tenant_ops import router as tenant_ops_router
 # title/closing, disposition, and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 install_observability(app)
+app.add_middleware(SecurityMiddleware)
 
 app.include_router(auth_router)
 app.include_router(human_auth_router)
@@ -68,5 +71,6 @@ app.include_router(national_intelligence_router)
 app.include_router(docuseal_events_router)
 app.include_router(deployment_diagnostics_router)
 app.include_router(observability_router)
+app.include_router(security_router)
 
 __all__ = ["app"]
