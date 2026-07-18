@@ -13,6 +13,7 @@ from app.county_verification import router as county_verification_router
 from app.crm import router as crm_router
 from app.database import Base, engine
 from app.deal_execution import router as deal_execution_router
+from app.deployment_diagnostics import router as deployment_diagnostics_router
 from app.disposition import router as disposition_router
 from app.docuseal_events import router as docuseal_events_router
 from app.event_core import router as event_core_router
@@ -62,5 +63,6 @@ app.include_router(event_core_router)
 app.include_router(intelligence_platform_router)
 app.include_router(national_intelligence_router)
 app.include_router(docuseal_events_router)
+app.include_router(deployment_diagnostics_router)
 
 __all__ = ["app"]
