@@ -16,6 +16,7 @@ CRITICAL_ROUTES = [
     "/health",
     "/human-auth/login",
     "/sessions/snapshot",
+    "/jobs/snapshot",
     "/workspace/dashboard",
     "/acquisition-intake/snapshot",
     "/acquisition-worker/snapshot",
@@ -49,7 +50,7 @@ def deployment_status(principal: Principal = Depends(get_principal), db: Session
     try:
         db.execute(text("SELECT 1"))
         database_ok = True
-    except Exception as exc:  # pragma: no cover - environment-specific
+    except Exception as exc:  # pragma: no cover
         database_error = f"{type(exc).__name__}: {exc}"
 
     return {
