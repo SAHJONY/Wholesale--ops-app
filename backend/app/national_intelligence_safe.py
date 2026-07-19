@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal, require_role
-from .database import get_db
+from .database import Base, engine, get_db
 
 router = APIRouter(prefix="/national-intelligence", tags=["national property intelligence network"])
 
@@ -12,6 +15,10 @@ router = APIRouter(prefix="/national-intelligence", tags=["national property int
 def _module():
     try:
         from . import national_intelligence as implementation
+
+        # The implementation is loaded lazily to keep the Vercel entrypoint resilient.
+        # Ensure any models registered by that import exist before the first query.
+        Base.metadata.create_all(bind=engine)
         return implementation
     except Exception as exc:
         raise HTTPException(
@@ -20,9 +27,40 @@ def _module():
         ) from exc
 
 
+def _setup_snapshot(detail: str) -> dict:
+    return {
+        "generated_at": datetime.utcnow(),
+        "status": "setup",
+        "detail": detail,
+        "summary": {
+            "properties": 0,
+            "high_priority": 0,
+            "ownership_verified": 0,
+            "projected_assignment_fees": 0,
+            "average_opportunity_score": 0,
+        },
+        "properties": [],
+        "markets": [],
+        "runs": [],
+    }
+
+
 @router.get("/snapshot")
 def snapshot(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
-    return _module().snapshot(principal=principal, db=db)
+    try:
+        return _module().snapshot(principal=principal, db=db)
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        return _setup_snapshot(
+            f"National Intelligence database objects are not ready: {type(exc).__name__}. Redeploy the latest backend."
+        )
+    except Exception as exc:
+        db.rollback()
+        return _setup_snapshot(
+            f"National Intelligence is temporarily unavailable: {type(exc).__name__}."
+        )
 
 
 @router.post("/refresh")
@@ -31,7 +69,22 @@ def refresh(
     principal: Principal = Depends(require_role("manager")),
     db: Session = Depends(get_db),
 ):
-    return _module().refresh(payload=payload, principal=principal, db=db)
+    try:
+        return _module().refresh(payload=payload, principal=principal, db=db)
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail=f"National Intelligence database objects are not ready: {type(exc).__name__}. Redeploy the latest backend.",
+        ) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail=f"National Intelligence refresh failed safely: {type(exc).__name__}.",
+        ) from exc
 
 
 @router.get("/properties/{property_id}")
@@ -40,4 +93,13 @@ def property_detail(
     principal: Principal = Depends(get_principal),
     db: Session = Depends(get_db),
 ):
-    return _module().property_detail(property_id=property_id, principal=principal, db=db)
+    try:
+        return _module().property_detail(property_id=property_id, principal=principal, db=db)
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail=f"Property intelligence database objects are not ready: {type(exc).__name__}.",
+        ) from exc
