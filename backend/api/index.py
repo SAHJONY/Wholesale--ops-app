@@ -32,6 +32,7 @@ from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
+from app.session_control import router as session_router
 from app.tenant_ops import router as tenant_ops_router
 
 # Extension models are imported by the routers above. Running create_all again
@@ -45,6 +46,7 @@ app.add_middleware(SecurityMiddleware)
 
 app.include_router(auth_router)
 app.include_router(human_auth_router)
+app.include_router(session_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
