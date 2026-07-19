@@ -35,6 +35,7 @@ from app.observability_middleware import install_observability
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
+from app.provider_activation import router as provider_activation_router
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
@@ -54,6 +55,7 @@ app.include_router(audit_router)
 app.include_router(background_jobs_router)
 app.include_router(go_live_router)
 app.include_router(launch_validation_router)
+app.include_router(provider_activation_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
