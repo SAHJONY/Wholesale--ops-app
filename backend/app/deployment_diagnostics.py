@@ -15,6 +15,7 @@ router = APIRouter(prefix="/deployment", tags=["deployment diagnostics"])
 CRITICAL_ROUTES = [
     "/health",
     "/human-auth/login",
+    "/sessions/snapshot",
     "/workspace/dashboard",
     "/acquisition-intake/snapshot",
     "/acquisition-worker/snapshot",
