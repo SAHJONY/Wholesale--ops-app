@@ -32,10 +32,15 @@ jobs:
           alembic heads
       - name: Verify Vercel entrypoint imports
         run: python -c "from api.index import app; print(len(app.routes))"
-      - name: Stamp test schema and validate migration guard
+      - name: Rehearse migration from existing-schema baseline
+        run: pytest -q tests/test_national_intelligence_migration.py
+      - name: Upgrade test schema and validate migration guard
         run: |
-          alembic stamp head
+          alembic stamp 20260718_0001
+          alembic upgrade head
           python scripts/migration_guard.py --json
+      - name: Enforce release gate
+        run: python scripts/release_gate.py
       - name: Run backend tests
         run: pytest -q
 
