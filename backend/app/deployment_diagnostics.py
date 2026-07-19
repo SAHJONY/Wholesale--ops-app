@@ -16,6 +16,7 @@ CRITICAL_ROUTES = [
     "/health",
     "/human-auth/login",
     "/sessions/snapshot",
+    "/audit/snapshot",
     "/jobs/snapshot",
     "/workspace/dashboard",
     "/acquisition-intake/snapshot",
