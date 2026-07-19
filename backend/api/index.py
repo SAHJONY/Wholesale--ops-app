@@ -6,6 +6,7 @@ from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
 from app.audit_center import router as audit_router
 from app.auth import router as auth_router
+from app.buyer_intake import router as buyer_intake_router
 from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
@@ -58,6 +59,7 @@ app.include_router(go_live_router)
 app.include_router(launch_validation_router)
 app.include_router(provider_activation_router)
 app.include_router(data_intake_router)
+app.include_router(buyer_intake_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
