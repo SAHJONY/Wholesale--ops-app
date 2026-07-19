@@ -13,18 +13,12 @@ router = APIRouter(prefix="/national-intelligence", tags=["national property int
 
 
 def _module():
-    try:
-        from . import national_intelligence as implementation
+    from . import national_intelligence as implementation
 
-        # The implementation is loaded lazily to keep the Vercel entrypoint resilient.
-        # Ensure any models registered by that import exist before the first query.
-        Base.metadata.create_all(bind=engine)
-        return implementation
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"National Intelligence service failed to initialize: {type(exc).__name__}: {exc}",
-        ) from exc
+    # Register and create intelligence tables before their first query. This is
+    # idempotent and preserves existing data.
+    Base.metadata.create_all(bind=engine)
+    return implementation
 
 
 def _setup_snapshot(detail: str) -> dict:
@@ -49,17 +43,10 @@ def _setup_snapshot(detail: str) -> dict:
 def snapshot(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     try:
         return _module().snapshot(principal=principal, db=db)
-    except HTTPException:
-        raise
-    except SQLAlchemyError as exc:
-        db.rollback()
-        return _setup_snapshot(
-            f"National Intelligence database objects are not ready: {type(exc).__name__}. Redeploy the latest backend."
-        )
     except Exception as exc:
         db.rollback()
         return _setup_snapshot(
-            f"National Intelligence is temporarily unavailable: {type(exc).__name__}."
+            f"National Intelligence is in setup mode: {type(exc).__name__}. Deploy the latest backend and verify database connectivity."
         )
 
 
