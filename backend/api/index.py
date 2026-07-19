@@ -7,6 +7,7 @@ from app.auth import router as auth_router
 from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
+from app.continuity import router as continuity_router
 from app.continuous_ops import router as continuous_ops_router
 from app.county_queue import router as county_queue_router
 from app.county_verification import router as county_verification_router
@@ -74,5 +75,6 @@ app.include_router(docuseal_events_router)
 app.include_router(deployment_diagnostics_router)
 app.include_router(observability_router)
 app.include_router(security_router)
+app.include_router(continuity_router)
 
 __all__ = ["app"]
