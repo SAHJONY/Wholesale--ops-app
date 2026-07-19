@@ -3,7 +3,7 @@ import os
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, select
@@ -24,6 +24,10 @@ ROLE_RANK = {
     "admin": 90,
     "owner": 100,
 }
+
+HUMAN_SESSION_NAME = "Human login session"
+HUMAN_SESSION_MAX_AGE = timedelta(hours=24)
+HUMAN_SESSION_IDLE_TIMEOUT = timedelta(hours=2)
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,18 @@ def _extract_token(authorization: str | None, x_api_key: str | None) -> str | No
     return None
 
 
+def _enforce_human_session_lifetime(credential: ApiCredential, now: datetime) -> None:
+    if credential.name != HUMAN_SESSION_NAME:
+        return
+    if credential.created_at and now - credential.created_at > HUMAN_SESSION_MAX_AGE:
+        credential.revoked_at = now
+        raise HTTPException(401, "Session expired. Sign in again.")
+    last_seen = credential.last_used_at or credential.created_at
+    if last_seen and now - last_seen > HUMAN_SESSION_IDLE_TIMEOUT:
+        credential.revoked_at = now
+        raise HTTPException(401, "Session expired due to inactivity. Sign in again.")
+
+
 def get_principal(
     authorization: str | None = Header(default=None),
     x_api_key: str | None = Header(default=None),
@@ -77,6 +93,12 @@ def get_principal(
     ))
     if not credential:
         raise HTTPException(401, "Invalid or revoked API key")
+    now = datetime.utcnow()
+    try:
+        _enforce_human_session_lifetime(credential, now)
+    except HTTPException:
+        db.commit()
+        raise
     membership = db.scalar(select(Membership).where(
         Membership.organization_id == credential.organization_id,
         Membership.user_id == credential.user_id,
@@ -85,7 +107,7 @@ def get_principal(
     organization = db.get(Organization, credential.organization_id)
     if not membership or not user or not organization or not user.is_active or not organization.is_active:
         raise HTTPException(403, "Workspace access disabled")
-    credential.last_used_at = datetime.utcnow()
+    credential.last_used_at = now
     db.commit()
     return Principal(
         organization_id=organization.id,
