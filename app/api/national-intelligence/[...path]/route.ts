@@ -9,6 +9,23 @@ function allowed(path: string[]) {
     || /^properties\/\d+$/.test(joined);
 }
 
+function setupPayload(detail: string) {
+  return {
+    status: 'setup',
+    detail,
+    summary: {
+      properties: 0,
+      high_priority: 0,
+      ownership_verified: 0,
+      projected_assignment_fees: 0,
+      average_opportunity_score: 0,
+    },
+    properties: [],
+    markets: [],
+    runs: [],
+  };
+}
+
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   if (!allowed(path)) return NextResponse.json({ detail: 'Unsupported national intelligence route' }, { status: 404 });
@@ -26,11 +43,17 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       signal: AbortSignal.timeout(30000),
     });
     const text = await response.text();
+    if (response.status >= 500 && path.join('/') === 'snapshot') {
+      return NextResponse.json(setupPayload('National Intelligence backend is not ready. Redeploy the latest backend and verify database connectivity.'), { status: 200 });
+    }
     return new NextResponse(text || null, {
       status: response.status,
       headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' },
     });
   } catch (error) {
+    if (path.join('/') === 'snapshot') {
+      return NextResponse.json(setupPayload(`National Intelligence backend unavailable: ${error instanceof Error ? error.message : 'request failed'}`), { status: 200 });
+    }
     return NextResponse.json({
       detail: `National intelligence backend unavailable: ${error instanceof Error ? error.message : 'request failed'}`,
     }, { status: 502 });
