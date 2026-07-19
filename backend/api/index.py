@@ -18,6 +18,7 @@ from app.crm import router as crm_router
 from app.data_intake import router as data_intake_router
 from app.database import Base, engine
 from app.deal_execution import router as deal_execution_router
+from app.deal_rehearsal import router as test_deal_router
 from app.deployment_diagnostics import router as deployment_diagnostics_router
 from app.disposition import router as disposition_router
 from app.docuseal_events import router as docuseal_events_router
@@ -43,7 +44,6 @@ from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
 from app.tenant_ops import router as tenant_ops_router
-from app.test_deal_rehearsal import router as test_deal_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
