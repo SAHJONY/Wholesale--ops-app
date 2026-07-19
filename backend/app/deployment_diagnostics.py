@@ -23,6 +23,7 @@ CRITICAL_ROUTES = [
     "/provider-activation/snapshot",
     "/data-intake/snapshot",
     "/buyer-intake/snapshot",
+    "/test-deal/snapshot",
     "/workspace/dashboard",
     "/acquisition-intake/snapshot",
     "/acquisition-worker/snapshot",
