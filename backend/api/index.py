@@ -4,6 +4,7 @@ from app import background_jobs as background_jobs_module
 from app.acquisition_intake import router as acquisition_intake_router
 from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
+from app.audit_center import router as audit_router
 from app.auth import router as auth_router
 from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
@@ -47,6 +48,7 @@ app.add_middleware(SecurityMiddleware)
 app.include_router(auth_router)
 app.include_router(human_auth_router)
 app.include_router(session_router)
+app.include_router(audit_router)
 app.include_router(background_jobs_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
