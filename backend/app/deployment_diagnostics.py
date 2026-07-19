@@ -24,6 +24,7 @@ CRITICAL_ROUTES = [
     "/data-intake/snapshot",
     "/buyer-intake/snapshot",
     "/test-deal/snapshot",
+    "/real-estate-intelligence/snapshot",
     "/workspace/dashboard",
     "/acquisition-intake/snapshot",
     "/acquisition-worker/snapshot",
