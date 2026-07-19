@@ -21,6 +21,10 @@
     {
       "path": "/integration-reliability/scheduled",
       "schedule": "15 13 * * *"
+    },
+    {
+      "path": "/jobs/scheduled",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
