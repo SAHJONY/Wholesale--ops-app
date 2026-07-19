@@ -27,6 +27,7 @@ from app.integration_hub import router as integration_hub_router
 from app.integration_reliability import router as integration_reliability_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
+from app.launch_validation import router as launch_validation_router
 from app.main import app
 from app.national_intelligence_safe import router as national_intelligence_router
 from app.observability_api import router as observability_router
@@ -52,6 +53,7 @@ app.include_router(session_router)
 app.include_router(audit_router)
 app.include_router(background_jobs_router)
 app.include_router(go_live_router)
+app.include_router(launch_validation_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
