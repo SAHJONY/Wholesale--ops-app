@@ -38,6 +38,7 @@ from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
 from app.provider_activation import router as provider_activation_router
+from app.real_estate_intelligence import router as real_estate_intelligence_router
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
@@ -62,6 +63,7 @@ app.include_router(provider_activation_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)
+app.include_router(real_estate_intelligence_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
