@@ -4,6 +4,7 @@ from app.acquisition_intake import router as acquisition_intake_router
 from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
 from app.auth import router as auth_router
+from app.background_jobs import router as background_jobs_router
 from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
@@ -36,11 +37,6 @@ from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
 from app.tenant_ops import router as tenant_ops_router
 
-# Extension models are imported by the routers above. Running create_all again
-# registers additive workspace, identity, CRM, event-core, enterprise intelligence,
-# county verification queue, acquisition intake/worker, national intelligence,
-# integration health/reliability, password, compliance, outbound, deal-execution,
-# title/closing, disposition, and tenant-operation tables.
 Base.metadata.create_all(bind=engine)
 install_observability(app)
 app.add_middleware(SecurityMiddleware)
@@ -48,6 +44,7 @@ app.add_middleware(SecurityMiddleware)
 app.include_router(auth_router)
 app.include_router(human_auth_router)
 app.include_router(session_router)
+app.include_router(background_jobs_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
