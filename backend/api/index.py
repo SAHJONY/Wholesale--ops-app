@@ -42,6 +42,7 @@ from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
 from app.tenant_ops import router as tenant_ops_router
+from app.test_deal_rehearsal import router as test_deal_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
@@ -60,6 +61,7 @@ app.include_router(launch_validation_router)
 app.include_router(provider_activation_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
+app.include_router(test_deal_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
