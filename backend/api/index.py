@@ -14,6 +14,7 @@ from app.continuous_ops import router as continuous_ops_router
 from app.county_queue import router as county_queue_router
 from app.county_verification import router as county_verification_router
 from app.crm import router as crm_router
+from app.data_intake import router as data_intake_router
 from app.database import Base, engine
 from app.deal_execution import router as deal_execution_router
 from app.deployment_diagnostics import router as deployment_diagnostics_router
@@ -56,6 +57,7 @@ app.include_router(background_jobs_router)
 app.include_router(go_live_router)
 app.include_router(launch_validation_router)
 app.include_router(provider_activation_router)
+app.include_router(data_intake_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
