@@ -34,6 +34,7 @@ REQUIRED_ROUTES = {
 REQUIRED_MODELS = {
     "property_intelligence_scores",
     "national_intelligence_runs",
+    "background_jobs",
 }
 
 
