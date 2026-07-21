@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -124,7 +124,7 @@ def normalize_batchdata_contacts(payload: dict) -> dict:
 
     return {
         "provider": "batchdata",
-        "observed_at": datetime.utcnow().isoformat(),
+        "observed_at": datetime.now(timezone.utc).isoformat(),
         "owner_name": owner_name,
         "phones": phones,
         "emails": emails,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -95,9 +95,9 @@ async def apply_batchdata_enrichment(lead_id: int, payload: dict | None = None, 
     outreach_allowed = review["outreach_allowed"] and bool(payload.get("confirm_compliance_review", False))
     observed_text = evidence.get("observed_at")
     try:
-        observed = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00")).replace(tzinfo=None) if observed_text else datetime.utcnow()
+        observed = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00")).replace(tzinfo=None) if observed_text else datetime.now(timezone.utc)
     except ValueError:
-        observed = datetime.utcnow()
+        observed = datetime.now(timezone.utc)
     phone_values = [item.get("number") for item in evidence.get("phones") or [] if item.get("number")]
     email_values = [item.get("email") for item in emails if item.get("email")]
     seller_facts = {
@@ -120,7 +120,7 @@ async def apply_batchdata_enrichment(lead_id: int, payload: dict | None = None, 
     db.add(CrmActivity(
         organization_id=principal.organization_id, user_id=principal.user_id, lead_id=lead.id,
         activity_type="contact_enriched", summary=f"BatchData evidence reviewed for {lead.seller_name}; {len(applied)} fields applied",
-        metadata_json={"provider": "batchdata", "observed_at": evidence.get("observed_at") or datetime.utcnow().isoformat(), "confidence": evidence.get("confidence"), "owner_name": evidence.get("owner_name"), "phones": evidence.get("phones"), "emails": evidence.get("emails"), "blocked_phone_candidates": evidence.get("blocked_phone_candidates"), "source_reference": evidence.get("raw_reference"), "verification_required": evidence.get("verification_required"), "applied_fields": applied, "conflicts": review.get("conflicts"), "compliance_blocks": review.get("compliance_blocks"), "outreach_allowed": outreach_allowed, "intelligence": intelligence},
+        metadata_json={"provider": "batchdata", "observed_at": evidence.get("observed_at") or datetime.now(timezone.utc).isoformat(), "confidence": evidence.get("confidence"), "owner_name": evidence.get("owner_name"), "phones": evidence.get("phones"), "emails": evidence.get("emails"), "blocked_phone_candidates": evidence.get("blocked_phone_candidates"), "source_reference": evidence.get("raw_reference"), "verification_required": evidence.get("verification_required"), "applied_fields": applied, "conflicts": review.get("conflicts"), "compliance_blocks": review.get("compliance_blocks"), "outreach_allowed": outreach_allowed, "intelligence": intelligence},
     ))
     db.commit()
     return {"lead_id": lead.id, "provider": "batchdata", "applied": applied, "conflicts": review["conflicts"], "compliance_blocks": review["compliance_blocks"], "outreach_allowed": outreach_allowed, "intelligence": intelligence, "note": "Applying contact data never initiates outreach; campaigns remain approval-gated."}

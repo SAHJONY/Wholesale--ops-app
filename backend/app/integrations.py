@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
@@ -121,7 +121,7 @@ def _contracts_ready(providers: list[dict]) -> bool:
 def integration_catalog(principal: Principal = Depends(get_principal)):
     return {
         "organization_id": principal.organization_id,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "strategy": {
             "property_system_of_record": "ATTOM normalized data with county-record verification",
             "contact_enrichment": "BatchData preview/apply with right-party and compliance screening",

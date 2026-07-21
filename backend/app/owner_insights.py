@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -26,7 +26,7 @@ def _rows(db: Session, model, ids: list[int]):
 @router.get("/summary")
 def summary(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     organization_id = principal.organization_id
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     lead_ids = _ids(db, organization_id, "lead")
     deal_ids = _ids(db, organization_id, "deal")

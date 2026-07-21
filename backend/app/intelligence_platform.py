@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -12,6 +12,10 @@ from .intelligence_models import CanonicalEntity, IntelligenceConflict, Intellig
 router = APIRouter(prefix="/intelligence-platform", tags=["enterprise intelligence platform"])
 ENTITY_TYPES = {"property", "seller", "buyer"}
 VERIFICATION_STATES = {"unverified", "partially_verified", "verified", "disputed", "stale"}
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def _entity(db: Session, principal: Principal, entity_type: str, entity_id: int) -> CanonicalEntity:
@@ -54,7 +58,10 @@ def _rebuild(db: Session, canonical: CanonicalEntity) -> None:
     canonical.conflict_count = conflicts
     canonical.confidence = round(sum(scores) / len(scores), 2) if scores else 0
     canonical.verification_status = "disputed" if conflicts else ("verified" if facts and all(f.verification_status == "verified" for f in facts) else "partially_verified" if facts else "unverified")
-    canonical.last_verified_at = max((fact.observed_at for fact in facts if fact.verification_status == "verified" and fact.observed_at), default=None)
+    canonical.last_verified_at = max(
+        (_as_utc(fact.observed_at) for fact in facts if fact.verification_status == "verified" and fact.observed_at),
+        default=None,
+    )
 
 
 @router.get("/snapshot")
@@ -63,7 +70,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
     fact_count = db.scalar(select(func.count(IntelligenceFact.id)).where(IntelligenceFact.organization_id == principal.organization_id)) or 0
     open_conflicts = db.scalar(select(func.count(IntelligenceConflict.id)).where(IntelligenceConflict.organization_id == principal.organization_id, IntelligenceConflict.status == "open")) or 0
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "entity_count": len(entities),
         "fact_count": fact_count,
         "open_conflicts": open_conflicts,
@@ -121,7 +128,7 @@ def upsert_fact(entity_type: str, entity_id: int, payload: dict, principal: Prin
     fact.source_reference = str(payload.get("source_reference") or "").strip() or None
     fact.confidence = max(0, min(100, float(payload.get("confidence") or 0)))
     fact.verification_status = verification_status
-    fact.observed_at = datetime.utcnow()
+    fact.observed_at = datetime.now(timezone.utc)
     fact.metadata_json = payload.get("metadata") or {}
     db.flush()
     _rebuild(db, canonical)

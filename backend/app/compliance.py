@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -80,7 +80,7 @@ def evaluate_contact(db: Session, principal: Principal, lead: Lead, channel: str
         raise HTTPException(422, "Lead property is required for compliance evaluation")
     state = str(lead.property.state or "").upper()
     normalized = normalize_contact(channel, contact)
-    now = requested_at or datetime.utcnow()
+    now = requested_at or datetime.now(timezone.utc)
     reasons: list[str] = []
     evidence: dict = {"state": state, "policy": "fail_closed"}
 

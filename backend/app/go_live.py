@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, inspect, select, text
@@ -126,7 +126,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             latest_audit = {"type": row.activity_type, "summary": row.summary, "created_at": row.created_at}
 
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "status": status,
         "score": score,
         "blocker_count": len(blockers),

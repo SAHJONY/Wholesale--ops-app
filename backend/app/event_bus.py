@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -89,7 +89,7 @@ def _dispatch_handler(db: Session, event: BusinessEvent, subscription: EventSubs
 
 def process_events(db: Session, organization_id: int, limit: int = 50) -> dict:
     ensure_default_subscriptions(db, organization_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     events = db.scalars(select(BusinessEvent).where(
         BusinessEvent.organization_id == organization_id,
         BusinessEvent.status.in_(["pending", "retry"]),
@@ -134,25 +134,25 @@ def process_events(db: Session, organization_id: int, limit: int = 50) -> dict:
             try:
                 delivery.result = _dispatch_handler(db, event, sub)
                 delivery.status = "completed"
-                delivery.completed_at = datetime.utcnow()
+                delivery.completed_at = datetime.now(timezone.utc)
                 delivery.last_error = None
             except Exception as exc:
                 delivery.last_error = f"{type(exc).__name__}: {exc}"
                 if delivery.attempts >= sub.max_attempts:
                     delivery.status = "dead_letter"
-                    delivery.failed_at = datetime.utcnow()
+                    delivery.failed_at = datetime.now(timezone.utc)
                 else:
                     delivery.status = "retry"
-                    delivery.available_at = datetime.utcnow() + timedelta(minutes=min(60, 2 ** delivery.attempts))
+                    delivery.available_at = datetime.now(timezone.utc) + timedelta(minutes=min(60, 2 ** delivery.attempts))
                 event_failed = True
         if event_failed:
             event.status = "retry" if event.attempts < 5 else "dead_letter"
-            event.available_at = datetime.utcnow() + timedelta(minutes=min(60, 2 ** event.attempts))
-            event.failed_at = datetime.utcnow() if event.status == "dead_letter" else None
+            event.available_at = datetime.now(timezone.utc) + timedelta(minutes=min(60, 2 ** event.attempts))
+            event.failed_at = datetime.now(timezone.utc) if event.status == "dead_letter" else None
             failed += 1
         else:
             event.status = "completed"
-            event.completed_at = datetime.utcnow()
+            event.completed_at = datetime.now(timezone.utc)
             event.last_error = None
             completed += 1
         processed += 1

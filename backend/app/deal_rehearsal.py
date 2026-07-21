@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -56,7 +56,7 @@ def _evaluate(db: Session, principal: Principal, lead_id: int | None = None) -> 
     score = round((passed / len(checks)) * 100)
     status = "ready" if score == 100 else "conditional" if score >= 63 else "blocked"
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "status": status,
         "score": score,
         "lead": {"id": lead.id, "seller_name": lead.seller_name, "status": lead.status},

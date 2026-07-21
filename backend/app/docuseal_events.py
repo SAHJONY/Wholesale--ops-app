@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -78,7 +78,7 @@ def _apply_status(db: Session, packet: ContractPacket, provider_status: str, pay
     packet.error = None
     if provider_status == "completed":
         packet.status = "completed"
-        packet.completed_at = datetime.utcnow()
+        packet.completed_at = datetime.now(timezone.utc)
     elif provider_status in {"declined", "expired"}:
         packet.status = provider_status
     else:

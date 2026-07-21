@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -152,7 +152,7 @@ def finalize_selection(selection_id: int, principal: Principal = Depends(require
     deal, _ = _deal(db, principal, selection.deal_id)
     buyer = db.get(Buyer, selection.buyer_id)
     offer = db.get(BuyerOffer, selection.buyer_offer_id)
-    selection.status = "finalized"; offer.status = "selected"; offer.selected_at = datetime.utcnow()
+    selection.status = "finalized"; offer.status = "selected"; offer.selected_at = datetime.now(timezone.utc)
     deal.target_buyer_price = selection.assignment_price
     deal.projected_assignment_fee = selection.assignment_fee
     deal.stage = "buyer_selected"

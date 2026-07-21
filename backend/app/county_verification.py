@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -36,7 +36,7 @@ def _upsert_fact(db: Session, organization_id: int, entity_type: str, entity_id:
     fact.source_reference = source_reference
     fact.confidence = 100
     fact.verification_status = "verified"
-    fact.observed_at = datetime.utcnow()
+    fact.observed_at = datetime.now(timezone.utc)
     fact.metadata_json = metadata
     db.flush()
     return fact
@@ -93,13 +93,13 @@ def _rebuild(db: Session, organization_id: int, entity_type: str, entity_id: int
         elif conflict:
             conflict.status = "resolved"
             conflict.resolution = "County-verified fact became canonical"
-            conflict.resolved_at = datetime.utcnow()
+            conflict.resolved_at = datetime.now(timezone.utc)
     canonical.canonical_data = data
     canonical.source_count = len({fact.source for fact in facts})
     canonical.conflict_count = conflict_count
     canonical.confidence = round(sum(scores) / len(scores), 2) if scores else 0
     canonical.verification_status = "disputed" if conflict_count else ("verified" if facts and all(f.verification_status == "verified" for f in facts) else "partially_verified")
-    canonical.last_verified_at = datetime.utcnow()
+    canonical.last_verified_at = datetime.now(timezone.utc)
     return canonical
 
 

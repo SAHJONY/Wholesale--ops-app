@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -87,7 +87,7 @@ def command_center(
         })
     deal_risk.sort(key=lambda item: item["risk_score"], reverse=True)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     latest_by_agent: dict[str, AgentRun] = {}
     for run in sorted(runs, key=lambda item: item.created_at, reverse=True):
         latest_by_agent.setdefault(run.agent_name, run)

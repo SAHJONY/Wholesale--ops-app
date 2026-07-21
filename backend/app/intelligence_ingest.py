@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -36,7 +36,7 @@ def ingest_provider_facts(
     metadata: dict | None = None,
 ) -> dict:
     canonical = _canonical(db, organization_id, entity_type, entity_id)
-    observed = observed_at or datetime.utcnow()
+    observed = observed_at or datetime.now(timezone.utc)
     written = 0
     for field_name, value in facts.items():
         if value in (None, "", [], {}):
@@ -123,4 +123,4 @@ def _sync_conflicts(db: Session, canonical: CanonicalEntity) -> None:
         if field_name not in conflicting_fields:
             conflict.status = "resolved"
             conflict.resolution = "Provider facts converged or conflicting fact was removed"
-            conflict.resolved_at = datetime.utcnow()
+            conflict.resolved_at = datetime.now(timezone.utc)

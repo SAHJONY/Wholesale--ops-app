@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -144,7 +144,7 @@ def executive_brief(db: Session) -> dict:
     if not priorities:
         priorities.append("Run acquisition sources and import verified leads")
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "new_leads": len(leads),
         "hot_leads": len(hot),
         "active_deals": len([d for d in deals if d.stage not in {"closed", "dead"}]),

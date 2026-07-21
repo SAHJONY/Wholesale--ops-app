@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -61,7 +61,7 @@ def _snapshot(db: Session, principal: Principal) -> dict:
         "opportunity_ranking": bool(scores),
     }
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "status": "active" if any(workflow.values()) else "setup",
         "providers": providers,
         "workflow": workflow,

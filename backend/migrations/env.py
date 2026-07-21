@@ -18,6 +18,7 @@ MODEL_MODULES = (
     "app.event_models",
     "app.intelligence_models",
     "app.national_intelligence_models",
+    "app.background_jobs",
     "app.integration_hub_models",
     "app.integration_reliability_models",
     "app.acquisition_intake",

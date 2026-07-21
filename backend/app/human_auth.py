@@ -3,7 +3,7 @@ import hmac
 import os
 import secrets
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
 import httpx
@@ -221,7 +221,7 @@ def request_password_reset(payload: dict, db: Session = Depends(get_db)):
     if not user:
         return {"accepted": True, "message": "If that account exists, a reset code was sent."}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     existing = db.scalars(select(PasswordResetCode).where(
         PasswordResetCode.user_id == user.id,
         PasswordResetCode.used_at.is_(None),
@@ -260,7 +260,7 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(400, "Invalid or expired reset code")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     reset = db.scalar(select(PasswordResetCode).where(
         PasswordResetCode.user_id == user.id,
         PasswordResetCode.used_at.is_(None),
@@ -317,7 +317,7 @@ def login(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(401, "Invalid email or password")
 
     record = db.scalar(select(UserPassword).where(UserPassword.user_id == user.id))
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if not record:
         raise HTTPException(401, "Password login is not configured for this account")
     if record.locked_until and record.locked_until > now:
@@ -386,6 +386,6 @@ def logout(payload: dict, db: Session = Depends(get_db)):
         ApiCredential.revoked_at.is_(None),
     ))
     if credential and credential.name == "Human login session":
-        credential.revoked_at = datetime.utcnow()
+        credential.revoked_at = datetime.now(timezone.utc)
         db.commit()
     return {"logged_out": True}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -138,7 +138,7 @@ def _classify(db: Session, principal: Principal, csv_text: str) -> tuple[dict, s
             seen_emails.add(email)
 
     result = {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "headers": headers,
         "total_rows": len(rows),
         "accepted_count": len(accepted),
@@ -159,7 +159,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         CrmActivity.activity_type == "buyer_intake_import",
     ).order_by(CrmActivity.created_at.desc()).limit(25)).all()
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "required_columns": sorted(REQUIRED_COLUMNS),
         "optional_columns": sorted(OPTIONAL_COLUMNS),
         "max_rows": MAX_ROWS,

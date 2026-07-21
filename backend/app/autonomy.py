@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -126,7 +126,7 @@ def run_task(db: Session, task: OpsTask) -> OpsTask:
             if not run:
                 raise ValueError("Acquisition run not found")
             run.status = "completed"
-            run.completed_at = datetime.utcnow()
+            run.completed_at = datetime.now(timezone.utc)
             run.confidence = 1.0
             run.result = {
                 "status": "connector_required",
@@ -210,7 +210,7 @@ def run_task(db: Session, task: OpsTask) -> OpsTask:
     except Exception as exc:
         task.status = "failed"
         task.error = str(exc)
-    task.updated_at = datetime.utcnow()
+    task.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(task)
     return task
@@ -246,7 +246,7 @@ def run_agent(db: Session, agent_name: str, objective: str, input_json: dict) ->
         run.output_json = {"decision": "Objective accepted", "next_action": "queued_for_execution"}
         run.confidence = 0.75
     run.status = "completed"
-    run.completed_at = datetime.utcnow()
+    run.completed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(run)
     return run

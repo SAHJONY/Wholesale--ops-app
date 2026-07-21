@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -135,7 +135,7 @@ def _score_property(db: Session, principal: Principal, lead: Lead, prop: Propert
         "matching_buyers": matching_buyers,
         "canonical_status": canonical.verification_status if canonical else "unverified",
     }
-    row.calculated_at = datetime.utcnow()
+    row.calculated_at = datetime.now(timezone.utc)
     db.flush()
     return row
 
@@ -160,7 +160,7 @@ def _refresh(db: Session, principal: Principal, trigger: str = "manual", limit: 
     run.properties_skipped = skipped
     run.high_priority_count = high_priority
     run.status = "completed"
-    run.completed_at = datetime.utcnow()
+    run.completed_at = datetime.now(timezone.utc)
     run.result_json = {
         "top_property_ids": [row.property_id for row in sorted(scored, key=lambda item: item.opportunity_score, reverse=True)[:20]],
         "high_priority_count": high_priority,
@@ -206,7 +206,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
     } for key, value in markets.items()]
     market_rows.sort(key=lambda item: (item["high_priority"], item["average_score"]), reverse=True)
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "summary": {
             "properties": len(rows),
             "high_priority": sum(1 for row in rows if row.opportunity_score >= 70),

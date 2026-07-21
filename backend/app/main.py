@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
@@ -7,14 +7,13 @@ from sqlalchemy.orm import Session
 
 from .autonomy import AUTONOMY_AGENTS, create_task, execute_next_tasks, run_agent
 from .config import settings
-from .database import Base, engine, get_db
+from .database import get_db
 from .models import AgentRun, Approval, Buyer, Call, Campaign, ClosingItem, Deal, Lead, Offer, OpsTask, Property
 from .operating_system import (buyer_appetite, build_seller_offer, create_or_update_deal,
                                executive_brief, initialize_closing, schedule_acquisition_runs)
 from .schemas import BuyerCreate, LeadCreate, MatchResult, UnderwriteRequest
 from .services import calculate_mao, distress_score, lead_score, match_buyer
 
-Base.metadata.create_all(bind=engine)
 app = FastAPI(title="SAHJONY Wholesale Ops API", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
@@ -229,7 +228,7 @@ def decide_approval(approval_id: int, payload: dict, db: Session = Depends(get_d
     decision = str(payload.get("decision") or "").lower()
     if decision not in {"approved", "rejected"}: raise HTTPException(422, "Decision must be approved or rejected")
     approval.status = decision; approval.decided_by = str(payload.get("decided_by") or "owner")
-    approval.decision_note = payload.get("note"); approval.decided_at = datetime.utcnow()
+    approval.decision_note = payload.get("note"); approval.decided_at = datetime.now(timezone.utc)
     if approval.entity_type == "campaign":
         campaign = db.get(Campaign, approval.entity_id)
         if campaign: campaign.status = "ready" if decision == "approved" else "rejected"

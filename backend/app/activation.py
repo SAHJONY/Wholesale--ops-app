@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -181,7 +181,7 @@ def qualify_lead(
             assigned_user_id=principal.user_id,
             title=f"Contact {lead.seller_name} and verify motivation",
             priority=int(min(100, max(40, score))),
-            due_at=datetime.utcnow() + timedelta(hours=4 if score >= 70 else 24),
+            due_at=datetime.now(timezone.utc) + timedelta(hours=4 if score >= 70 else 24),
             notes="Generated automatically after qualification update.",
         ))
 
@@ -278,7 +278,7 @@ def run_specialists(
             input_json={"organization_id": principal.organization_id, "trigger": "activation_console"},
             output_json=outputs.get(name, {"status": "ready"}),
             confidence=0.9 if name in {"executive-orchestrator", "compliance"} else 0.82,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
         )
         db.add(run)
         db.flush()

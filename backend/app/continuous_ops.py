@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
@@ -60,7 +60,7 @@ def _run_workspace_cycle(db: Session, organization: Organization, trigger: str =
     leads = db.scalars(select(Lead).where(Lead.id.in_(lead_ids))).all() if lead_ids else []
 
     followups_created = 0
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for lead in leads:
         score = lead_score(lead.motivation_score, lead.equity_score, lead.distress_score)
         if score < 45 or lead.status in {"closed", "dead"}:
@@ -131,7 +131,7 @@ def scheduled_operations(
     organizations = db.scalars(select(Organization).where(Organization.is_active.is_(True))).all()
     results = [_run_workspace_cycle(db, organization, "vercel_cron") for organization in organizations]
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": "supervised_autonomous",
         "organizations_processed": len(results),
         "results": results,
