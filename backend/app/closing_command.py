@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -102,21 +102,21 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             "issues": [{"id": x.id, "issue_type": x.issue_type, "severity": x.severity, "status": x.status, "title": x.title, "description": x.description, "owner": x.owner, "due_at": x.due_at, "resolution": x.resolution} for x in issues],
             "milestones": [{"id": x.id, "milestone_type": x.milestone_type, "label": x.label, "status": x.status, "due_at": x.due_at, "completed_at": x.completed_at, "owner": x.owner, "notes": x.notes} for x in milestones],
         })
-    return {"organization_id": principal.organization_id, "generated_at": datetime.utcnow(), "closings": result}
+    return {"organization_id": principal.organization_id, "generated_at": datetime.now(timezone.utc), "closings": result}
 
 
 @router.post("/deals/{deal_id}/initialize")
 def initialize(deal_id: int, payload: dict | None = None, principal: Principal = Depends(require_role("manager")), db: Session = Depends(get_db)):
     payload = payload or {}
     deal, prop, lead = _context(db, principal, deal_id)
-    closing_date = _dt(payload.get("closing_date")) or datetime.utcnow() + timedelta(days=int(payload.get("closing_days") or 30))
+    closing_date = _dt(payload.get("closing_date")) or datetime.now(timezone.utc) + timedelta(days=int(payload.get("closing_days") or 30))
     title = db.scalar(select(TitleOrder).where(TitleOrder.organization_id == principal.organization_id, TitleOrder.deal_id == deal.id))
     if not title:
         title = TitleOrder(organization_id=principal.organization_id, deal_id=deal.id, closing_date=closing_date, status="not_ordered")
         db.add(title); db.flush(); _workspace_link(db, principal.organization_id, "title_order", title.id)
     emd = db.scalar(select(EarnestMoneyRecord).where(EarnestMoneyRecord.organization_id == principal.organization_id, EarnestMoneyRecord.deal_id == deal.id))
     if not emd:
-        emd = EarnestMoneyRecord(organization_id=principal.organization_id, deal_id=deal.id, amount=float(payload.get("earnest_money") or 100), due_at=datetime.utcnow() + timedelta(days=3))
+        emd = EarnestMoneyRecord(organization_id=principal.organization_id, deal_id=deal.id, amount=float(payload.get("earnest_money") or 100), due_at=datetime.now(timezone.utc) + timedelta(days=3))
         db.add(emd); db.flush(); _workspace_link(db, principal.organization_id, "earnest_money", emd.id)
     funding = db.scalar(select(FundingRecord).where(FundingRecord.organization_id == principal.organization_id, FundingRecord.deal_id == deal.id))
     if not funding:
@@ -191,7 +191,7 @@ def update_issue(issue_id: int, payload: dict, principal: Principal = Depends(re
     for key in ["issue_type", "severity", "status", "title", "description", "owner", "resolution"]:
         if key in payload: setattr(row, key, payload.get(key))
     if "due_at" in payload: row.due_at = _dt(payload.get("due_at"))
-    if payload.get("status") == "resolved" and not row.resolved_at: row.resolved_at = datetime.utcnow()
+    if payload.get("status") == "resolved" and not row.resolved_at: row.resolved_at = datetime.now(timezone.utc)
     db.commit(); return {"id": row.id, "status": row.status}
 
 
@@ -202,5 +202,5 @@ def update_milestone(milestone_id: int, payload: dict, principal: Principal = De
     for key in ["status", "owner", "notes"]:
         if key in payload: setattr(row, key, payload.get(key))
     if "due_at" in payload: row.due_at = _dt(payload.get("due_at"))
-    if payload.get("status") == "completed" and not row.completed_at: row.completed_at = datetime.utcnow()
+    if payload.get("status") == "completed" and not row.completed_at: row.completed_at = datetime.now(timezone.utc)
     db.commit(); return {"id": row.id, "status": row.status, "completed_at": row.completed_at}

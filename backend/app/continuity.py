@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, text
@@ -57,7 +57,7 @@ def snapshot(
     drills = _recent_drills(db, principal.organization_id)
     last_success = next((item for item in drills if (item.metadata_json or {}).get("status") == "passed"), None)
     last_success_at = last_success.created_at if last_success else None
-    drill_due = last_success_at is None or last_success_at < datetime.utcnow() - timedelta(days=90)
+    drill_due = last_success_at is None or last_success_at < datetime.now(timezone.utc) - timedelta(days=90)
 
     provider = _provider()
     provider_api_ready = _configured("NEON_API_KEY") and _configured("NEON_PROJECT_ID") if provider == "neon" else False
@@ -75,7 +75,7 @@ def snapshot(
 
     return {
         "status": "ready" if ready_count == len(controls) else "degraded",
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "provider": provider,
         "database": {"ok": database_ok, "error": database_error},
         "objectives": {

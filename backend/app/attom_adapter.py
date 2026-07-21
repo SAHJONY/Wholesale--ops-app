@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -73,7 +73,7 @@ def normalize_attom_property(payload: dict) -> dict:
 
     normalized = {
         "provider": "attom",
-        "observed_at": datetime.utcnow().isoformat(),
+        "observed_at": datetime.now(timezone.utc).isoformat(),
         "source_published_at": vintage.get("pubDate"),
         "source_last_modified_at": vintage.get("lastModified"),
         "confidence": 0.9 if address.get("matchCode") in {"ExaStr", "Exact", "1"} else 0.78,

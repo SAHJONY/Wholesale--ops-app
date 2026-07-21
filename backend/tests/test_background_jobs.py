@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -17,7 +17,7 @@ def test_retry_delay_uses_bounded_exponential_backoff():
 def test_stale_running_job_returns_to_retry_queue():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     with Session(engine) as db:
         job = BackgroundJob(
             organization_id=1,
@@ -41,7 +41,7 @@ def test_stale_running_job_returns_to_retry_queue():
 def test_stale_exhausted_job_moves_to_dead_letter():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     with Session(engine) as db:
         job = BackgroundJob(
             organization_id=1,

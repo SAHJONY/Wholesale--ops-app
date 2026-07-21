@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -142,7 +142,7 @@ def snapshot(principal: Principal = Depends(get_principal)):
         "document_retention": next((p["activation_ready"] for p in providers if p["id"] == "object_storage"), False),
     }
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "organization_id": principal.organization_id,
         "score": score,
         "status": "ready" if not blockers else "blocked",
@@ -170,5 +170,5 @@ def verify(payload: dict | None = None, principal: Principal = Depends(require_r
         item = next((provider for provider in providers if provider["id"] == requested), None)
         if not item:
             raise HTTPException(404, "Provider not found")
-        return {"generated_at": datetime.utcnow(), "organization_id": principal.organization_id, "provider": item, "safe_check_only": True}
-    return {"generated_at": datetime.utcnow(), "organization_id": principal.organization_id, "providers": providers, "safe_check_only": True}
+        return {"generated_at": datetime.now(timezone.utc), "organization_id": principal.organization_id, "provider": item, "safe_check_only": True}
+    return {"generated_at": datetime.now(timezone.utc), "organization_id": principal.organization_id, "providers": providers, "safe_check_only": True}

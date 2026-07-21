@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,7 +37,7 @@ def _decision_for_request(db: Session, principal: Principal, lead_id: int, decis
         raise HTTPException(422, "Compliance decision does not match the exact channel and contact")
     if not decision.allowed:
         raise HTTPException(422, "Compliance decision is blocked")
-    if datetime.utcnow() - decision.created_at > DECISION_TTL:
+    if datetime.now(timezone.utc) - decision.created_at > DECISION_TTL:
         raise HTTPException(422, "Compliance decision expired; evaluate again")
     return decision
 
@@ -252,7 +252,7 @@ async def dispatch_outbound_request(
         request.provider_status = result["provider_status"]
         request.provider_response = result["provider_response"]
         request.dispatched_by_user_id = principal.user_id
-        request.dispatched_at = datetime.utcnow()
+        request.dispatched_at = datetime.now(timezone.utc)
         request.error = None
         db.add(CrmActivity(
             organization_id=principal.organization_id,

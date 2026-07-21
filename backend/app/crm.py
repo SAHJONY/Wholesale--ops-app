@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -328,7 +328,7 @@ def update_follow_up(
         if status not in {"open", "in_progress", "completed", "cancelled"}:
             raise HTTPException(422, "Invalid status")
         item.status = status
-        item.completed_at = datetime.utcnow() if status == "completed" else None
+        item.completed_at = datetime.now(timezone.utc) if status == "completed" else None
     if "title" in payload:
         item.title = str(payload["title"])
     if "priority" in payload:

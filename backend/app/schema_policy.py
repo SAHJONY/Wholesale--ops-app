@@ -33,31 +33,17 @@ def _environment() -> str:
 
 
 def configure_schema(base: type[DeclarativeBase], engine: Engine) -> SchemaPolicyState:
-    """Inspect schema drift and optionally preserve legacy create_all compatibility.
-
-    Modes:
-    - strict: never mutates schema at application startup.
-    - compatibility: creates missing metadata tables, matching historical behavior.
-
-    Set SCHEMA_MODE=strict only after all metadata tables have formal migrations.
-    """
+    """Inspect schema drift without mutating the schema at application startup."""
     global _STATE
 
     environment = _environment()
-    configured_mode = os.getenv("SCHEMA_MODE", "").strip().lower()
-    mode = configured_mode if configured_mode in {"strict", "compatibility"} else "compatibility"
+    mode = "strict"
     metadata_tables = set(base.metadata.tables)
     runtime_create_attempted = False
 
     try:
         database_tables = set(inspect(engine).get_table_names())
         missing = sorted(metadata_tables - database_tables)
-
-        if missing and mode == "compatibility":
-            runtime_create_attempted = True
-            base.metadata.create_all(bind=engine)
-            database_tables = set(inspect(engine).get_table_names())
-            missing = sorted(metadata_tables - database_tables)
 
         _STATE = SchemaPolicyState(
             environment=environment,

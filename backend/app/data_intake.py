@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -89,13 +89,13 @@ def _preview_rows(db: Session, principal: Principal, csv_text: str) -> dict:
         if duplicate_reason:
             item["reason"] = duplicate_reason; duplicates.append(item); continue
         accepted.append(item); seen_phones.add(phone); seen_addresses.add(address_key)
-    return {"generated_at": datetime.utcnow(), "headers": headers, "total_rows": len(rows), "accepted_count": len(accepted), "duplicate_count": len(duplicates), "rejected_count": len(rejected), "accepted_row_numbers": [item["row_number"] for item in accepted], "accepted": accepted[:100], "duplicates": duplicates[:100], "rejected": rejected[:100]}
+    return {"generated_at": datetime.now(timezone.utc), "headers": headers, "total_rows": len(rows), "accepted_count": len(accepted), "duplicate_count": len(duplicates), "rejected_count": len(rejected), "accepted_row_numbers": [item["row_number"] for item in accepted], "accepted": accepted[:100], "duplicates": duplicates[:100], "rejected": rejected[:100]}
 
 
 @router.get("/snapshot")
 def snapshot(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     imports = db.scalars(select(CrmActivity).where(CrmActivity.organization_id == principal.organization_id, CrmActivity.activity_type == "data_intake_import").order_by(CrmActivity.created_at.desc()).limit(25)).all()
-    return {"generated_at": datetime.utcnow(), "required_columns": sorted(REQUIRED_COLUMNS), "optional_columns": sorted(OPTIONAL_COLUMNS), "max_rows": MAX_ROWS, "texas_excluded": True, "imports": [{"id": item.id, "summary": item.summary, "metadata": item.metadata_json, "created_at": item.created_at} for item in imports]}
+    return {"generated_at": datetime.now(timezone.utc), "required_columns": sorted(REQUIRED_COLUMNS), "optional_columns": sorted(OPTIONAL_COLUMNS), "max_rows": MAX_ROWS, "texas_excluded": True, "imports": [{"id": item.id, "summary": item.summary, "metadata": item.metadata_json, "created_at": item.created_at} for item in imports]}
 
 
 @router.post("/preview")

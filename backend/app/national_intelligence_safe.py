@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal, require_role
-from .database import Base, engine, get_db
+from .database import get_db
 
 router = APIRouter(prefix="/national-intelligence", tags=["national property intelligence network"])
 
@@ -15,15 +15,12 @@ router = APIRouter(prefix="/national-intelligence", tags=["national property int
 def _module():
     from . import national_intelligence as implementation
 
-    # Register and create intelligence tables before their first query. This is
-    # idempotent and preserves existing data.
-    Base.metadata.create_all(bind=engine)
     return implementation
 
 
 def _setup_snapshot(detail: str) -> dict:
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "status": "setup",
         "detail": detail,
         "summary": {

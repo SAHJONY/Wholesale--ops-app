@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -144,7 +144,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         })
     configured = sum(1 for item in statuses if item["state"] in {"configured", "available_public_or_manual"})
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "summary": {
             "providers": len(statuses),
             "configured": configured,
@@ -201,7 +201,7 @@ def run_checks(payload: dict | None = None, principal: Principal = Depends(requi
     run.providers_blocked = len(selected) - ready_count
     run.status = "completed"
     run.result_json = {"providers": results}
-    run.completed_at = datetime.utcnow()
+    run.completed_at = datetime.now(timezone.utc)
     db.commit()
     return {"run_id": run.id, "status": run.status, "providers_checked": run.providers_checked, "providers_ready": ready_count, "providers_blocked": run.providers_blocked, "results": results}
 

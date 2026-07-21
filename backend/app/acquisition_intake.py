@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -231,7 +231,7 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
     batch.records_duplicate = duplicate
     batch.records_rejected = rejected
     batch.status = "completed"
-    batch.completed_at = datetime.utcnow()
+    batch.completed_at = datetime.now(timezone.utc)
     batch.result_json = {"rows": results[:250], "truncated": len(results) > 250}
     db.commit()
     return {

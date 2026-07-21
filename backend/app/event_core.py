@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -35,7 +35,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         EventSubscription.organization_id == principal.organization_id
     ).order_by(EventSubscription.subscriber_name, EventSubscription.event_type)).all()
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "event_counts": counts,
         "delivery_counts": delivery_counts,
         "health": "degraded" if counts.get("dead_letter", 0) or delivery_counts.get("dead_letter", 0) else "healthy",
@@ -88,7 +88,7 @@ def replay(event_id: int, principal: Principal = Depends(require_role("manager")
     if not event:
         raise HTTPException(404, "Event not found")
     event.status = "retry"
-    event.available_at = datetime.utcnow()
+    event.available_at = datetime.now(timezone.utc)
     event.failed_at = None
     event.last_error = None
     deliveries = db.scalars(select(EventDelivery).where(
@@ -98,7 +98,7 @@ def replay(event_id: int, principal: Principal = Depends(require_role("manager")
     for delivery in deliveries:
         if delivery.status != "completed":
             delivery.status = "retry"
-            delivery.available_at = datetime.utcnow()
+            delivery.available_at = datetime.now(timezone.utc)
             delivery.failed_at = None
             delivery.last_error = None
     db.commit()

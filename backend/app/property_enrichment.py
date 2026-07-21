@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -115,9 +115,9 @@ async def apply_attom_enrichment(lead_id: int, payload: dict | None = None, prin
     identifiers = evidence.get("identifiers") or {}
     observed_text = evidence.get("observed_at")
     try:
-        observed = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00")).replace(tzinfo=None) if observed_text else datetime.utcnow()
+        observed = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00")).replace(tzinfo=None) if observed_text else datetime.now(timezone.utc)
     except ValueError:
-        observed = datetime.utcnow()
+        observed = datetime.now(timezone.utc)
     property_facts = {
         **remote,
         "attom_id": identifiers.get("attom_id"), "apn": identifiers.get("apn"), "fips": identifiers.get("fips"),
@@ -134,7 +134,7 @@ async def apply_attom_enrichment(lead_id: int, payload: dict | None = None, prin
     db.add(CrmActivity(
         organization_id=principal.organization_id, user_id=principal.user_id, lead_id=lead.id,
         activity_type="property_enriched", summary=f"ATTOM evidence reviewed for {lead.seller_name}; {len(applied)} fields applied",
-        metadata_json={"provider": "attom", "observed_at": evidence.get("observed_at") or datetime.utcnow().isoformat(), "confidence": evidence.get("confidence"), "identifiers": identifiers, "owner_evidence": owner, "valuation_evidence": valuation, "last_sale_evidence": last_sale, "source_reference": evidence.get("raw_reference"), "verification_required": evidence.get("verification_required"), "applied_fields": applied, "conflicts": review.get("conflicts"), "skipped_conflicts": skipped_conflicts, "intelligence": intelligence},
+        metadata_json={"provider": "attom", "observed_at": evidence.get("observed_at") or datetime.now(timezone.utc).isoformat(), "confidence": evidence.get("confidence"), "identifiers": identifiers, "owner_evidence": owner, "valuation_evidence": valuation, "last_sale_evidence": last_sale, "source_reference": evidence.get("raw_reference"), "verification_required": evidence.get("verification_required"), "applied_fields": applied, "conflicts": review.get("conflicts"), "skipped_conflicts": skipped_conflicts, "intelligence": intelligence},
     ))
     db.commit()
     return {"lead_id": lead.id, "provider": "attom", "applied": applied, "skipped_conflicts": skipped_conflicts, "conflicts": review["conflicts"], "confidence": evidence.get("confidence"), "verification_required": evidence.get("verification_required"), "intelligence": intelligence}

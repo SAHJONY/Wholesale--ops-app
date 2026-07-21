@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -67,7 +67,7 @@ def deployment_status(principal: Principal = Depends(get_principal), db: Session
 
     return {
         "status": "healthy" if not missing and database_ok and schema_healthy else "degraded",
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "organization_id": principal.organization_id,
         "release": os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
         "environment": os.getenv("VERCEL_ENV") or os.getenv("RAILWAY_ENVIRONMENT_NAME") or "unknown",

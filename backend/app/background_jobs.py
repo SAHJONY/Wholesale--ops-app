@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import DateTime, Integer, JSON, String, Text, func, select
@@ -27,15 +27,15 @@ class BackgroundJob(Base):
     result_json: Mapped[dict] = mapped_column(JSON, default=dict)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, default=5)
-    available_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 router = APIRouter(prefix="/jobs", tags=["durable background jobs"])
@@ -146,7 +146,7 @@ def _serialize(job: BackgroundJob) -> dict:
 
 
 async def _run_available(db: Session, principal: Principal, limit: int, trigger: str) -> dict:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     recovered = _recover_stale_jobs(db, principal.organization_id, now)
     jobs = db.scalars(select(BackgroundJob).where(
         BackgroundJob.organization_id == principal.organization_id,
@@ -157,15 +157,15 @@ async def _run_available(db: Session, principal: Principal, limit: int, trigger:
     dead_lettered = 0
     for job in jobs:
         job.status = "running"
-        job.locked_at = datetime.utcnow()
-        job.started_at = job.started_at or datetime.utcnow()
+        job.locked_at = datetime.now(timezone.utc)
+        job.started_at = job.started_at or datetime.now(timezone.utc)
         job.attempts += 1
         db.commit()
         try:
             result = await _execute_job(db, principal, job)
             job.status = "completed"
             job.result_json = result if isinstance(result, dict) else {"result": result}
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             job.locked_at = None
             job.last_error = None
         except Exception as exc:
@@ -177,7 +177,7 @@ async def _run_available(db: Session, principal: Principal, limit: int, trigger:
             job.last_error = f"{type(exc).__name__}: {exc}"
             if job.attempts >= job.max_attempts:
                 job.status = "dead_letter"
-                job.failed_at = datetime.utcnow()
+                job.failed_at = datetime.now(timezone.utc)
                 dead_lettered += 1
                 db.add(CrmActivity(
                     organization_id=principal.organization_id,
@@ -188,7 +188,7 @@ async def _run_available(db: Session, principal: Principal, limit: int, trigger:
                 ))
             else:
                 job.status = "retry"
-                job.available_at = datetime.utcnow() + _retry_delay(job.attempts)
+                job.available_at = datetime.now(timezone.utc) + _retry_delay(job.attempts)
         db.commit()
         results.append(_serialize(job))
     return {
@@ -212,10 +212,10 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
     stale = db.scalar(select(func.count(BackgroundJob.id)).where(
         BackgroundJob.organization_id == principal.organization_id,
         BackgroundJob.status == "running",
-        BackgroundJob.locked_at < datetime.utcnow() - timedelta(minutes=STALE_LOCK_MINUTES),
+        BackgroundJob.locked_at < datetime.now(timezone.utc) - timedelta(minutes=STALE_LOCK_MINUTES),
     )) or 0
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "counts": counts,
         "supported_job_types": sorted(SUPPORTED_JOB_TYPES),
         "scheduler": {
@@ -268,7 +268,7 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
         except Exception as exc:
             db.rollback()
             results.append({"organization_id": organization.id, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
-    return {"generated_at": datetime.utcnow(), "organizations_processed": len(results), "results": results}
+    return {"generated_at": datetime.now(timezone.utc), "organizations_processed": len(results), "results": results}
 
 
 @router.post("/{job_id}/retry")
@@ -282,7 +282,7 @@ def retry(job_id: int, principal: Principal = Depends(require_role("manager")), 
     if job.status not in {"failed", "dead_letter"}:
         raise HTTPException(409, "Only failed or dead-letter jobs can be retried")
     job.status = "retry"
-    job.available_at = datetime.utcnow()
+    job.available_at = datetime.now(timezone.utc)
     job.failed_at = None
     job.locked_at = None
     job.last_error = None

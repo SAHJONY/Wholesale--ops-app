@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, inspect, select, text
@@ -139,7 +139,7 @@ def run_validation(db: Session, principal: Principal) -> dict:
     status = "ready" if not critical_failures and not high_failures and score >= 85 else "conditional" if not critical_failures and score >= 65 else "blocked"
 
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "status": status,
         "score": score,
         "summary": {

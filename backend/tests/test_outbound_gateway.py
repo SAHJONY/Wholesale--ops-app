@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -26,7 +26,7 @@ def decision(**overrides):
         "channel": "sms",
         "contact": "+13055551212",
         "allowed": True,
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
     }
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -53,7 +53,7 @@ def test_blocked_decision_cannot_dispatch():
 
 
 def test_decision_expires_after_fifteen_minutes():
-    stale = decision(created_at=datetime.utcnow() - DECISION_TTL - timedelta(seconds=1))
+    stale = decision(created_at=datetime.now(timezone.utc) - DECISION_TTL - timedelta(seconds=1))
     with pytest.raises(HTTPException):
         _decision_for_request(FakeDb(stale), principal(), 11, 1, "sms", "+13055551212")
 

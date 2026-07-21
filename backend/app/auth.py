@@ -3,7 +3,7 @@ import os
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, select
@@ -93,7 +93,7 @@ def get_principal(
     ))
     if not credential:
         raise HTTPException(401, "Invalid or revoked API key")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     try:
         _enforce_human_session_lifetime(credential, now)
     except HTTPException:
@@ -210,7 +210,7 @@ def recover_owner_key(
     if not user or not organization:
         raise HTTPException(404, "Owner workspace not found")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     active_credentials = db.scalars(select(ApiCredential).where(
         ApiCredential.organization_id == organization.id,
         ApiCredential.user_id == user.id,
@@ -332,6 +332,6 @@ def revoke_api_key(
     credential = db.get(ApiCredential, credential_id)
     if not credential or credential.organization_id != principal.organization_id:
         raise HTTPException(404, "API key not found")
-    credential.revoked_at = datetime.utcnow()
+    credential.revoked_at = datetime.now(timezone.utc)
     db.commit()
     return {"id": credential.id, "revoked": True}

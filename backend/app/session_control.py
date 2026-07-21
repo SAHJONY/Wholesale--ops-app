@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
@@ -31,7 +31,7 @@ def snapshot(
         ApiCredential.user_id == principal.user_id,
         ApiCredential.name == "Human login session",
     ).order_by(ApiCredential.created_at.desc())).all()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     sessions = []
     for item in rows:
         last_seen = item.last_used_at or item.created_at
@@ -71,7 +71,7 @@ def revoke_others(
     current = _current_credential(db, authorization, x_api_key)
     if not current or current.name != "Human login session":
         raise HTTPException(422, "Current credential is not a human login session")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     rows = db.scalars(select(ApiCredential).where(
         ApiCredential.organization_id == principal.organization_id,
         ApiCredential.user_id == principal.user_id,
@@ -107,7 +107,7 @@ def revoke_session(
     if current and current.id == item.id:
         raise HTTPException(422, "Use logout to end the current session")
     if not item.revoked_at:
-        item.revoked_at = datetime.utcnow()
+        item.revoked_at = datetime.now(timezone.utc)
         db.add(CrmActivity(
             organization_id=principal.organization_id,
             user_id=principal.user_id,

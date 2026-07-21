@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, select
@@ -47,7 +47,7 @@ def _category(activity_type: str) -> str:
 
 
 def _query(db: Session, organization_id: int, days: int, category: str | None, activity_type: str | None):
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     statement = (
         select(CrmActivity, AppUser)
         .outerjoin(AppUser, AppUser.id == CrmActivity.user_id)
@@ -95,7 +95,7 @@ def snapshot(
         category_counts[item["category"]] = category_counts.get(item["category"], 0) + 1
         type_counts[item["activity_type"]] = type_counts.get(item["activity_type"], 0) + 1
     return {
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc),
         "window_days": days,
         "total": len(items),
         "category_counts": category_counts,
@@ -128,7 +128,7 @@ def export_csv(
             activity.lead_id or "",
             activity.deal_id or "",
         ])
-    filename = f"sahjony-audit-{datetime.utcnow().date().isoformat()}.csv"
+    filename = f"sahjony-audit-{datetime.now(timezone.utc).date().isoformat()}.csv"
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv",

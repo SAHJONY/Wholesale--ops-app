@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -133,8 +133,8 @@ def prepare_packet(
         raise HTTPException(422, "A verified contract price is required")
     assignment_fee = float(payload.get("assignment_fee") or deal.projected_assignment_fee or 0)
     closing_days = max(1, int(payload.get("closing_days") or 30))
-    effective_date = str(payload.get("effective_date") or datetime.utcnow().date().isoformat())
-    closing_date = str(payload.get("closing_date") or (datetime.utcnow() + timedelta(days=closing_days)).date().isoformat())
+    effective_date = str(payload.get("effective_date") or datetime.now(timezone.utc).date().isoformat())
+    closing_date = str(payload.get("closing_date") or (datetime.now(timezone.utc) + timedelta(days=closing_days)).date().isoformat())
 
     terms = {
         "signature_provider": provider,
@@ -327,7 +327,7 @@ async def send_packet(
     # Legacy database column retained as the generic provider-reference field.
     packet.docusign_envelope_id = result["provider_reference"]
     packet.approved_by_user_id = principal.user_id
-    packet.sent_at = datetime.utcnow()
+    packet.sent_at = datetime.now(timezone.utc)
     packet.error = None
     db.add(DealDocument(
         organization_id=principal.organization_id, deal_id=packet.deal_id, packet_id=packet.id,

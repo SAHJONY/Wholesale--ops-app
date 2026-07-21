@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -106,7 +106,7 @@ def _ensure_county_case(db: Session, organization_id: int, lead: Lead, evidence:
         status="pending",
         priority=85 if confidence >= 80 else 70,
         confidence=min(79, confidence),
-        due_at=datetime.utcnow() + timedelta(days=2),
+        due_at=datetime.now(timezone.utc) + timedelta(days=2),
         source_type="attom",
         source_reference=str(evidence.get("raw_reference") or "") or None,
         proposed_evidence={
@@ -138,7 +138,7 @@ async def _process_one(db: Session, principal: Principal, lead: Lead, force: boo
     run.status = "running"
     run.current_step = "starting"
     run.attempts += 1
-    run.started_at = datetime.utcnow()
+    run.started_at = datetime.now(timezone.utc)
     run.last_error = None
     result: dict = {"attom": {}, "batchdata": {}, "county_case_id": None, "qualification": {}}
 
@@ -207,14 +207,14 @@ async def _process_one(db: Session, principal: Principal, lead: Lead, force: boo
         db.add(FollowUpTask(
             organization_id=principal.organization_id, lead_id=lead.id, assigned_user_id=principal.user_id,
             title=f"Verify motivation and ownership for {lead.seller_name}",
-            priority=max(50, min(100, int(score))), due_at=datetime.utcnow() + timedelta(hours=24),
+            priority=max(50, min(100, int(score))), due_at=datetime.now(timezone.utc) + timedelta(hours=24),
             notes="Created by the autonomous acquisition worker. Human verification remains required.",
         ))
 
     run.current_step = "completed"
     run.status = "completed" if any(result[name].get("status") == "completed" for name in ("attom", "batchdata")) else "waiting_configuration"
     run.result_json = result
-    run.completed_at = datetime.utcnow()
+    run.completed_at = datetime.now(timezone.utc)
     db.add(CrmActivity(
         organization_id=principal.organization_id, user_id=principal.user_id, lead_id=lead.id,
         activity_type="acquisition_automation_processed",

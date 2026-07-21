@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
@@ -78,8 +78,8 @@ def _update_alert(db: Session, organization_id: int, provider: dict, check: Inte
         if alert and alert.status == "open":
             alert.status = "resolved"
             alert.failure_streak = 0
-            alert.resolved_at = datetime.utcnow()
-            alert.last_detected_at = datetime.utcnow()
+            alert.resolved_at = datetime.now(timezone.utc)
+            alert.last_detected_at = datetime.now(timezone.utc)
             resolved = True
         return opened, resolved
 
@@ -99,7 +99,7 @@ def _update_alert(db: Session, organization_id: int, provider: dict, check: Inte
     else:
         if alert.status == "resolved":
             alert.status = "open"
-            alert.first_detected_at = datetime.utcnow()
+            alert.first_detected_at = datetime.now(timezone.utc)
             alert.resolved_at = None
             alert.failure_streak = 1
             opened = True
@@ -108,7 +108,7 @@ def _update_alert(db: Session, organization_id: int, provider: dict, check: Inte
         alert.summary = f"{provider['name']} is {check.status}"
         alert.details_json = {"message": check.message, "readiness_state": check.readiness_state}
         alert.affected_workflows = WORKFLOW_DEPENDENCIES.get(provider["id"], [])
-    alert.last_detected_at = datetime.utcnow()
+    alert.last_detected_at = datetime.now(timezone.utc)
     alert.severity = "critical" if alert.failure_streak >= 3 and provider.get("tier") in {"primary", "required"} else "warning"
     return opened, resolved
 
@@ -141,14 +141,14 @@ def _run_monitor(db: Session, trigger: str, organization_ids: list[int] | None =
         op.providers_blocked = len(ALL_PROVIDERS) - ready
         op.status = "completed"
         op.result_json = {"providers": provider_results}
-        op.completed_at = datetime.utcnow()
+        op.completed_at = datetime.now(timezone.utc)
         results.append({"organization_id": organization.id, "ready": ready, "blocked": op.providers_blocked})
     run.organizations_checked = len(organizations)
     run.alerts_opened = opened
     run.alerts_resolved = resolved
     run.status = "completed"
     run.result_json = {"organizations": results}
-    run.completed_at = datetime.utcnow()
+    run.completed_at = datetime.now(timezone.utc)
     db.commit()
     return run
 

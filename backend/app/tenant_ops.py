@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -205,7 +205,7 @@ def decide_approval(approval_id: int, payload: dict, principal: Principal = Depe
     if decision not in {"approved", "rejected"}:
         raise HTTPException(422, "Decision must be approved or rejected")
     approval.status = decision; approval.decided_by = principal.email
-    approval.decision_note = payload.get("note"); approval.decided_at = datetime.utcnow()
+    approval.decision_note = payload.get("note"); approval.decided_at = datetime.now(timezone.utc)
     if approval.entity_type == "campaign":
         campaign = db.get(Campaign, approval.entity_id)
         if campaign:

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/county-queue", tags=["county verification queue"])
 
 @router.get("/snapshot")
 def snapshot(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cases = db.scalars(select(CountyVerificationCase).where(
         CountyVerificationCase.organization_id == principal.organization_id
     ).order_by(CountyVerificationCase.priority.desc(), CountyVerificationCase.created_at)).all()
@@ -65,7 +65,7 @@ def create_case(lead_id: int, payload: dict | None = None, principal: Principal 
         state=str(lead.property.state).upper(),
         priority=max(1, min(100, int(payload.get("priority") or 70))),
         confidence=max(0, min(100, float(payload.get("confidence") or 0))),
-        due_at=datetime.utcnow() + timedelta(days=max(1, int(payload.get("due_days") or 3))),
+        due_at=datetime.now(timezone.utc) + timedelta(days=max(1, int(payload.get("due_days") or 3))),
         source_type=str(payload.get("source_type") or "manual_research"),
         source_reference=str(payload.get("source_reference") or "").strip() or None,
         proposed_evidence=payload.get("proposed_evidence") or {},
@@ -124,7 +124,7 @@ def decide_case(case_id: int, payload: dict, principal: Principal = Depends(requ
         verify_county_ownership(case.lead_id, evidence, principal, db)
     case.status = decision
     case.reviewed_by_user_id = principal.user_id
-    case.reviewed_at = datetime.utcnow()
+    case.reviewed_at = datetime.now(timezone.utc)
     case.reviewer_notes = str(payload.get("reviewer_notes") or case.reviewer_notes or "") or None
     db.add(CrmActivity(
         organization_id=principal.organization_id, user_id=principal.user_id,
