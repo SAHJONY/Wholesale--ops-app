@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal
 from .database import get_db
+from .schema_policy import schema_policy_snapshot
 
 router = APIRouter(prefix="/deployment", tags=["deployment diagnostics"])
 
@@ -61,13 +62,17 @@ def deployment_status(principal: Principal = Depends(get_principal), db: Session
     except Exception as exc:  # pragma: no cover
         database_error = f"{type(exc).__name__}: {exc}"
 
+    schema = schema_policy_snapshot()
+    schema_healthy = not schema.get("error") and not schema.get("missing_tables")
+
     return {
-        "status": "healthy" if not missing and database_ok else "degraded",
+        "status": "healthy" if not missing and database_ok and schema_healthy else "degraded",
         "generated_at": datetime.utcnow(),
         "organization_id": principal.organization_id,
         "release": os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
         "environment": os.getenv("VERCEL_ENV") or os.getenv("RAILWAY_ENVIRONMENT_NAME") or "unknown",
         "database": {"ok": database_ok, "error": database_error},
+        "schema_policy": schema,
         "route_contract": {
             "required": len(CRITICAL_ROUTES),
             "registered": len(CRITICAL_ROUTES) - len(missing),
