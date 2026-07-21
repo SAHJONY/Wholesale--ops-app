@@ -1,14 +1,16 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "SAHJONY Wholesale Ops",
-  description: "Autonomous wholesale real estate workforce",
+  title: "SAHJONY | Wholesale Intelligence",
+  description: "The autonomous command system for wholesale real estate operations.",
 };
+
+export const viewport: Viewport = { themeColor: "#050607" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );
