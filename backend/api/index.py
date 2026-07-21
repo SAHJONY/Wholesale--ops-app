@@ -40,6 +40,7 @@ from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
 from app.provider_activation import router as provider_activation_router
 from app.real_estate_intelligence import router as real_estate_intelligence_router
+from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
@@ -48,7 +49,7 @@ from app.tenant_ops import router as tenant_ops_router
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
 
-Base.metadata.create_all(bind=engine)
+configure_schema(Base, engine)
 install_observability(app)
 app.add_middleware(SecurityMiddleware)
 
