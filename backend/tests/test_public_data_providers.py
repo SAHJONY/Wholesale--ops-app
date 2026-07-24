@@ -61,3 +61,11 @@ def test_nationwide_public_routes_are_in_openapi():
     schema = app.openapi()
     assert "/public-data/nationwide/status" in schema["paths"]
     assert "/public-data/nationwide/enrich-address" in schema["paths"]
+
+
+def test_nationwide_public_routes_are_in_openapi():
+    from api.index import app
+
+    schema = app.openapi()
+    assert "/public-data/nationwide/status" in schema["paths"]
+    assert "/public-data/nationwide/enrich-address" in schema["paths"]
