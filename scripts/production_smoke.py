@@ -16,7 +16,7 @@ OWNER_ROUTES = (
     "/owner/deals", "/owner/disposition", "/owner/events", "/owner/go-live",
     "/owner/integrations", "/owner/intelligence", "/owner/jobs", "/owner/launch-validation",
     "/owner/national-intelligence", "/owner/operations", "/owner/provider-activation",
-    "/owner/real-estate-intelligence", "/owner/security", "/owner/sessions",
+    "/owner/public-data", "/owner/real-estate-intelligence", "/owner/security", "/owner/sessions",
     "/owner/system-health", "/owner/test-deal",
 )
 
