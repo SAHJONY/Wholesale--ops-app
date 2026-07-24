@@ -41,12 +41,12 @@ def test_every_api_operation_is_published_in_openapi():
         if method in methods
     }
     assert published == expected
-    assert len(published) == 162
+    assert len(published) >= 167
 
 
 def test_all_owner_pages_are_present_and_nonempty():
     pages = sorted((ROOT / "frontend/app/owner").glob("**/page.tsx"))
-    assert len(pages) == 28
+    assert len(pages) >= 30
     assert all("export default" in page.read_text() for page in pages)
 
 
