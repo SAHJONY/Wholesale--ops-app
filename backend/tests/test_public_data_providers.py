@@ -8,7 +8,7 @@ def test_catalog_contains_required_public_and_licensed_sources(monkeypatch):
     ids = {item["id"] for item in PUBLIC_DATA_PROVIDERS}
     assert {
         "county_recorder", "county_assessor", "tax_delinquent", "code_violations",
-        "probate", "building_permits", "municipal_open_data", "fema_national",
+        "probate", "foreclosure_public", "building_permits", "municipal_open_data", "fema_national",
         "census", "epa", "openaddresses", "usps_vacancy", "mls_idx",
     }.issubset(ids)
     licensed = {item["id"] for item in PUBLIC_DATA_PROVIDERS if item["license_required"]}
@@ -53,3 +53,11 @@ def test_canonical_preview_enforces_texas_exclusion():
     with pytest.raises(HTTPException) as exc:
         canonical_preview("county_assessor", {"state": "TX"})
     assert exc.value.status_code == 409
+
+
+def test_nationwide_public_routes_are_in_openapi():
+    from api.index import app
+
+    schema = app.openapi()
+    assert "/public-data/nationwide/status" in schema["paths"]
+    assert "/public-data/nationwide/enrich-address" in schema["paths"]
