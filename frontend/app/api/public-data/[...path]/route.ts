@@ -4,7 +4,7 @@ const BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
 
 function allowed(path: string[]) {
   const joined = path.join('/');
-  return joined === 'catalog' || joined === 'readiness' || joined === 'normalize-preview';
+  return joined === 'catalog' || joined === 'readiness' || joined === 'normalize-preview' || joined === 'nationwide/status' || joined === 'nationwide/enrich-address';
 }
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
