@@ -22,6 +22,8 @@ CRITICAL_ROUTES = [
     "/go-live/snapshot",
     "/launch-validation/snapshot",
     "/provider-activation/snapshot",
+    "/public-data/catalog",
+    "/public-data/nationwide/status",
     "/data-intake/snapshot",
     "/buyer-intake/snapshot",
     "/test-deal/snapshot",

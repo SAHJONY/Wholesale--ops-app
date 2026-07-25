@@ -1,0 +1,30 @@
+# Environment and deployment
+.env
+.env.*
+.vercel/
+
+# Python
+.venv/
+backend/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node and Next.js
+node_modules/
+.next/
+frontend/.next/
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# Build and coverage
+coverage/
+dist/
+build/
+
+# macOS and editor files
+.DS_Store
+*.swp

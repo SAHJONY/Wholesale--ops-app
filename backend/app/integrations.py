@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from .auth import Principal, get_principal
+from .public_data_providers import PUBLIC_DATA_PROVIDERS, provider_status as public_provider_status
 
 router = APIRouter(prefix="/integrations", tags=["production data integrations"])
 
@@ -119,12 +120,14 @@ def _contracts_ready(providers: list[dict]) -> bool:
 
 @router.get("/catalog")
 def integration_catalog(principal: Principal = Depends(get_principal)):
+    public_providers = [public_provider_status(provider) for provider in PUBLIC_DATA_PROVIDERS]
     return {
         "organization_id": principal.organization_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "strategy": {
-            "property_system_of_record": "ATTOM normalized data with county-record verification",
+            "property_system_of_record": "Canonical multi-provider facts with county recorder and assessor verification",
             "contact_enrichment": "BatchData preview/apply with right-party and compliance screening",
+            "public_data": "Official government and open-data feeds with provenance, licensing, retention, and confidence metadata",
             "visual_inspection": "Google Street View with imagery date and human confirmation",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
             "outbound_policy": "No call or SMS before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
@@ -132,26 +135,33 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
             "texas_policy": "Excluded from acquisition and outreach workflows",
         },
         "providers": [_provider_status(provider) for provider in PROVIDERS],
+        "public_data_providers": public_providers,
     }
 
 
 @router.get("/readiness")
 def integration_readiness(principal: Principal = Depends(get_principal)):
     providers = [_provider_status(provider) for provider in PROVIDERS]
+    public_providers = [public_provider_status(provider) for provider in PUBLIC_DATA_PROVIDERS]
     ready_states = {"configured", "available_public_or_manual"}
     configured = [provider for provider in providers if provider["state"] in ready_states]
     blocking = [provider for provider in providers if provider["tier"] in {"primary", "required"} and provider["state"] not in ready_states]
+    public_enabled = [provider for provider in public_providers if provider["enabled"]]
+    public_blocked = [provider for provider in public_enabled if provider["state"] == "enabled_missing_endpoint"]
     return {
         "organization_id": principal.organization_id,
         "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
-        "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking),
+        "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking) and not public_blocked,
         "ready_for_outbound": all(provider["id"] not in {"bland", "twilio"} for provider in blocking),
         "ready_for_contracts": _contracts_ready(providers),
         "configured_count": len(configured),
         "provider_count": len(providers),
+        "public_data_enabled_count": len(public_enabled),
+        "public_data_provider_count": len(public_providers),
+        "public_data_blocked": [{"id": provider["id"], "missing": provider["endpoint_env"]} for provider in public_blocked],
         "blocking_integrations": [
             {"id": provider["id"], "name": provider["name"], "missing_variables": provider["missing_variables"]}
             for provider in blocking
         ],
-        "next_required": [provider["id"] for provider in blocking],
+        "next_required": [provider["id"] for provider in blocking] + [provider["id"] for provider in public_blocked],
     }

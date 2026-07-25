@@ -33,12 +33,14 @@ from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
 from app.main import app
 from app.national_intelligence_safe import router as national_intelligence_router
+from app.nationwide_public_data import router as nationwide_public_data_router
 from app.observability_api import router as observability_router
 from app.observability_middleware import install_observability
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
 from app.provider_activation import router as provider_activation_router
+from app.public_data_providers import router as public_data_router
 from app.real_estate_intelligence import router as real_estate_intelligence_router
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
@@ -61,6 +63,8 @@ app.include_router(background_jobs_router)
 app.include_router(go_live_router)
 app.include_router(launch_validation_router)
 app.include_router(provider_activation_router)
+app.include_router(public_data_router)
+app.include_router(nationwide_public_data_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)
