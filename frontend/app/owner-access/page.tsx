@@ -14,9 +14,12 @@ export default function OwnerAccessPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/health`, { cache: 'no-store' })
+    fetch('/api/owner-access/health', { cache: 'no-store' })
       .then(async response => {
-        if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Backend returned HTTP ${response.status}`);
+        }
         setStatus('Backend online');
       })
       .catch(err => setStatus(`Backend check failed: ${err instanceof Error ? err.message : 'Unknown error'}`));
@@ -27,7 +30,7 @@ export default function OwnerAccessPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_URL}/human-auth/login`, {
+      const response = await fetch('/api/owner-access/login', {
         method: 'POST',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
@@ -53,7 +56,7 @@ export default function OwnerAccessPage() {
       <section style={{width:'100%',maxWidth:460,background:'#151923',border:'1px solid #2a3140',borderRadius:16,padding:28}}>
         <p style={{letterSpacing:2,fontSize:12,color:'#9fb0c8'}}>SAHJONY WHOLESALE OS</p>
         <h1>Owner Access Recovery</h1>
-        <p>This page bypasses the offline Railway address and connects directly to the production Vercel backend.</p>
+        <p>This page uses a secure same-origin proxy to reach the production Vercel backend.</p>
         <p><strong>API:</strong> {API_URL}</p>
         <p>{status}</p>
         {error && <div style={{background:'#421f26',padding:12,borderRadius:8,marginBottom:16}}>{error}</div>}
