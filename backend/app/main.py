@@ -13,6 +13,7 @@ from .operating_system import (buyer_appetite, build_seller_offer, create_or_upd
                                executive_brief, initialize_closing, schedule_acquisition_runs)
 from .schemas import BuyerCreate, LeadCreate, MatchResult, UnderwriteRequest
 from .services import calculate_mao, distress_score, lead_score, match_buyer
+from .valuation import simulate_deal
 
 app = FastAPI(title="SAHJONY Wholesale Ops API", version="0.3.0")
 app.add_middleware(
@@ -81,9 +82,28 @@ def create_buyer(payload: BuyerCreate, db: Session = Depends(get_db)):
 @app.post("/underwrite")
 def underwrite(payload: UnderwriteRequest):
     mao = calculate_mao(payload.arv, payload.repairs, payload.assignment_fee, payload.mao_factor)
+    # The fixed-factor MAO above is retained for continuity, but a single point
+    # estimate says nothing about how likely the deal is to clear. The
+    # simulation prices the same deal against ARV, repair, and buyer-demand
+    # uncertainty; see /deal-intelligence/underwrite for the full comps-driven
+    # chain that derives ARV rather than taking it as an input.
+    simulation = simulate_deal(
+        arv=payload.arv,
+        repairs=payload.repairs,
+        contract_price=mao,
+        target_fee=payload.assignment_fee,
+    )
     return {"arv": payload.arv, "repairs": payload.repairs, "assignment_fee": payload.assignment_fee,
             "mao": mao, "gross_opportunity_spread": max(0, payload.arv - payload.repairs - mao),
-            "flip_roi_on_cost": round(((payload.arv - payload.repairs - mao) / max(1, mao + payload.repairs)) * 100, 2)}
+            "flip_roi_on_cost": round(((payload.arv - payload.repairs - mao) / max(1, mao + payload.repairs)) * 100, 2),
+            "risk_adjusted": {
+                "probability_of_target_fee": simulation.probability_of_target,
+                "expected_spread": round(simulation.expected_spread, 2),
+                "downside_spread_p10": round(simulation.downside_spread, 2),
+                "recommended_max_offer": round(simulation.recommended_max_offer, 2),
+                "spread_percentiles": {k: round(v, 2) for k, v in simulation.percentiles.items()},
+                "iterations": simulation.iterations,
+            }}
 
 
 @app.get("/properties/{property_id}/matches", response_model=list[MatchResult])

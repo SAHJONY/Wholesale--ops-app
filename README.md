@@ -9,9 +9,12 @@ Production-oriented MVP for residential and commercial real-estate wholesale ope
 - PostgreSQL data model
 - Upstash Redis lead and call state
 - Bland.ai inbound/outbound webhook handling
-- Distressed single-family lead scoring
-- Residential MAO and commercial valuation services
-- Predictive cash-buyer matching
+- Comparable-sales ARV valuation with confidence intervals
+- Monte Carlo deal underwriting and risk-adjusted offer pricing
+- Claude structured-output reasoning with deterministic fallback
+- Outcome-calibrated lead scoring that learns from closed deals
+- Probabilistic cash-buyer matching and portfolio-level disposition
+- Probability-weighted pipeline revenue forecasting
 - Driving-for-dollars lead intake
 - Human approval gates and audit-ready architecture
 
@@ -30,4 +33,5 @@ API docs: http://localhost:8000/docs
 
 Lead intake → distress scoring → seller call → underwriting → approval → buyer matching → disposition → closing.
 
-See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint.
+See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint, and
+`docs/DECISION_INTELLIGENCE.md` for the modelling layer.
