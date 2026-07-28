@@ -37,7 +37,19 @@ BEDROOM_VALUE = 7_500.0
 BATHROOM_VALUE = 9_000.0
 AGE_VALUE_PER_YEAR = 450.0
 MAX_AGE_ADJUSTMENT = 45_000.0
+
+# Fallback only. The market-time adjustment should be driven by a measured
+# FHFA House Price Index rate for the subject's ZIP, metro, or state — see
+# `market_data.fetch_appreciation`. This constant applies when no index is
+# reachable, and callers that use it get `measured: false` in the provenance
+# so an assumption is never mistaken for a measurement.
 DEFAULT_MONTHLY_APPRECIATION = 0.0035
+DEFAULT_APPRECIATION_PROVENANCE = {
+    "measured": False,
+    "level": "fallback",
+    "source": "Built-in constant (no market index supplied)",
+    "annual_rate": round((1.0 + DEFAULT_MONTHLY_APPRECIATION) ** 12 - 1.0, 5),
+}
 
 # Comparables whose net adjustment exceeds this share of their sale price are
 # poor matches. They are down-weighted rather than dropped, so a thin market
@@ -193,6 +205,7 @@ class ValuationResult:
     dispersion: float
     comparables: list[ComparableAdjustment] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    appreciation: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -204,6 +217,7 @@ class ValuationResult:
             "dispersion": round(self.dispersion, 4),
             "comparables": [c.as_dict() for c in self.comparables],
             "warnings": list(self.warnings),
+            "appreciation": dict(self.appreciation),
         }
 
 
@@ -343,9 +357,16 @@ def estimate_arv(
     *,
     as_of: date | None = None,
     monthly_appreciation: float = DEFAULT_MONTHLY_APPRECIATION,
+    appreciation_provenance: dict | None = None,
     basis: str = "arv",
 ) -> ValuationResult:
     """Estimate after-repair value from comparable sales.
+
+    ``monthly_appreciation`` drives the market-time adjustment that brings each
+    historical sale forward to today. Supply a measured rate from
+    ``market_data.fetch_appreciation`` along with its ``appreciation_provenance``
+    so the result records whether the adjustment rests on data or on the
+    built-in constant.
 
     Raises :class:`ValuationError` when no usable comparable survives, which is
     deliberate: fabricating a valuation from nothing is worse than reporting
@@ -358,6 +379,14 @@ def estimate_arv(
 
     as_of = as_of or _today()
     warnings: list[str] = []
+
+    provenance = dict(appreciation_provenance or DEFAULT_APPRECIATION_PROVENANCE)
+    provenance.setdefault("monthly_rate", monthly_appreciation)
+    if not provenance.get("measured"):
+        warnings.append(
+            "Market-time adjustment uses an assumed appreciation rate, not a measured index. "
+            "Comparables older than a few months carry an unverified adjustment."
+        )
 
     # Seed the marginal-rate calculation with the raw market rate, so the size
     # adjustment is anchored to observed prices rather than a constant.
@@ -452,6 +481,7 @@ def estimate_arv(
         dispersion=dispersion,
         comparables=rows,
         warnings=warnings,
+        appreciation=provenance,
     )
 
 
@@ -636,10 +666,18 @@ def underwrite(
     repairs_override: float | None = None,
     confidence_target: float = 0.75,
     as_of: date | None = None,
+    monthly_appreciation: float = DEFAULT_MONTHLY_APPRECIATION,
+    appreciation_provenance: dict | None = None,
     seed: int = DEFAULT_SEED,
 ) -> dict:
     """Run the full underwriting chain: comps to ARV to repairs to offer."""
-    valuation = estimate_arv(subject, comparables, as_of=as_of)
+    valuation = estimate_arv(
+        subject,
+        comparables,
+        as_of=as_of,
+        monthly_appreciation=monthly_appreciation,
+        appreciation_provenance=appreciation_provenance,
+    )
     repair_estimate = estimate_repairs(subject, arv=valuation.arv)
     repairs = repairs_override if repairs_override is not None else repair_estimate["total"]
 

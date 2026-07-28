@@ -12,6 +12,7 @@ footprint is unchanged.
 | Outcome-calibrated lead scoring | `app/adaptive_scoring.py` | `services.lead_score` (fixed 30/25/25/20 weights) |
 | Buyer response model + portfolio assignment | `app/buyer_intelligence.py` | `services.match_buyer` (fixed point additions) |
 | Pipeline conversion and revenue forecasting | `app/pipeline_forecast.py` | `operating_system.executive_brief` raw fee sum |
+| Free public market data (Census ACS, FHFA HPI) | `app/market_data.py` | `valuation.DEFAULT_MONTHLY_APPRECIATION` hardcoded guess |
 
 ## Valuation and underwriting
 
@@ -47,7 +48,16 @@ POST /deal-intelligence/underwrite
 
 Comparables must come from a licensed or public data source supplied by the
 caller. None are inferred — an invented comparable would corrupt everything
-downstream of it.
+downstream of it. See `FREE_DATA_SOURCES.md` for why no free national source of
+comparable sales exists and what the realistic alternatives cost.
+
+The market-time adjustment is driven by measured FHFA appreciation for the
+subject's ZIP, metro, or state rather than a constant, and the resulting ARV is
+screened against the Census median home value for the area — which catches
+internally consistent comparables drawn from the wrong neighbourhood, and
+decimal errors in a sale price. When no index is reachable the underwriting still
+completes, but the rate is labelled `measured: false` and the valuation carries a
+warning.
 
 ## Claude orchestrator
 
@@ -135,7 +145,8 @@ All routes are workspace-scoped through `WorkspaceEntity`.
 
 | Route | Method | Role | Purpose |
 |---|---|---|---|
-| `/deal-intelligence/status` | GET | any | Engine availability and scoring-model state |
+| `/deal-intelligence/status` | GET | any | Engine availability, scoring-model state, and data gaps |
+| `/deal-intelligence/market/{zip}` | GET | any | Census ACS context and FHFA appreciation for a ZIP |
 | `/deal-intelligence/underwrite` | POST | acquisitions | Comps → ARV → repairs → simulated offer |
 | `/deal-intelligence/leads/ranked` | GET | any | Leads ranked by calibrated conversion probability |
 | `/deal-intelligence/leads/{id}/call-brief` | GET | acquisitions | Structured acquisitions call brief |

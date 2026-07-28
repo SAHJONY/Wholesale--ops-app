@@ -9,6 +9,7 @@ Production-oriented MVP for residential and commercial real-estate wholesale ope
 - PostgreSQL data model
 - Upstash Redis lead and call state
 - Bland.ai inbound/outbound webhook handling
+- Free public market data (Census ACS, FHFA House Price Index — no API key)
 - Comparable-sales ARV valuation with confidence intervals
 - Monte Carlo deal underwriting and risk-adjusted offer pricing
 - Claude structured-output reasoning with deterministic fallback
@@ -33,5 +34,12 @@ API docs: http://localhost:8000/docs
 
 Lead intake → distress scoring → seller call → underwriting → approval → buyer matching → disposition → closing.
 
-See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint, and
-`docs/DECISION_INTELLIGENCE.md` for the modelling layer.
+See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint,
+`docs/DECISION_INTELLIGENCE.md` for the modelling layer, and
+`docs/FREE_DATA_SOURCES.md` for what public data can and cannot supply.
+
+Verify the free data connectors against live endpoints:
+
+```bash
+cd backend && python scripts/verify_market_data.py
+```

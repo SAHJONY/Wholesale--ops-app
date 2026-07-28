@@ -15,12 +15,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import adaptive_scoring, buyer_intelligence, decision_intelligence, pipeline_forecast
+from . import (
+    adaptive_scoring,
+    buyer_intelligence,
+    decision_intelligence,
+    market_data,
+    pipeline_forecast,
+)
 from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity, WorkspaceEntity
 from .database import get_db
 from .models import Approval, Buyer, Deal, Lead, Property
-from .valuation import Comparable, SubjectProperty, ValuationError, underwrite
+from .valuation import (
+    DEFAULT_MONTHLY_APPRECIATION,
+    Comparable,
+    SubjectProperty,
+    ValuationError,
+    underwrite,
+)
 
 router = APIRouter(prefix="/deal-intelligence", tags=["decision intelligence"])
 
@@ -166,6 +178,43 @@ def _fit_model(db: Session, principal: Principal, buyers: list[dict]):
     return adaptive_scoring.fit(_training_rows(db, principal, buyers))
 
 
+def _resolve_market(zip_code: str | None, state: str | None) -> dict:
+    """Resolve free public market data for a location.
+
+    Market data is advisory: a Census or FHFA outage must degrade the
+    underwriting record, never fail it. Every branch records whether the
+    appreciation rate is measured or assumed.
+    """
+    market: dict = {"zip_code": zip_code, "state": state, "errors": []}
+
+    appreciation = None
+    if zip_code or state:
+        try:
+            appreciation = market_data.fetch_appreciation(zip_code=zip_code, state=state)
+        except Exception as exc:  # noqa: BLE001 - advisory data must not fail underwriting
+            market["errors"].append(f"appreciation: {type(exc).__name__}: {exc}")
+
+    if appreciation is None:
+        market["appreciation"] = {
+            "monthly_rate": DEFAULT_MONTHLY_APPRECIATION,
+            "measured": False,
+            "level": "fallback",
+            "note": "No location supplied or no index reachable; using the built-in constant.",
+        }
+    else:
+        market["appreciation"] = appreciation.as_dict()
+
+    if zip_code:
+        try:
+            context = market_data.fetch_market_context(zip_code)
+            market["context"] = context.as_dict()
+            market["_context_object"] = context
+        except Exception as exc:  # noqa: BLE001
+            market["errors"].append(f"context: {type(exc).__name__}: {exc}")
+
+    return market
+
+
 @router.get("/status")
 def status(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     """Report which intelligence capabilities are live for this workspace."""
@@ -190,7 +239,19 @@ def status(principal: Principal = Depends(get_principal), db: Session = Depends(
             "adaptive_lead_scoring": True,
             "portfolio_disposition": bool(buyers),
             "pipeline_forecasting": True,
+            "public_market_data": True,
         },
+        "public_data_sources": market_data.source_registry(),
+        "data_gaps": [
+            {
+                "gap": "individual comparable sales",
+                "detail": (
+                    "No free national source of arms-length sale prices exists. Comparables "
+                    "must come from a licensed provider or a county-level open data feed; "
+                    "roughly a dozen states are non-disclosure and publish no sale price at all."
+                ),
+            }
+        ],
     }
 
 
@@ -238,6 +299,14 @@ def underwrite_property(
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(422, f"Invalid comparable or subject data: {exc}") from exc
 
+    # Free public market data: measured FHFA appreciation drives the
+    # comparable time adjustment, and the Census median screens the result.
+    market = _resolve_market(
+        str(subject_payload.get("zip_code") or "").strip() or None,
+        str(subject_payload.get("state") or "").strip() or None,
+    )
+    context = market.pop("_context_object", None)
+
     try:
         result = underwrite(
             subject,
@@ -246,9 +315,20 @@ def underwrite_property(
             target_fee=float(payload.get("target_fee") or 15_000),
             repairs_override=payload.get("repairs"),
             confidence_target=float(payload.get("confidence_target") or 0.75),
+            monthly_appreciation=float(market["appreciation"]["monthly_rate"]),
+            appreciation_provenance=market["appreciation"],
         )
     except ValuationError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+    if context is not None:
+        market["plausibility"] = market_data.check_arv_plausibility(
+            result["valuation"]["arv"], context
+        )
+        verdict = market["plausibility"].get("verdict")
+        if verdict in {"implausible_high", "implausible_low"}:
+            result["valuation"]["warnings"].append(market["plausibility"]["guidance"])
+    result["market"] = market
 
     if payload.get("include_analysis", True):
         result["analysis"] = decision_intelligence.analyze(
@@ -280,6 +360,34 @@ def underwrite_property(
     )
     db.commit()
     return result
+
+
+@router.get("/market/{zip_code}")
+def market(zip_code: str, state: str | None = None, principal: Principal = Depends(get_principal)):
+    """Free public market data for a ZIP: Census ACS context and FHFA appreciation.
+
+    Both sources are U.S. Government works requiring no API key. Neither
+    contains individual sales — see `docs/FREE_DATA_SOURCES.md` for what this
+    can and cannot substitute for.
+    """
+    zip_code = str(zip_code).strip()
+    if not (len(zip_code) == 5 and zip_code.isdigit()):
+        raise HTTPException(422, "Expected a five-digit ZIP code")
+
+    resolved = _resolve_market(zip_code, state)
+    resolved.pop("_context_object", None)
+    resolved["sources"] = market_data.source_registry()
+
+    if resolved["errors"] and "context" not in resolved:
+        # Be explicit that this is an availability problem, not an empty market.
+        resolved["status"] = "degraded"
+        resolved["detail"] = (
+            "Public market data could not be retrieved. Check outbound network access to "
+            "api.census.gov and www.fhfa.gov from this deployment."
+        )
+    else:
+        resolved["status"] = "ok"
+    return resolved
 
 
 @router.get("/leads/ranked")

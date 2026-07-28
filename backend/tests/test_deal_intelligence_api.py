@@ -316,3 +316,128 @@ class TestDispositionPlan:
         )
         assert response.status_code == 422
         assert "buyers" in response.json()["detail"].lower()
+
+
+class TestMarketData:
+    """The free public market-data surface.
+
+    Market data is monkeypatched here so the suite never depends on outbound
+    network access; the connectors themselves are covered in test_market_data.
+    """
+
+    def context(self):
+        from app.market_data import MarketContext
+
+        return MarketContext(
+            zip_code="32501",
+            median_home_value=145_600.0,
+            median_home_value_moe=12_800.0,
+            median_gross_rent=1_024.0,
+            owner_occupancy_rate=0.4518,
+            vacancy_rate=0.1793,
+            vintage="2023",
+            retrieved_at="2026-07-28T00:00:00+00:00",
+        )
+
+    def appreciation(self, measured=True):
+        from app.market_data import AppreciationRate
+
+        return AppreciationRate(
+            annual_rate=0.041,
+            monthly_rate=0.003354,
+            level="zip" if measured else "fallback",
+            area="32501",
+            period="2023",
+            measured=measured,
+            source="FHFA House Price Index",
+            retrieved_at="2026-07-28T00:00:00+00:00",
+        )
+
+    def patch_live(self, monkeypatch):
+        from app import market_data
+
+        monkeypatch.setattr(market_data, "fetch_market_context", lambda *a, **k: self.context())
+        monkeypatch.setattr(market_data, "fetch_appreciation", lambda *a, **k: self.appreciation())
+
+    def patch_blocked(self, monkeypatch):
+        from app import market_data
+
+        def unavailable(*args, **kwargs):
+            raise market_data.MarketDataUnavailable("HTTP 403 from an egress proxy")
+
+        monkeypatch.setattr(market_data, "fetch_market_context", unavailable)
+        monkeypatch.setattr(market_data, "fetch_appreciation", unavailable)
+
+    def test_market_endpoint_returns_census_and_fhfa_data(self, workspace, monkeypatch):
+        self.patch_live(monkeypatch)
+        response = client.get("/deal-intelligence/market/32501", headers=auth(workspace["key"]))
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["context"]["median_home_value"] == 145_600.0
+        assert body["appreciation"]["measured"] is True
+        assert all(source["cost"] == "free" for source in body["sources"])
+
+    def test_market_endpoint_reports_degradation_rather_than_faking_data(
+        self, workspace, monkeypatch
+    ):
+        self.patch_blocked(monkeypatch)
+        response = client.get("/deal-intelligence/market/32501", headers=auth(workspace["key"]))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "degraded"
+        assert "network access" in body["detail"]
+        assert body["appreciation"]["measured"] is False
+        assert body["errors"]
+
+    def test_market_endpoint_validates_the_zip(self, workspace):
+        assert client.get(
+            "/deal-intelligence/market/abcde", headers=auth(workspace["key"])
+        ).status_code == 422
+
+    def test_market_endpoint_requires_authentication(self):
+        assert client.get("/deal-intelligence/market/32501").status_code == 401
+
+    def test_underwriting_uses_measured_appreciation_when_available(
+        self, workspace, monkeypatch
+    ):
+        self.patch_live(monkeypatch)
+        body = TestUnderwriting().payload()
+        body["subject"]["zip_code"] = "32501"
+        body["subject"]["state"] = "FL"
+        response = client.post(
+            "/deal-intelligence/underwrite", json=body, headers=auth(workspace["key"])
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["valuation"]["appreciation"]["measured"] is True
+        assert result["market"]["plausibility"]["checked"] is True
+
+    def test_underwriting_survives_a_market_data_outage(self, workspace, monkeypatch):
+        self.patch_blocked(monkeypatch)
+        body = TestUnderwriting().payload()
+        body["subject"]["zip_code"] = "32501"
+        response = client.post(
+            "/deal-intelligence/underwrite", json=body, headers=auth(workspace["key"])
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["valuation"]["arv"] > 0
+        assert result["valuation"]["appreciation"]["measured"] is False
+        assert result["market"]["errors"]
+
+    def test_an_assumed_appreciation_rate_is_warned_about(self, workspace, monkeypatch):
+        self.patch_blocked(monkeypatch)
+        body = TestUnderwriting().payload()
+        body["subject"]["zip_code"] = "32501"
+        response = client.post(
+            "/deal-intelligence/underwrite", json=body, headers=auth(workspace["key"])
+        )
+        warnings = " ".join(response.json()["valuation"]["warnings"])
+        assert "assumed appreciation rate" in warnings
+
+    def test_status_declares_the_comparable_sales_gap(self, workspace):
+        body = client.get("/deal-intelligence/status", headers=auth(workspace["key"])).json()
+        assert body["capabilities"]["public_market_data"] is True
+        gaps = {gap["gap"] for gap in body["data_gaps"]}
+        assert "individual comparable sales" in gaps
