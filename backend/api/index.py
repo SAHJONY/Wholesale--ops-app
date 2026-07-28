@@ -36,6 +36,7 @@ from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
 from app.lead_verification import router as lead_verification_router
 from app.main import app
+from app.market_selection import router as market_selection_router
 from app.national_intelligence_safe import router as national_intelligence_router
 from app.nationwide_public_data import router as nationwide_public_data_router
 from app.observability_api import router as observability_router
@@ -75,6 +76,7 @@ app.include_router(distress_providers_router)
 app.include_router(distress_ingest_router)
 app.include_router(distress_discovery_router)
 app.include_router(lead_verification_router)
+app.include_router(market_selection_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)
