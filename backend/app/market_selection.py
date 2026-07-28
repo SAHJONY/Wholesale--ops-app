@@ -285,7 +285,17 @@ def rank(
     order = {"none": 0, "low": 1, "moderate": 2, "high": 3}
     if min_confidence in order:
         ranked = [r for r in ranked if order[r["confidence"]] >= order[min_confidence]]
-    ranked.sort(key=lambda r: (r["composite_score"], r["evidence_coverage_percent"]), reverse=True)
+
+    # Confidence leads the sort, then the composite. A weighted mean taken over
+    # two evidenced dimensions is not comparable to one taken over four: a
+    # thinly-measured market whose few known dimensions happen to score well
+    # would otherwise float above a better-evidenced market with more buyers,
+    # and the reader would take the ordering at face value. Sorting by tier
+    # first keeps like compared with like.
+    ranked.sort(
+        key=lambda r: (order[r["confidence"]], r["composite_score"], r["evidence_coverage_percent"]),
+        reverse=True,
+    )
 
     return {
         "organization_id": principal.organization_id,

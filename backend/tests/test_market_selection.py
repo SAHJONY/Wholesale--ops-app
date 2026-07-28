@@ -166,3 +166,32 @@ def test_another_workspace_buyers_are_not_counted():
     key, _ = _workspace()
     body = client.post("/market-selection/rank", headers=_auth(key), json={}).json()
     assert "44101" not in {m["zip_code"] for m in body["markets"]}
+
+
+def test_better_evidenced_markets_rank_above_thinly_measured_ones():
+    """A weighted mean over two dimensions is not comparable to one over four.
+
+    Without tiering, a market measured only on the dimensions it happens to
+    score well on floats above a better-evidenced market with more buyers.
+    """
+    key, org = _workspace()
+    # Thin: one buyer, nothing else measurable, but excellent liquidity.
+    _buyer(org, ["59001"], proof_of_funds_verified=True, reliability_score=99,
+           response_rate=99, closing_days=5, name="Thin but fast")
+    # Well-evidenced: more buyers plus properties, so more dimensions score,
+    # including a verified_coverage of 0 that drags the mean down.
+    for i in range(3):
+        _buyer(org, ["59002"], proof_of_funds_verified=True, reliability_score=90,
+               response_rate=85, closing_days=10, name=f"Deep {i}")
+    _property(org, "59002", state="MT", city="Billings", asking_price=150000, repairs=20000)
+
+    body = client.post("/market-selection/rank", headers=_auth(key),
+                       json={"min_cash_buyers": 1}).json()
+    ordered = [m["zip_code"] for m in body["markets"] if m["zip_code"] in {"59001", "59002"}]
+    thin = next(m for m in body["markets"] if m["zip_code"] == "59001")
+    deep = next(m for m in body["markets"] if m["zip_code"] == "59002")
+
+    assert deep["evidence_coverage_percent"] > thin["evidence_coverage_percent"]
+    assert ordered.index("59002") < ordered.index("59001"), (
+        "better-evidenced market must not rank below a thinly measured one"
+    )

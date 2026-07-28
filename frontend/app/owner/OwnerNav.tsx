@@ -30,6 +30,7 @@ const SECTIONS: { title: string; links: { href: string; label: string }[] }[] = 
       { href: '/owner/data-intake', label: 'Data Intake' },
       { href: '/owner/buyer-intake', label: 'Buyer Intake' },
       { href: '/owner/county', label: 'Ownership Verification' },
+      { href: '/owner/lead-verification', label: 'Lead Verification' },
     ],
   },
   {
@@ -44,6 +45,7 @@ const SECTIONS: { title: string; links: { href: string; label: string }[] }[] = 
   {
     title: 'Intelligence & Data',
     links: [
+      { href: '/owner/markets', label: 'Market Selection' },
       { href: '/owner/intelligence', label: 'Intelligence' },
       { href: '/owner/national-intelligence', label: 'Property Network' },
       { href: '/owner/real-estate-intelligence', label: 'Integrated Platform' },
