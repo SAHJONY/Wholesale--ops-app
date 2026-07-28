@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
+// Falls back to the production host so deployed behavior is unchanged, but
+// lets the app be pointed at a local or staging backend without editing source.
+const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
 
 function allowed(path: string[]) {
   const joined = path.join('/');

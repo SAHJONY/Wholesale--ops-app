@@ -770,3 +770,112 @@
     transition: none;
   }
 }
+
+/* ------------------------------------------------------- owner page nav --- */
+
+/* The console has 29 routes; before this, nine had no inbound link anywhere
+   and /owner linked to none of its sub-pages. */
+.ownerNav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.ownerNavBar {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-7);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.ownerNavToggle {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-4);
+  min-height: 38px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.ownerNavToggle:hover {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+}
+
+.ownerNavCurrent {
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ownerNavPanel {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-7) var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.ownerNavGroup h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.ownerNavGroup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ownerNavGroup a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.ownerNavGroup a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.ownerNavActive {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+@media (max-width: 680px) {
+  .ownerNavBar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .ownerNavPanel {
+    padding: var(--space-2) var(--space-4) var(--space-5);
+    grid-template-columns: 1fr;
+  }
+}
