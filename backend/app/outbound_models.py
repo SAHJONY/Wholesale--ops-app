@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from .database import Base, UtcDateTime
 
 
 class OutboundRequest(Base):
@@ -24,6 +24,6 @@ class OutboundRequest(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     requested_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dispatched_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    dispatched_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

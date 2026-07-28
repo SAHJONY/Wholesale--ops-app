@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, JSON, String, Text
+from sqlalchemy import Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from .database import Base, UtcDateTime
 
 
 class IntegrationHealthCheck(Base):
@@ -18,7 +18,7 @@ class IntegrationHealthCheck(Base):
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     details_json: Mapped[dict] = mapped_column(JSON, default=dict)
     checked_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    checked_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    checked_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class IntegrationOperationRun(Base):
@@ -32,5 +32,5 @@ class IntegrationOperationRun(Base):
     providers_ready: Mapped[int] = mapped_column(Integer, default=0)
     providers_blocked: Mapped[int] = mapped_column(Integer, default=0)
     result_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
