@@ -111,3 +111,35 @@ free and require no API key.
 4. Configure jurisdiction endpoints and repeat for distress signals.
 5. Review canonical records before any outbound action. Owner review remains
    mandatory.
+
+## Nationwide coverage
+
+Coverage is assembled jurisdiction by jurisdiction, because distress records
+are created by roughly 3,100 counties and many thousands of municipalities and
+no single nationwide distress dataset exists. What is nationwide is discovery.
+
+`POST /distress-discovery/sweep` searches two federated government catalogs --
+the Socrata catalog (`api.us.socrata.com`) and ArcGIS Online search -- for
+datasets matching each distress category, and returns registry-shaped
+candidates. Nothing is enabled by a sweep: every candidate is marked
+`unvalidated` and carries a suggested entry whose `field_map` offers only the
+fields its category may write.
+
+The loop for adding a county:
+
+1. `POST /distress-discovery/sweep` with the categories and states you want.
+2. Fill in `state`, `county`, `address_field` and `field_map` on the candidates
+   you keep. See `config/distress-jurisdictions.example.json`.
+3. Add them to `DISTRESS_JURISDICTIONS_FILE`.
+4. `POST /distress-ingest/validate` for each — a catalog hit is not proof of
+   schema, and an endpoint that resolves may still lack the mapped columns.
+5. `POST /distress-ingest/preview`, then `/commit`.
+
+Discovery needs `api.us.socrata.com` and `www.arcgis.com` reachable, alongside
+the Census hosts.
+
+## Tenancy
+
+The properties table carries no organization column; tenancy lives in
+`WorkspaceEntity`. Both ingest paths scope through it, so a workspace can only
+enrich and read its own records.

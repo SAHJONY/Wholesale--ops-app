@@ -21,6 +21,8 @@ from app.deal_execution import router as deal_execution_router
 from app.deal_rehearsal import router as test_deal_router
 from app.deployment_diagnostics import router as deployment_diagnostics_router
 from app.disposition import router as disposition_router
+from app.distress_discovery import router as distress_discovery_router
+from app.distress_ingest import router as distress_ingest_router
 from app.distress_providers import router as distress_providers_router
 from app.docuseal_events import router as docuseal_events_router
 from app.event_core import router as event_core_router
@@ -69,6 +71,8 @@ app.include_router(public_data_router)
 app.include_router(nationwide_public_data_router)
 app.include_router(verified_ingest_router)
 app.include_router(distress_providers_router)
+app.include_router(distress_ingest_router)
+app.include_router(distress_discovery_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)

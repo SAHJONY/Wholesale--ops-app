@@ -17,7 +17,7 @@ from sqlalchemy import select
 from api.index import app
 from app import nationwide_public_data, security_middleware
 from app.auth import _hash_key, _new_key
-from app.auth_models import ApiCredential, AppUser, Membership, Organization
+from app.auth_models import ApiCredential, AppUser, Membership, Organization, WorkspaceEntity
 from app.database import SessionLocal
 from app.intelligence_models import IntelligenceFact
 from app.models import Lead, Property
@@ -97,7 +97,7 @@ def _manager_workspace():
         db.close()
 
 
-def _property(state="DC", city="Washington", address="1600 Pennsylvania Ave NW", zip_code="20500"):
+def _property(organization_id, state="DC", city="Washington", address="1600 Pennsylvania Ave NW", zip_code="20500"):
     db = SessionLocal()
     try:
         lead = Lead(seller_name="Record Under Review", phone="+15555550000")
@@ -105,6 +105,10 @@ def _property(state="DC", city="Washington", address="1600 Pennsylvania Ave NW",
         db.flush()
         row = Property(lead_id=lead.id, address=address, city=city, state=state, zip_code=zip_code)
         db.add(row)
+        db.flush()
+        # Tenancy lives in WorkspaceEntity, mirroring how acquisition intake
+        # creates properties.
+        db.add(WorkspaceEntity(organization_id=organization_id, entity_type="property", entity_id=row.id))
         db.commit()
         return row.id
     finally:
@@ -130,7 +134,7 @@ def test_contract_publishes_the_write_boundary():
 def test_preview_reports_facts_without_writing(monkeypatch):
     _patch_census(monkeypatch)
     key, organization_id = _manager_workspace()
-    property_id = _property()
+    property_id = _property(organization_id)
 
     response = client.post("/verified-ingest/preview", headers=_auth(key), json={"property_ids": [property_id]})
     assert response.status_code == 200, response.text
@@ -156,7 +160,7 @@ def test_preview_reports_facts_without_writing(monkeypatch):
 def test_commit_writes_verified_geography_facts(monkeypatch):
     _patch_census(monkeypatch)
     key, organization_id = _manager_workspace()
-    property_id = _property()
+    property_id = _property(organization_id)
 
     response = client.post("/verified-ingest/commit", headers=_auth(key), json={"property_ids": [property_id]})
     assert response.status_code == 200, response.text
@@ -203,7 +207,7 @@ def test_fields_the_source_cannot_establish_are_never_written(monkeypatch):
     }
     _patch_census(monkeypatch, geocoder=hostile)
     key, organization_id = _manager_workspace()
-    property_id = _property()
+    property_id = _property(organization_id)
 
     response = client.post("/verified-ingest/commit", headers=_auth(key), json={"property_ids": [property_id]})
     assert response.status_code == 200, response.text
@@ -225,7 +229,7 @@ def test_fields_the_source_cannot_establish_are_never_written(monkeypatch):
 def test_texas_property_is_rejected_and_writes_nothing(monkeypatch):
     _patch_census(monkeypatch)
     key, organization_id = _manager_workspace()
-    property_id = _property(state="TX", city="Houston", address="123 Main St", zip_code="77002")
+    property_id = _property(organization_id, state="TX", city="Houston", address="123 Main St", zip_code="77002")
 
     response = client.post("/verified-ingest/commit", headers=_auth(key), json={"property_ids": [property_id]})
     assert response.status_code == 200, response.text
@@ -246,9 +250,9 @@ def test_texas_property_is_rejected_and_writes_nothing(monkeypatch):
 
 def test_a_rejection_does_not_abort_the_rest_of_the_batch(monkeypatch):
     _patch_census(monkeypatch)
-    key, _ = _manager_workspace()
-    texas_id = _property(state="TX", city="Dallas", address="456 Oak St", zip_code="75201")
-    valid_id = _property()
+    key, organization_id = _manager_workspace()
+    texas_id = _property(organization_id, state="TX", city="Dallas", address="456 Oak St", zip_code="75201")
+    valid_id = _property(organization_id)
 
     response = client.post(
         "/verified-ingest/commit",
@@ -281,9 +285,21 @@ def test_commit_requires_manager_role(monkeypatch):
             ),
         ])
         db.commit()
+        viewer_org_id = organization.id
     finally:
         db.close()
 
-    property_id = _property()
+    property_id = _property(viewer_org_id)
     response = client.post("/verified-ingest/commit", headers=_auth(key), json={"property_ids": [property_id]})
     assert response.status_code == 403, response.text
+
+
+def test_another_workspace_property_cannot_be_enriched(monkeypatch):
+    """Tenancy is enforced through WorkspaceEntity, not by property id alone."""
+    _patch_census(monkeypatch)
+    _, other_org = _manager_workspace()
+    foreign_id = _property(other_org)
+    key, _ = _manager_workspace()
+
+    response = client.post("/verified-ingest/preview", headers=_auth(key), json={"property_ids": [foreign_id]})
+    assert response.status_code == 404, response.text

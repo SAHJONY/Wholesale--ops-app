@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal, require_role
+from .auth_models import WorkspaceEntity
 from .database import get_db
 from .intelligence_ingest import ingest_provider_facts
 from .models import Property
@@ -101,16 +102,27 @@ def _extract_verified_facts(resolved: dict[str, Any]) -> dict[str, Any]:
     return facts
 
 
-def _load_property(db: Session, property_id: int) -> Property:
-    row = db.get(Property, property_id)
+def _load_property(db: Session, organization_id: int, property_id: int) -> Property:
+    """Load a property this workspace owns.
+
+    The properties table carries no organization column -- tenancy lives in
+    WorkspaceEntity -- so the membership row has to be checked explicitly or
+    one workspace could enrich and read another workspace's records.
+    """
+    owned = db.scalar(select(WorkspaceEntity).where(
+        WorkspaceEntity.organization_id == organization_id,
+        WorkspaceEntity.entity_type == "property",
+        WorkspaceEntity.entity_id == property_id,
+    ))
+    row = db.get(Property, property_id) if owned else None
     if not row:
         raise HTTPException(404, f"Property {property_id} not found")
     return row
 
 
-async def _resolve_property(db: Session, property_id: int) -> dict[str, Any]:
+async def _resolve_property(db: Session, organization_id: int, property_id: int) -> dict[str, Any]:
     """Geocode one stored property and report what would be written."""
-    row = _load_property(db, property_id)
+    row = _load_property(db, organization_id, property_id)
     outcome: dict[str, Any] = {
         "property_id": property_id,
         "input": {
@@ -203,7 +215,7 @@ async def preview(
     principal: Principal = Depends(get_principal),
     db: Session = Depends(get_db),
 ):
-    outcomes = [await _resolve_property(db, property_id) for property_id in _requested_ids(payload)]
+    outcomes = [await _resolve_property(db, principal.organization_id, property_id) for property_id in _requested_ids(payload)]
     return _envelope(principal, outcomes, committed=False)
 
 
@@ -215,7 +227,7 @@ async def commit(
 ):
     outcomes: list[dict[str, Any]] = []
     for property_id in _requested_ids(payload):
-        outcome = await _resolve_property(db, property_id)
+        outcome = await _resolve_property(db, principal.organization_id, property_id)
         facts = outcome.get("facts") or {}
         if outcome["status"] != "resolved" or not facts:
             outcome["facts_written"] = 0
@@ -265,7 +277,7 @@ def facts_for_property(
     """Read back what was actually written, with provenance."""
     from .intelligence_models import IntelligenceFact
 
-    _load_property(db, property_id)
+    _load_property(db, principal.organization_id, property_id)
     rows = db.scalars(select(IntelligenceFact).where(
         IntelligenceFact.organization_id == principal.organization_id,
         IntelligenceFact.entity_type == "property",
