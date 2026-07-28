@@ -280,6 +280,14 @@ def add_team_member(
     role = str(payload.get("role") or "viewer").strip()
     if "@" not in email or role not in ROLE_RANK:
         raise HTTPException(422, "Valid email and role are required")
+
+    # A caller must not be able to hand out authority above their own, which
+    # would let an admin grant the owner role (or self-escalate by passing
+    # their own address).
+    caller_rank = ROLE_RANK.get(principal.role, 0)
+    if ROLE_RANK[role] > caller_rank:
+        raise HTTPException(403, "Cannot assign a role above your own")
+
     user = db.scalar(select(AppUser).where(AppUser.email == email)) or AppUser(email=email, name=name)
     db.add(user)
     db.flush()
@@ -288,6 +296,9 @@ def add_team_member(
         Membership.user_id == user.id,
     ))
     if membership:
+        # Nor may they overwrite someone who already outranks them.
+        if ROLE_RANK.get(membership.role, 0) > caller_rank:
+            raise HTTPException(403, "Cannot modify a member who outranks you")
         membership.role = role
     else:
         membership = Membership(organization_id=principal.organization_id, user_id=user.id, role=role)
@@ -309,6 +320,10 @@ def create_api_key(
     ))
     if not membership:
         raise HTTPException(404, "User is not in this organization")
+    # Minting a key for a higher-ranked member would hand the caller that
+    # member's authority.
+    if ROLE_RANK.get(membership.role, 0) > ROLE_RANK.get(principal.role, 0):
+        raise HTTPException(403, "Cannot issue a key for a member who outranks you")
     raw_key = _new_key()
     credential = ApiCredential(
         organization_id=principal.organization_id,
