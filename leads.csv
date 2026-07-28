@@ -1,3 +1,1 @@
-Address,City,State,Price,Condition,Source,Seller Contact,Status,Buyer Matched,Notes
-123 Main St,Houston,TX,120000,Needs rehab,Zillow,555-123-4567,Contacted,,Seller seems motivated
-456 Oak St,Dallas,TX,95000,Vacant,Craigslist,555-987-6543,New,,Follow up needed
+seller_name,phone,address,city,state,zip_code,email,source,asking_price,arv,repairs,bedrooms,bathrooms,sqft,motivation_score,equity_score,notes
