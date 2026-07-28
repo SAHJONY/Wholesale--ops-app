@@ -441,3 +441,166 @@ class TestMarketData:
         assert body["capabilities"]["public_market_data"] is True
         gaps = {gap["gap"] for gap in body["data_gaps"]}
         assert "individual comparable sales" in gaps
+
+
+class TestFloodRisk:
+    """The FEMA flood surface, with network calls monkeypatched."""
+
+    def zone(self, code="AE", sfha=True):
+        from app.flood_risk import _zone_from_attributes
+
+        return _zone_from_attributes(
+            {"FLD_ZONE": code, "SFHA_TF": "T" if sfha else "F", "STATIC_BFE": 12.5},
+            30.4213,
+            -87.2169,
+        )
+
+    def history(self):
+        from app.flood_risk import FloodLossHistory
+
+        return FloodLossHistory(
+            zip_code="32501",
+            claim_count=412,
+            claims_sampled=412,
+            total_paid=9_800_000,
+            average_paid=23_786,
+            most_recent_loss_year=2023,
+            average_annual_premium=2_150.0,
+            policy_count=1_800,
+            truncated=False,
+        )
+
+    def patch_live(self, monkeypatch, code="AE", sfha=True):
+        from app import flood_risk
+        from app.flood_risk import GeocodeResult
+
+        monkeypatch.setattr(
+            flood_risk,
+            "geocode_address",
+            lambda *a, **k: GeocodeResult(30.4213, -87.2169, "12 OAK ST, PENSACOLA, FL"),
+        )
+        monkeypatch.setattr(flood_risk, "lookup_flood_zone", lambda *a, **k: self.zone(code, sfha))
+        monkeypatch.setattr(flood_risk, "fetch_flood_loss_history", lambda *a, **k: self.history())
+
+    def patch_blocked(self, monkeypatch):
+        from app import flood_risk
+        from app.market_data import MarketDataUnavailable
+
+        def unavailable(*args, **kwargs):
+            raise MarketDataUnavailable("HTTP 403 from an egress proxy")
+
+        monkeypatch.setattr(flood_risk, "geocode_address", unavailable)
+        monkeypatch.setattr(flood_risk, "lookup_flood_zone", unavailable)
+        monkeypatch.setattr(flood_risk, "fetch_flood_loss_history", unavailable)
+
+    def test_flood_endpoint_resolves_an_address(self, workspace, monkeypatch):
+        self.patch_live(monkeypatch)
+        response = client.get(
+            "/deal-intelligence/flood?address=12+Oak+St,+Pensacola,+FL&zip_code=32501",
+            headers=auth(workspace["key"]),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["zone"]["zone"] == "AE"
+        assert body["zone"]["in_sfha"] is True
+        assert body["assessment"]["premium_measured"] is True
+        assert body["loss_history"]["claim_count"] == 412
+
+    def test_flood_endpoint_accepts_coordinates_directly(self, workspace, monkeypatch):
+        self.patch_live(monkeypatch)
+        response = client.get(
+            "/deal-intelligence/flood?latitude=30.4213&longitude=-87.2169",
+            headers=auth(workspace["key"]),
+        )
+        assert response.status_code == 200
+        assert response.json()["zone"]["zone"] == "AE"
+
+    def test_flood_endpoint_requires_a_location(self, workspace):
+        assert client.get(
+            "/deal-intelligence/flood", headers=auth(workspace["key"])
+        ).status_code == 422
+
+    def test_flood_endpoint_requires_authentication(self):
+        assert client.get("/deal-intelligence/flood?latitude=30&longitude=-87").status_code == 401
+
+    def test_flood_endpoint_reports_degradation_rather_than_no_risk(
+        self, workspace, monkeypatch
+    ):
+        # An outage must never read as "this property has no flood risk".
+        self.patch_blocked(monkeypatch)
+        response = client.get(
+            "/deal-intelligence/flood?latitude=30.4213&longitude=-87.2169",
+            headers=auth(workspace["key"]),
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "degraded"
+        assert "zone" not in body
+        assert body["errors"]
+
+    def test_underwriting_surfaces_sfha_without_deducting_by_default(
+        self, workspace, monkeypatch
+    ):
+        # Comparables in the same SFHA already price the flood discount in, so
+        # deducting again would double-count.
+        self.patch_live(monkeypatch)
+        body = TestUnderwriting().payload()
+        body["subject"]["zip_code"] = "32501"
+        response = client.post(
+            "/deal-intelligence/underwrite", json=body, headers=auth(workspace["key"])
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["flood"]["zone"]["in_sfha"] is True
+        assert "adjustment_applied" not in result["flood"]
+        assert "comparable_guidance" in result["flood"]
+        assert any("Special Flood Hazard Area" in w for w in result["valuation"]["warnings"])
+
+    def test_the_flood_adjustment_is_opt_in_and_lowers_the_offer(
+        self, workspace, monkeypatch
+    ):
+        self.patch_live(monkeypatch)
+        base = TestUnderwriting().payload()
+        base["subject"]["zip_code"] = "32501"
+        unadjusted = client.post(
+            "/deal-intelligence/underwrite", json=base, headers=auth(workspace["key"])
+        ).json()
+
+        adjusted_payload = dict(base, apply_flood_adjustment=True)
+        adjusted = client.post(
+            "/deal-intelligence/underwrite", json=adjusted_payload, headers=auth(workspace["key"])
+        ).json()
+
+        assert adjusted["flood"]["adjustment_applied"]["deducted"] > 0
+        assert adjusted["recommended_max_offer"] < unadjusted["recommended_max_offer"]
+
+    def test_a_minimal_risk_zone_deducts_nothing_even_when_opted_in(
+        self, workspace, monkeypatch
+    ):
+        self.patch_live(monkeypatch, code="X", sfha=False)
+        body = dict(TestUnderwriting().payload(), apply_flood_adjustment=True)
+        body["subject"]["zip_code"] = "32501"
+        result = client.post(
+            "/deal-intelligence/underwrite", json=body, headers=auth(workspace["key"])
+        ).json()
+        assert result["flood"]["assessment"]["capitalized_value_impact"] == 0.0
+        assert "adjustment_applied" not in result["flood"]
+
+    def test_underwriting_survives_a_fema_outage(self, workspace, monkeypatch):
+        self.patch_blocked(monkeypatch)
+        body = TestUnderwriting().payload()
+        body["subject"]["zip_code"] = "32501"
+        response = client.post(
+            "/deal-intelligence/underwrite", json=body, headers=auth(workspace["key"])
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["valuation"]["arv"] > 0
+        assert result["flood"]["errors"]
+
+    def test_status_lists_the_fema_sources(self, workspace):
+        body = client.get("/deal-intelligence/status", headers=auth(workspace["key"])).json()
+        assert body["capabilities"]["flood_risk_screening"] is True
+        ids = {source["id"] for source in body["public_data_sources"]}
+        assert {"fema_nfhl", "openfema_nfip", "census_geocoder"} <= ids

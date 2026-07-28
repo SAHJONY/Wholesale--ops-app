@@ -13,6 +13,7 @@ footprint is unchanged.
 | Buyer response model + portfolio assignment | `app/buyer_intelligence.py` | `services.match_buyer` (fixed point additions) |
 | Pipeline conversion and revenue forecasting | `app/pipeline_forecast.py` | `operating_system.executive_brief` raw fee sum |
 | Free public market data (Census ACS, FHFA HPI) | `app/market_data.py` | `valuation.DEFAULT_MONTHLY_APPRECIATION` hardcoded guess |
+| FEMA flood risk and its underwriting impact | `app/flood_risk.py` | The FEMA provider declared in `public_data_providers.py` but never implemented |
 
 ## Valuation and underwriting
 
@@ -147,6 +148,7 @@ All routes are workspace-scoped through `WorkspaceEntity`.
 |---|---|---|---|
 | `/deal-intelligence/status` | GET | any | Engine availability, scoring-model state, and data gaps |
 | `/deal-intelligence/market/{zip}` | GET | any | Census ACS context and FHFA appreciation for a ZIP |
+| `/deal-intelligence/flood` | GET | any | FEMA flood zone, NFIP loss history, and underwriting impact |
 | `/deal-intelligence/underwrite` | POST | acquisitions | Comps → ARV → repairs → simulated offer |
 | `/deal-intelligence/leads/ranked` | GET | any | Leads ranked by calibrated conversion probability |
 | `/deal-intelligence/leads/{id}/call-brief` | GET | acquisitions | Structured acquisitions call brief |

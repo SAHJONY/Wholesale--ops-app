@@ -19,6 +19,7 @@ from . import (
     adaptive_scoring,
     buyer_intelligence,
     decision_intelligence,
+    flood_risk,
     market_data,
     pipeline_forecast,
 )
@@ -31,6 +32,8 @@ from .valuation import (
     Comparable,
     SubjectProperty,
     ValuationError,
+    _decision_quality,
+    simulate_deal,
     underwrite,
 )
 
@@ -240,8 +243,9 @@ def status(principal: Principal = Depends(get_principal), db: Session = Depends(
             "portfolio_disposition": bool(buyers),
             "pipeline_forecasting": True,
             "public_market_data": True,
+            "flood_risk_screening": True,
         },
-        "public_data_sources": market_data.source_registry(),
+        "public_data_sources": market_data.source_registry() + flood_risk.source_registry(),
         "data_gaps": [
             {
                 "gap": "individual comparable sales",
@@ -330,6 +334,54 @@ def underwrite_property(
             result["valuation"]["warnings"].append(market["plausibility"]["guidance"])
     result["market"] = market
 
+    # FEMA flood risk. This is reported rather than silently deducted, because
+    # the comparables may already price the flood zone in: if they sit in the
+    # same SFHA as the subject, the discount is embedded in the derived ARV and
+    # subtracting it again would double-count. The adjustment is therefore
+    # opt-in, for the case where the operator knows the comparables are not
+    # zone-matched.
+    flood = _resolve_flood(subject_payload)
+    zone = flood.pop("_zone_object", None)
+    loss_history = flood.pop("_loss_history", None)
+
+    if zone is not None:
+        assessment = flood_risk.assess_flood_risk(
+            zone, arv=result["valuation"]["arv"], loss_history=loss_history
+        )
+        flood["assessment"] = assessment
+        result["valuation"]["warnings"].extend(assessment["warnings"])
+
+        if zone.in_sfha:
+            flood["comparable_guidance"] = (
+                "Subject is in a Special Flood Hazard Area. Confirm the comparables are "
+                "similarly zoned — if they are not, the derived ARV does not reflect the "
+                "flood discount and should be adjusted."
+            )
+
+        if payload.get("apply_flood_adjustment") and assessment["capitalized_value_impact"] > 0:
+            adjusted_arv = max(0.0, result["valuation"]["arv"] - assessment["capitalized_value_impact"])
+            simulation = simulate_deal(
+                arv=adjusted_arv,
+                arv_low=max(0.0, result["valuation"]["confidence_interval"]["low"] - assessment["capitalized_value_impact"]),
+                arv_high=max(0.0, result["valuation"]["confidence_interval"]["high"] - assessment["capitalized_value_impact"]),
+                repairs=result["repairs_used"],
+                contract_price=result["evaluated_contract_price"],
+                target_fee=float(payload.get("target_fee") or 15_000),
+                confidence_target=float(payload.get("confidence_target") or 0.75),
+            )
+            flood["adjustment_applied"] = {
+                "unadjusted_arv": result["valuation"]["arv"],
+                "adjusted_arv": round(adjusted_arv, 2),
+                "deducted": assessment["capitalized_value_impact"],
+                "note": "Applied at the caller's request; verify the comparables are not already zone-matched.",
+            }
+            result["simulation"] = simulation.as_dict()
+            result["recommended_max_offer"] = round(simulation.recommended_max_offer, 2)
+            result["decision_quality"] = _decision_quality(
+                result["valuation"]["confidence"], simulation.probability_of_target
+            )
+    result["flood"] = flood
+
     if payload.get("include_analysis", True):
         result["analysis"] = decision_intelligence.analyze(
             "deal_review",
@@ -337,6 +389,7 @@ def underwrite_property(
                 "underwriting": result,
                 "property": subject_payload,
                 "market": payload.get("market"),
+                "flood_risk": result.get("flood", {}).get("assessment"),
             },
         )
 
@@ -360,6 +413,95 @@ def underwrite_property(
     )
     db.commit()
     return result
+
+
+def _resolve_flood(subject: dict) -> dict:
+    """Resolve FEMA flood risk for a subject property.
+
+    Accepts explicit coordinates, or geocodes the address through the free
+    Census geocoder. Like market data this is advisory: a FEMA outage degrades
+    the record rather than failing the underwriting.
+    """
+    result: dict = {"errors": []}
+
+    latitude, longitude = subject.get("latitude"), subject.get("longitude")
+    if latitude is None or longitude is None:
+        address_parts = [
+            str(subject.get(key) or "").strip()
+            for key in ("address", "city", "state", "zip_code")
+        ]
+        address = ", ".join(part for part in address_parts if part)
+        if not address:
+            result["errors"].append("No coordinates or address supplied for a flood lookup")
+            return result
+        try:
+            geocode = flood_risk.geocode_address(address)
+            latitude, longitude = geocode.latitude, geocode.longitude
+            result["geocode"] = geocode.as_dict()
+        except Exception as exc:  # noqa: BLE001 - advisory data must not fail underwriting
+            result["errors"].append(f"geocode: {type(exc).__name__}: {exc}")
+            return result
+
+    try:
+        zone = flood_risk.lookup_flood_zone(float(latitude), float(longitude))
+        result["zone"] = zone.as_dict()
+    except Exception as exc:  # noqa: BLE001
+        result["errors"].append(f"flood_zone: {type(exc).__name__}: {exc}")
+        return result
+
+    loss_history = None
+    zip_code = str(subject.get("zip_code") or "").strip()
+    if zip_code:
+        try:
+            loss_history = flood_risk.fetch_flood_loss_history(zip_code)
+            result["loss_history"] = loss_history.as_dict()
+        except Exception as exc:  # noqa: BLE001
+            result["errors"].append(f"loss_history: {type(exc).__name__}: {exc}")
+
+    result["_zone_object"] = zone
+    result["_loss_history"] = loss_history
+    return result
+
+
+@router.get("/flood")
+def flood(
+    address: str | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    zip_code: str | None = None,
+    principal: Principal = Depends(get_principal),
+):
+    """FEMA flood zone and realized flood losses for an address or coordinate.
+
+    Free, no API key: FEMA National Flood Hazard Layer for the zone, the Census
+    geocoder to resolve an address, and OpenFEMA for actual NFIP claims and
+    premiums in the ZIP.
+    """
+    if address is None and (latitude is None or longitude is None):
+        raise HTTPException(422, "Supply either an address or both latitude and longitude")
+
+    subject = {
+        "address": address,
+        "latitude": latitude,
+        "longitude": longitude,
+        "zip_code": zip_code,
+    }
+    resolved = _resolve_flood(subject)
+    zone = resolved.pop("_zone_object", None)
+    loss_history = resolved.pop("_loss_history", None)
+
+    if zone is None:
+        resolved["status"] = "degraded"
+        resolved["detail"] = (
+            "FEMA flood data could not be retrieved. Check outbound network access to "
+            "hazards.fema.gov, geocoding.geo.census.gov, and www.fema.gov."
+        )
+    else:
+        resolved["status"] = "ok"
+        resolved["assessment"] = flood_risk.assess_flood_risk(zone, loss_history=loss_history)
+
+    resolved["sources"] = flood_risk.source_registry()
+    return resolved
 
 
 @router.get("/market/{zip_code}")

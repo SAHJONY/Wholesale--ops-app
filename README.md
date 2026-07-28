@@ -10,6 +10,7 @@ Production-oriented MVP for residential and commercial real-estate wholesale ope
 - Upstash Redis lead and call state
 - Bland.ai inbound/outbound webhook handling
 - Free public market data (Census ACS, FHFA House Price Index — no API key)
+- FEMA flood zone screening with capitalized insurance impact on value
 - Comparable-sales ARV valuation with confidence intervals
 - Monte Carlo deal underwriting and risk-adjusted offer pricing
 - Claude structured-output reasoning with deterministic fallback

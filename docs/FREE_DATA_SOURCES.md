@@ -6,8 +6,9 @@ work in the public domain unless noted.
 
 ## Wired and live
 
-Both connectors live in `backend/app/market_data.py`. Neither requires an API
-key. Verify them against live endpoints with:
+Market data lives in `backend/app/market_data.py` and flood risk in
+`backend/app/flood_risk.py`. None of these sources requires an API key. Verify
+them all against live endpoints with:
 
 ```bash
 cd backend && python scripts/verify_market_data.py
@@ -69,6 +70,62 @@ to its output whenever an unmeasured rate was used.
 > column as appreciation. If `verify_market_data.py` reports schema drift, point
 > the environment variable at the current file.
 
+### FEMA — flood zone, realized losses, and actual premiums
+
+Three endpoints, none requiring a key, wired in `backend/app/flood_risk.py`:
+
+| Source | Endpoint | Gives you |
+|---|---|---|
+| National Flood Hazard Layer | `hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28` | Flood zone polygon covering a coordinate, SFHA status, base flood elevation |
+| Census Geocoder | `geocoding.geo.census.gov/geocoder/locations/onelineaddress` | Address → coordinate, so a lead with only a street address can be screened |
+| OpenFEMA NFIP | `www.fema.gov/api/open/v2/FimaNfipClaims` and `FimaNfipPolicies` | Actual paid flood claims, and the **average premium actually paid** in a ZIP |
+
+Flood zone is not metadata — it changes the deal. A property in a Special Flood
+Hazard Area requires flood insurance for any federally-backed mortgage, which is
+a permanent cost the eventual retail buyer capitalises into what they will pay.
+That shrinks both the buyer pool and the price.
+
+**How the value impact is derived.** It is the present value of the recurring
+premium, scaled by the share of buyers who actually carry coverage, capitalised
+at a documented rate:
+
+```
+value_impact = annual_premium × take_up_rate ÷ capitalization_rate
+```
+
+| Risk class | Zones | Take-up | Why |
+|---|---|---|---|
+| `coastal_high_hazard` | V, VE | 100% | Mandatory with federally-backed financing |
+| `high` | A, AE, AH, AO, AR, A99 | 100% | Mandatory with federally-backed financing |
+| `moderate` | shaded X (0.2% annual chance) | 40% | Optional, commonly carried |
+| `undetermined` | D | 50% | Unstudied — price roughly half the exposure |
+| `minimal` | unshaded X | 0% | Optional and mostly declined, so the market does not price it |
+
+The take-up scaling is load-bearing: without it, capitalising a premium in a
+minimal-risk zone invents a discount that does not exist. With
+`FLOOD_INSURANCE_CAP_RATE` at its 0.07 default, an AE-zone
+property on a $250,000 ARV models to roughly a 10% impact and a VE zone to
+roughly 18% — consistent with published SFHA discount estimates.
+
+Where OpenFEMA publishes an average premium for the ZIP, the derivation rests on
+what policyholders there really pay and `premium_measured` is `true`. Otherwise
+it falls back to an order-of-magnitude figure by risk class, and says so.
+
+**The impact is reported, not deducted, by default.** If the comparables sit in
+the same flood zone as the subject, the discount is already embedded in the
+derived ARV, and subtracting it again would double-count. Pass
+`apply_flood_adjustment: true` only when you know the comparables are not
+zone-matched.
+
+**Two failure modes the connector handles explicitly:**
+
+1. **ArcGIS reports errors inside an HTTP 200 body.** Not checking for the
+   `error` key means a service outage silently reads as "no flood hazard here",
+   which is the most dangerous possible failure for this data.
+2. **A missing zone is not a safe zone.** An unmapped coordinate raises rather
+   than returning a benign default, and the API returns `status: degraded`
+   rather than an empty flood block.
+
 ## The comparable-sales gap — read this before planning around it
 
 **There is no free, national source of arms-length comparable sale prices.**
@@ -114,18 +171,16 @@ whether it earns its integration cost.
 
 | Source | Endpoint | Key | Gives you |
 |---|---|---|---|
-| Census Geocoder | `geocoding.geo.census.gov` | none | Address → lat/lon, state/county FIPS, tract. **Already wired** in `nationwide_public_data.py` |
-| FEMA National Risk Index | `hazards.fema.gov/nri` | none | County/tract natural-hazard risk — affects insurability and resale |
-| FEMA National Flood Hazard Layer | ArcGIS REST | none | Flood zone by parcel. Materially affects value and carrying cost |
+| FEMA National Risk Index | `hazards.fema.gov/nri` | none | County/tract multi-hazard risk beyond flood — wildfire, wind, surge |
 | BLS Local Area Unemployment | `api.bls.gov` | optional free | County unemployment — a leading indicator for distress volume |
 | HUD Aggregated USPS Vacancy | HUD portal | registration | Vacancy at tract level. Strong distress signal, but requires approval — not truly open |
 | EPA Envirofacts | `data.epa.gov` | none | Environmental hazards near a parcel |
 | OpenStreetMap / Nominatim | `nominatim.openstreetmap.org` | none | Geocoding fallback. **Usage policy caps request rates** — not for bulk |
 
-Highest value for the effort, in my judgement: **FEMA flood zone** first (it
-changes underwriting on individual deals in coastal Florida and Gulf markets,
-which are core to this platform's default market list), then **BLS unemployment**
-(cheap to add, feeds the distress-volume forecast).
+Highest value for the effort now that flood is wired: **BLS unemployment**
+(cheap, feeds the distress-volume forecast), then the **FEMA National Risk
+Index** for the non-flood hazards that matter in the Gulf markets — wind and
+storm surge in particular.
 
 ## Compliance notes
 
