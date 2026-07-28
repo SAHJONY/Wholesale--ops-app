@@ -34,6 +34,7 @@ from app.integration_reliability import router as integration_reliability_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
+from app.lead_verification import router as lead_verification_router
 from app.main import app
 from app.national_intelligence_safe import router as national_intelligence_router
 from app.nationwide_public_data import router as nationwide_public_data_router
@@ -73,6 +74,7 @@ app.include_router(verified_ingest_router)
 app.include_router(distress_providers_router)
 app.include_router(distress_ingest_router)
 app.include_router(distress_discovery_router)
+app.include_router(lead_verification_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)

@@ -143,3 +143,35 @@ the Census hosts.
 The properties table carries no organization column; tenancy lives in
 `WorkspaceEntity`. Both ingest paths scope through it, so a workspace can only
 enrich and read its own records.
+
+## Every lead must be a real, locatable property
+
+A lead is actionable only when its property matched an authoritative geocoder
+and carries a coordinate that resolves on a map. `/lead-verification` enforces
+this:
+
+- `GET /lead-verification/status` — verified vs quarantined, with coverage
+  percentage and a Google Maps link per verified lead.
+- `GET /lead-verification/lead/{id}` — one lead's verification record.
+- `POST /lead-verification/assert-actionable` — pre-flight gate; returns 409
+  when the lead is not backed by a verified, locatable property.
+
+`assert_lead_is_actionable()` is the function outbound workflows call before
+reaching the outside world.
+
+Unverified leads are **quarantined, not deleted** — visible and countable, but
+blocked from action until they verify or are dismissed. Silently dropping an
+operator's entry loses work; silently acting on an unverified one is what this
+gate exists to stop.
+
+Verification means the geocoder matched the address and returned a coordinate.
+It deliberately does **not** claim the parcel is owned by anyone in particular,
+is worth anything, or has a structure on it — those need their own sources.
+
+Enforcement is on by default. `REQUIRE_VERIFIED_LEADS=false` disables it, and
+the status endpoint reports when it has been.
+
+Map links are built from the verified coordinate and need no API key:
+`https://www.google.com/maps/search/?api=1&query={lat},{lng}`. The verified
+coordinate is also persisted onto `Property.latitude/longitude`, which had
+never been populated.

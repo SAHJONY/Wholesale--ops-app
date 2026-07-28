@@ -29,6 +29,7 @@ from .auth import Principal, get_principal, require_role
 from .auth_models import WorkspaceEntity
 from .database import get_db
 from .intelligence_ingest import ingest_provider_facts
+from .lead_verification import map_url
 from .models import Property
 from .nationwide_public_data import resolve_address
 
@@ -255,9 +256,19 @@ async def commit(
                 "county_context_reviewed_not_written": bool(outcome.get("county_context")),
             },
         )
+        # Persist the verified coordinate onto the property itself. The facts
+        # table is the evidence record; these columns are what map links and
+        # geo queries read, and they were never being filled.
+        row = _load_property(db, principal.organization_id, property_id)
+        latitude, longitude = facts.get("latitude"), facts.get("longitude")
+        if latitude is not None and longitude is not None:
+            row.latitude, row.longitude = float(latitude), float(longitude)
+
         outcome.update({
             "status": "written",
             "facts_written": result["facts_written"],
+            "coordinate": {"latitude": row.latitude, "longitude": row.longitude},
+            "map_url": map_url(row.latitude, row.longitude),
             "canonical_id": result["canonical_id"],
             "verification_status": result["verification_status"],
             "conflict_count": result["conflict_count"],
