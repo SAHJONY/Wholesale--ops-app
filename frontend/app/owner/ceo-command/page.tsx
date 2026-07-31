@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './v2.module.css';
 
 const SESSION = 'sahjony_owner_session';
-const SIGN_IN = '/login?returnTo=/owner/ceo-command';
+const SIGN_IN = '/login?returnTo=/owner';
 
 type KPI = {
   total_leads: number;
@@ -57,11 +57,15 @@ function label(value: string) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase());
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown data-source failure';
+}
+
 export default function CEOCommandCenter() {
   const [command, setCommand] = useState<CommandCenter | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
 
   const request = useCallback(async (path: string) => {
     const token = window.localStorage.getItem(SESSION) || '';
@@ -79,25 +83,38 @@ export default function CEOCommandCenter() {
       window.location.replace(SIGN_IN);
       throw new Error('Owner session expired');
     }
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
+    if (!response.ok) {
+      const detail = typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`;
+      throw new Error(`${path}: ${detail}`);
+    }
     return data;
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-    try {
-      const [executive, leadData] = await Promise.all([
-        request('/executive/command-center'),
-        request('/crm/leads'),
-      ]);
-      setCommand(executive);
-      setLeads(Array.isArray(leadData) ? leadData : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load CEO Command Center');
-    } finally {
-      setLoading(false);
+    setErrors([]);
+
+    const [executiveResult, leadsResult] = await Promise.allSettled([
+      request('/executive/command-center'),
+      request('/crm/leads'),
+    ]);
+
+    const failures: string[] = [];
+
+    if (executiveResult.status === 'fulfilled') {
+      setCommand(executiveResult.value);
+    } else {
+      failures.push(errorMessage(executiveResult.reason));
     }
+
+    if (leadsResult.status === 'fulfilled') {
+      setLeads(Array.isArray(leadsResult.value) ? leadsResult.value : []);
+    } else {
+      failures.push(errorMessage(leadsResult.reason));
+    }
+
+    setErrors(failures);
+    setLoading(false);
   }, [request]);
 
   useEffect(() => { void load(); }, [load]);
@@ -129,15 +146,15 @@ export default function CEOCommandCenter() {
       </div>
     </header>
 
-    {error && <div className={styles.error}>{error}</div>}
+    {errors.map(message => <div className={styles.error} key={message}>{message}</div>)}
 
     <section className={styles.kpis}>
-      <article><span>Projected assignment fees</span><strong>{money(kpi?.projected_assignment_revenue)}</strong><small>Current active pipeline</small></article>
-      <article><span>Probability-weighted revenue</span><strong>{money(kpi?.probability_weighted_revenue)}</strong><small>Risk-adjusted forecast</small></article>
+      <article><span>Projected assignment fees</span><strong>{money(kpi?.projected_assignment_revenue)}</strong><small>{command ? 'Current active pipeline' : 'Executive source unavailable'}</small></article>
+      <article><span>Probability-weighted revenue</span><strong>{money(kpi?.probability_weighted_revenue)}</strong><small>{command ? 'Risk-adjusted forecast' : 'Executive source unavailable'}</small></article>
       <article><span>Deals under management</span><strong>{kpi?.active_deals || 0}</strong><small>{command?.deal_risk?.length || 0} risk-scored</small></article>
       <article><span>Owner approvals</span><strong>{kpi?.pending_approvals || 0}</strong><small>External actions remain blocked</small></article>
       <article><span>AI workforce</span><strong>{healthyAgents}/{totalAgents}</strong><small>Agents healthy</small></article>
-      <article><span>Priority leads</span><strong>{kpi?.hot_leads || 0}</strong><small>{kpi?.total_leads || 0} total leads</small></article>
+      <article><span>Priority leads</span><strong>{kpi?.hot_leads || 0}</strong><small>{leads.length} leads loaded</small></article>
     </section>
 
     <section className={styles.twoColumn}>
@@ -150,7 +167,7 @@ export default function CEOCommandCenter() {
             <p>{agent.last_status || agent.status || 'Waiting for work'}</p>
             <small>Confidence {Math.round((agent.confidence || 0) * 100)}% · Last run {agent.last_run_at ? new Date(agent.last_run_at).toLocaleString() : 'Not yet'}</small>
           </div>)}
-          {!totalAgents && <p className={styles.empty}>No agent telemetry reported yet.</p>}
+          {!totalAgents && <p className={styles.empty}>{command ? 'No agent telemetry reported yet.' : 'Executive intelligence source unavailable.'}</p>}
         </div>
       </article>
 
@@ -161,7 +178,7 @@ export default function CEOCommandCenter() {
             <span><b>Deal #{deal.deal_id} · {label(deal.stage)}</b><small>{deal.next_action || 'Review next milestone'}</small></span>
             <span><b>{money(deal.projected_assignment_fee)}</b><small>{Math.round((deal.probability_to_close || 0) * 100)}% close probability</small></span>
           </div>)}
-          {!command?.deal_risk?.length && <p className={styles.empty}>No active deal forecast yet.</p>}
+          {!command?.deal_risk?.length && <p className={styles.empty}>{command ? 'No active deal forecast yet.' : 'Executive intelligence source unavailable.'}</p>}
         </div>
       </article>
     </section>
