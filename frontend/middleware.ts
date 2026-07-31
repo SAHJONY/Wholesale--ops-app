@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function safeOwnerReturnTo(value: string | null, fallback = '/owner/deals') {
+  if (!value) return fallback;
+  return value.startsWith('/owner/') && !value.startsWith('//') ? value : fallback;
+}
+
 export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === '/owner-access') {
+  const pathname = request.nextUrl.pathname;
+
+  if (pathname === '/owner' || pathname === '/owner-access') {
     const url = request.nextUrl.clone();
-    const returnTo = request.nextUrl.searchParams.get('returnTo') || '/owner/deals';
+    const requestedReturnTo = request.nextUrl.searchParams.get('returnTo');
     url.pathname = '/login';
     url.search = '';
-    url.searchParams.set('returnTo', returnTo.startsWith('/owner') && !returnTo.startsWith('//') ? returnTo : '/owner');
+    url.searchParams.set('returnTo', safeOwnerReturnTo(requestedReturnTo));
     return NextResponse.redirect(url);
   }
 
@@ -14,5 +21,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/owner-access'],
+  matcher: ['/owner', '/owner-access'],
 };

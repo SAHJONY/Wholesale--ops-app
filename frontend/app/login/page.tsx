@@ -4,11 +4,12 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 const SESSION_STORAGE = 'sahjony_owner_session';
 const OWNER_EMAIL = 'sahjonycapitalllc@outlook.com';
+const DEFAULT_DESTINATION = '/owner/deals';
 
 function safeReturnTo() {
-  if (typeof window === 'undefined') return '/owner';
-  const value = new URLSearchParams(window.location.search).get('returnTo') || '/owner';
-  return value.startsWith('/owner') && !value.startsWith('//') ? value : '/owner';
+  if (typeof window === 'undefined') return DEFAULT_DESTINATION;
+  const value = new URLSearchParams(window.location.search).get('returnTo') || DEFAULT_DESTINATION;
+  return value.startsWith('/owner/') && !value.startsWith('//') ? value : DEFAULT_DESTINATION;
 }
 
 export default function UnifiedLoginPage() {
@@ -86,7 +87,7 @@ export default function UnifiedLoginPage() {
           <input id="app-password" value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete="current-password" required style={{padding:13,borderRadius:9,border:'1px solid #3b465a',fontSize:16}} />
           <button type="submit" disabled={loading || status !== 'System online'} style={{padding:13,borderRadius:9,fontWeight:800,fontSize:16,cursor:'pointer'}}>{loading?'Signing in…':'Sign in to SAHJONY Wholesale OS'}</button>
         </form>
-        <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>Your permissions are determined by your owner, manager, or staff role.</p>
+        <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>All authentication traffic stays on this application origin and is relayed through the secure backend gateway.</p>
       </section>
     </main>
   );
