@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from app.nationwide_public_data import _extract_geography, _normalize_match
+from app.nationwide_public_data import _extract_geography, _normalize_match, build_truth_report
 
 
 def test_normalize_census_match_extracts_geography():
@@ -36,3 +36,35 @@ def test_nationwide_routes_are_registered():
     paths = {getattr(route, "path", "") for route in app.routes}
     assert "/public-data/nationwide/status" in paths
     assert "/public-data/nationwide/enrich-address" in paths
+
+
+def test_truth_report_separates_verified_context_from_core_property_facts():
+    report = build_truth_report(
+        {
+            "matched_address": "4600 SILVER HILL RD, WASHINGTON, DC, 20233",
+            "coordinates": {"latitude": 38.8459, "longitude": -76.9274},
+            "geography": {
+                "county_name": "District of Columbia",
+                "county_geoid": "11001",
+                "tract_geoid": "11001980000",
+            },
+        },
+        {"population": 671803, "median_gross_rent": 1770, "median_owner_value": 659400, "housing_units": 350364},
+        "2026-07-31T12:00:00+00:00",
+    )
+    assert report["verified_claims"] == 10
+    assert report["decision_gate"]["underwriting_ready"] is False
+    assert report["decision_gate"]["outreach_ready"] is False
+    assert {item["field"] for item in report["unknowns"]} >= {"legal_owner", "market_value_or_arv", "seller_contact_and_consent"}
+    assert all(item["blocking"] for item in report["unknowns"])
+
+
+def test_truth_report_marks_missing_aggregate_context_unavailable():
+    report = build_truth_report(
+        {"matched_address": "A", "coordinates": {}, "geography": {}},
+        None,
+        "2026-07-31T12:00:00+00:00",
+    )
+    population = next(item for item in report["claims"] if item["field"] == "population")
+    assert population["status"] == "unavailable"
+    assert population["confidence"] == "none"

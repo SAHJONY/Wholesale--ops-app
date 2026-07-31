@@ -22,6 +22,12 @@ type Enrichment = {
     geography?: Record<string, string | null>;
   };
   county_context?: Record<string, string | number | null> | null;
+  truth_report: {
+    grade: string; verified_claims: number; total_claims: number; coverage_percent: number;
+    claims: { field: string; value?: string | number | null; status: string; source: string; confidence: string; scope: string }[];
+    unknowns: { field: string; status: string; required_source: string; blocking: boolean }[];
+    decision_gate: { underwriting_ready: boolean; outreach_ready: boolean; contract_ready: boolean; reason: string; required_human_review: boolean };
+  };
   provenance: { provider: string; observed_at: string; confidence: string; latency_ms?: number }[];
   limitations: string[];
   workflow: { committed: boolean; dry_run: boolean; external_actions_allowed: boolean; owner_review_required: boolean };
@@ -114,6 +120,21 @@ export default function NationwideDataPage() {
     </section>
 
     {result && <>
+      <section className={styles.cardWide}>
+        <div className={styles.cardHeader}><div><span className={styles.eyebrow}>PROPERTY TRUTH REPORT</span><h2>Evidence before automation</h2></div><strong>{result.truth_report.coverage_percent}% VERIFIED</strong></div>
+        <section className={styles.metrics}>
+          <article><span>Verified claims</span><strong>{result.truth_report.verified_claims}</strong></article>
+          <article><span>Total evidence fields</span><strong>{result.truth_report.total_claims}</strong></article>
+          <article><span>Underwriting</span><strong>{result.truth_report.decision_gate.underwriting_ready ? 'READY' : 'BLOCKED'}</strong></article>
+          <article><span>Outreach</span><strong>{result.truth_report.decision_gate.outreach_ready ? 'READY' : 'BLOCKED'}</strong></article>
+        </section>
+        <div className={styles.cycleSummary}>{result.truth_report.decision_gate.reason}</div>
+        <div className={styles.list}>{result.truth_report.claims.map(item => <div key={item.field}><span><b>{item.field.replaceAll('_', ' ')}</b><small>{String(item.value ?? 'Not returned')} · {item.source} · {item.scope} · {item.confidence}</small></span><strong>{item.status}</strong></div>)}</div>
+      </section>
+      <section className={styles.cardWide}>
+        <div className={styles.cardHeader}><div><span className={styles.eyebrow}>CORE FACTS STILL REQUIRED</span><h2>Unknown means unknown</h2></div><strong>{result.truth_report.unknowns.length} BLOCKERS</strong></div>
+        <div className={styles.list}>{result.truth_report.unknowns.map(item => <div key={item.field}><span><b>{item.field.replaceAll('_', ' ')}</b><small>Required evidence: {item.required_source.replaceAll('_', ' ')}</small></span><strong>NOT VERIFIED</strong></div>)}</div>
+      </section>
       <section className={styles.cardWide}>
         <div className={styles.cardHeader}><div><span className={styles.eyebrow}>MATCH</span><h2>{result.property.matched_address || 'Matched property geography'}</h2></div><strong>DRY RUN</strong></div>
         <div className={styles.list}>
