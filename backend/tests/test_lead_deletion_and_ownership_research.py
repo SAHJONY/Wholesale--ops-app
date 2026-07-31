@@ -8,6 +8,7 @@ from app.county_queue import create_case
 from app.county_queue_models import CountyVerificationCase
 from app.database import Base
 from app.main import app  # noqa: F401 - registers all model metadata
+from app.main import delete_lead as delete_command_center_lead
 from app.models import Lead, OpsTask, Property
 
 
@@ -90,3 +91,15 @@ def test_reverse_search_is_research_only_and_confidence_is_capped():
         assert case.confidence == 40
         assert case.source_type == "reverse_address_research"
         assert case.proposed_evidence["candidate_owner_name"] == "Possible Owner"
+
+
+def test_command_center_delete_hides_lead_and_cancels_queued_task():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        lead = _lead(db)
+        result = delete_command_center_lead(lead.id, {"reason": "Remove test data"}, _principal(), db)
+
+        assert result["status"] == "deleted"
+        assert db.get(Lead, lead.id).status == "deleted"
+        assert db.scalar(select(OpsTask).where(OpsTask.lead_id == lead.id)).status == "cancelled"

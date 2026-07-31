@@ -22,6 +22,15 @@ function money(value?: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 }
 
+function leadKey(lead: Lead) {
+  return `${lead.seller_name.trim().toLowerCase()}|${(lead.address || '').trim().toLowerCase()}`;
+}
+
+function isDemoLead(lead: Lead) {
+  return /^(test seller|jane seller|neon persistent lead)$/i.test(lead.seller_name.trim())
+    || /\b(test|database test)\b/i.test(lead.address || '');
+}
+
 function Field({ label, name, type = 'text', required = false, defaultValue, placeholder }: { label: string; name: string; type?: string; required?: boolean; defaultValue?: string; placeholder?: string }) {
   return <label><span>{label}</span><input name={name} type={type} required={required} defaultValue={defaultValue} placeholder={placeholder} /></label>;
 }
@@ -72,6 +81,31 @@ export default function Home() {
     } finally { setLoading(false); }
   }
 
+  async function deleteLead(lead: Lead) {
+    const ownerSession = localStorage.getItem('sahjony_owner_session');
+    if (!ownerSession) {
+      setNotice({ kind: 'error', text: 'Owner or manager sign-in is required to delete leads.' });
+      return;
+    }
+    if (!window.confirm(`Delete lead #${lead.id} for ${lead.seller_name} at ${lead.address || 'unknown property'}? Contact data and queued work will be removed.`)) return;
+    const reason = window.prompt('Reason for deletion', isDemoLead(lead) ? 'Remove test/demo data' : 'No longer an active lead');
+    if (reason === null) return;
+    setLoading(true); setNotice(null);
+    try {
+      const response = await fetch(`${API_URL}/leads/${lead.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownerSession}` },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Delete failed');
+      setNotice({ kind: 'success', text: `Lead #${lead.id} deleted.` });
+      await refresh();
+    } catch (error) {
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Delete failed' });
+    } finally { setLoading(false); }
+  }
+
   async function createLead(event: FormEvent<HTMLFormElement>, source = 'manual') {
     event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement);
     await post(source === 'driving_for_dollars' ? '/driving-for-dollars' : '/leads', {
@@ -112,9 +146,9 @@ export default function Home() {
     <aside className="sidebar"><div className="brand">SAHJONY</div><p>Wholesale Operations</p><nav>{navItems.map(item => <button key={item} className={active === item ? 'active' : ''} onClick={() => setActive(item)}>{item}</button>)}</nav><div className={`apiBadge ${apiStatus}`}>API {apiStatus}</div></aside>
     <section className="workspace"><header className="topbar"><div><span className="eyebrow">AUTONOMOUS WORKFORCE</span><h1>{active}</h1><p>Supervised autonomous residential and commercial wholesale operations.</p></div><div className="toolbar"><button className="secondary" onClick={() => void refresh()}>Refresh</button><button className="primary" onClick={() => setActive('Leads')}>+ Add Lead</button></div></header>
       {notice && <div className={`notice ${notice.kind}`}>{notice.text}</div>}
-      {active === 'Command Center' && <CommandCenter stats={stats} leads={leads} onNavigate={setActive} />}
+      {active === 'Command Center' && <CommandCenter stats={stats} leads={leads} onNavigate={setActive} onDelete={lead => void deleteLead(lead)} loading={loading} />}
       {active === 'Autonomous Ops' && <AutonomyPanel status={autonomy} loading={loading} runDaily={() => void post('/autonomy/run', { agent_name: 'executive-orchestrator', objective: 'Run daily wholesale operations' })} execute={() => void post('/autonomy/execute', { limit: 20 })} approve={(id, decision) => void post(`/approvals/${id}/decision`, { decision, decided_by: 'owner' })} createDisposition={(propertyId) => void post(`/autonomy/disposition/${propertyId}`, {})} />}
-      {active === 'Leads' && <LeadsPanel leads={leads} onSubmit={event => void createLead(event)} loading={loading} />}
+      {active === 'Leads' && <LeadsPanel leads={leads} onSubmit={event => void createLead(event)} onDelete={lead => void deleteLead(lead)} loading={loading} />}
       {active === 'Cash Buyers' && <BuyerPanel onSubmit={event => void createBuyer(event)} loading={loading} />}
       {active === 'Underwriting' && <UnderwritePanel onSubmit={event => void underwrite(event)} loading={loading} result={underwriteResult} />}
       {active === 'Buyer Matching' && <MatchPanel propertyId={matchPropertyId} setPropertyId={setMatchPropertyId} onMatch={() => void runMatch()} matches={matches} loading={loading} />}
@@ -124,9 +158,10 @@ export default function Home() {
   </main>;
 }
 
-function CommandCenter({ stats, leads, onNavigate }: { stats: Stats; leads: Lead[]; onNavigate: (view: View) => void }) {
+function CommandCenter({ stats, leads, onNavigate, onDelete, loading }: { stats: Stats; leads: Lead[]; onNavigate: (view: View) => void; onDelete: (lead: Lead) => void; loading: boolean }) {
+  const duplicateKeys = new Set(leads.filter((lead, index) => leads.findIndex(item => leadKey(item) === leadKey(lead)) !== index).map(leadKey));
   const cards = [['Total leads', stats.total_leads], ['Hot leads', stats.hot_leads], ['Buyers', stats.buyers], ['Calls', stats.calls], ['Queued tasks', stats.queued_tasks || 0], ['Pending approvals', stats.pending_approvals || 0], ['Campaigns', stats.campaigns || 0], ['Completed tasks', stats.completed_tasks || 0]];
-  return <><div className="stats autonomyStats">{cards.map(([label, value]) => <article key={String(label)}><span>{label}</span><strong>{value}</strong></article>)}</div><div className="sectionTitle"><h2>Priority Leads</h2><button className="secondary" onClick={() => onNavigate('Autonomous Ops')}>Open autonomous control</button></div><div className="tableWrap"><table><thead><tr><th>Seller</th><th>Property</th><th>Status</th><th>Motivation</th><th>Distress</th><th>MAO</th></tr></thead><tbody>{leads.length ? leads.slice(0, 10).map(lead => <tr key={lead.id}><td>{lead.seller_name}</td><td>{lead.address}</td><td>{lead.status}</td><td>{lead.motivation_score}</td><td>{lead.distress_score}</td><td>{money(lead.mao)}</td></tr>) : <tr><td colSpan={6}>No leads found.</td></tr>}</tbody></table></div></>;
+  return <><div className="stats autonomyStats">{cards.map(([label, value]) => <article key={String(label)}><span>{label}</span><strong>{value}</strong></article>)}</div><div className="sectionTitle"><h2>Priority Leads</h2><button className="secondary" onClick={() => onNavigate('Autonomous Ops')}>Open autonomous control</button></div><div className="tableWrap"><table><thead><tr><th>Seller</th><th>Property</th><th>Status</th><th>Motivation</th><th>Distress</th><th>MAO</th><th>Actions</th></tr></thead><tbody>{leads.length ? leads.slice(0, 10).map(lead => <tr key={lead.id}><td>{lead.seller_name} {isDemoLead(lead)&&<span className="dataBadge demo">DEMO</span>}</td><td>{lead.address} {duplicateKeys.has(leadKey(lead))&&<span className="dataBadge duplicate">DUPLICATE</span>}</td><td>{lead.status}</td><td>{lead.motivation_score}</td><td>{lead.distress_score}</td><td>{money(lead.mao)}</td><td><button className="dangerButton" disabled={loading} onClick={()=>onDelete(lead)}>Delete</button></td></tr>) : <tr><td colSpan={7}>No leads found.</td></tr>}</tbody></table></div></>;
 }
 
 function AutonomyPanel({ status, loading, runDaily, execute, approve, createDisposition }: { status: AutonomyStatus; loading: boolean; runDaily: () => void; execute: () => void; approve: (id: number, decision: 'approved' | 'rejected') => void; createDisposition: (propertyId: number) => void }) {
@@ -134,7 +169,7 @@ function AutonomyPanel({ status, loading, runDaily, execute, approve, createDisp
   return <div className="autonomyLayout"><div className="card"><div className="inline"><div><h2>Executive Orchestrator</h2><p>Mode: {status.mode}</p></div><div className="toolbar"><button className="secondary" disabled={loading} onClick={runDaily}>Plan daily operations</button><button className="primary" disabled={loading} onClick={execute}>Execute queued tasks</button></div></div><div className="agentGrid">{status.agents.map(agent => <article key={agent.name}><span className="statusDot"/><div><strong>{agent.name}</strong><p>{agent.role}</p></div></article>)}</div></div><div className="twoCol"><div className="card"><h2>Task Queue</h2><div className="tableWrap compact"><table><thead><tr><th>ID</th><th>Task</th><th>Status</th><th>Priority</th></tr></thead><tbody>{status.tasks.map(task => <tr key={task.id}><td>{task.id}</td><td>{task.type}</td><td>{task.status}</td><td>{task.priority}</td></tr>)}</tbody></table></div></div><div className="card"><h2>Disposition Automation</h2><p>Create a buyer campaign from a property and route it through approval.</p><div className="matchControls"><input value={propertyId} onChange={event => setPropertyId(event.target.value)} type="number"/><button className="primary" disabled={loading} onClick={() => createDisposition(Number(propertyId))}>Create campaign</button></div><h3>Campaigns</h3>{status.campaigns.map(campaign => <div className="campaignRow" key={campaign.id}><span>{campaign.name}</span><strong>{campaign.status}</strong></div>)}</div></div><div className="card"><h2>Approval Center</h2>{status.approvals.length ? <div className="approvalList">{status.approvals.map(item => <article key={item.id}><div><strong>{item.action_type}</strong><p>{item.summary}</p></div><div className="toolbar"><button className="secondary" onClick={() => approve(item.id, 'rejected')}>Reject</button><button className="primary" onClick={() => approve(item.id, 'approved')}>Approve</button></div></article>)}</div> : <p>No pending approvals.</p>}</div></div>;
 }
 
-function LeadsPanel({ leads, onSubmit, loading }: { leads: Lead[]; onSubmit: (event: FormEvent<HTMLFormElement>) => void; loading: boolean }) { return <div className="twoCol"><form className="card form" onSubmit={onSubmit}><h2>Create Lead</h2><div className="formGrid"><Field label="Seller name" name="seller_name" required/><Field label="Phone" name="phone" required/><Field label="Email" name="email" type="email"/><Field label="Address" name="address" required/><Field label="City" name="city" required/><Field label="State" name="state" required defaultValue="FL"/><Field label="ZIP" name="zip_code" required/><Field label="Beds" name="bedrooms" type="number" defaultValue="3"/><Field label="Baths" name="bathrooms" type="number" defaultValue="2"/><Field label="Sqft" name="sqft" type="number" defaultValue="1500"/><Field label="Asking price" name="asking_price" type="number"/><Field label="ARV" name="arv" type="number" required/><Field label="Repairs" name="repairs" type="number" required/><Field label="Motivation" name="motivation_score" type="number" defaultValue="70"/><Field label="Equity" name="equity_score" type="number" defaultValue="70"/><Field label="Timeline days" name="timeline_days" type="number" defaultValue="30"/></div><label><span>Distress signals</span><textarea name="distress_signals" defaultValue="vacant, inherited_property"/></label><label><span>Notes</span><textarea name="notes"/></label><button className="primary" disabled={loading}>Create and auto-score lead</button></form><div className="card"><h2>Live Leads</h2><div className="tableWrap compact"><table><tbody>{leads.map(lead => <tr key={lead.id}><td><strong>{lead.seller_name}</strong><small>{lead.address}</small></td><td>{lead.status}</td><td>{money(lead.mao)}</td></tr>)}</tbody></table></div></div></div>; }
+function LeadsPanel({ leads, onSubmit, onDelete, loading }: { leads: Lead[]; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onDelete: (lead: Lead) => void; loading: boolean }) { const counts=new Map<string,number>();leads.forEach(lead=>counts.set(leadKey(lead),(counts.get(leadKey(lead))||0)+1));return <div className="twoCol"><form className="card form" onSubmit={onSubmit}><h2>Create Lead</h2><div className="formGrid"><Field label="Seller name" name="seller_name" required/><Field label="Phone" name="phone" required/><Field label="Email" name="email" type="email"/><Field label="Address" name="address" required/><Field label="City" name="city" required/><Field label="State" name="state" required defaultValue="FL"/><Field label="ZIP" name="zip_code" required/><Field label="Beds" name="bedrooms" type="number" defaultValue="3"/><Field label="Baths" name="bathrooms" type="number" defaultValue="2"/><Field label="Sqft" name="sqft" type="number" defaultValue="1500"/><Field label="Asking price" name="asking_price" type="number"/><Field label="ARV" name="arv" type="number" required/><Field label="Repairs" name="repairs" type="number" required/><Field label="Motivation" name="motivation_score" type="number" defaultValue="70"/><Field label="Equity" name="equity_score" type="number" defaultValue="70"/><Field label="Timeline days" name="timeline_days" type="number" defaultValue="30"/></div><label><span>Distress signals</span><textarea name="distress_signals" defaultValue="vacant, inherited_property"/></label><label><span>Notes</span><textarea name="notes"/></label><button className="primary" disabled={loading}>Create and auto-score lead</button></form><div className="card"><h2>Live Leads</h2><div className="tableWrap compact"><table><tbody>{leads.map(lead => <tr key={lead.id}><td><strong>{lead.seller_name} {isDemoLead(lead)&&<span className="dataBadge demo">DEMO</span>}</strong><small>{lead.address} {(counts.get(leadKey(lead))||0)>1&&<span className="dataBadge duplicate">DUPLICATE</span>}</small></td><td>{lead.status}</td><td>{money(lead.mao)}</td><td><button className="dangerButton" disabled={loading} onClick={()=>onDelete(lead)}>Delete</button></td></tr>)}</tbody></table></div></div></div>; }
 
 function BuyerPanel({ onSubmit, loading }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void; loading: boolean }) { return <form className="card form narrow" onSubmit={onSubmit}><h2>Add Cash Buyer</h2><div className="formGrid"><Field label="Buyer name" name="name" required/><Field label="Company" name="company"/><Field label="Buyer type" name="buyer_type" defaultValue="fix_and_flip"/><Field label="Phone" name="phone" required/><Field label="Email" name="email" type="email"/><Field label="ZIP codes" name="zip_codes" placeholder="33101, 33125"/><Field label="Minimum price" name="min_price" type="number" defaultValue="50000"/><Field label="Maximum price" name="max_price" type="number" defaultValue="300000"/><Field label="Maximum rehab" name="max_rehab" type="number" defaultValue="75000"/><Field label="Closing days" name="closing_days" type="number" defaultValue="10"/><Field label="Response rate" name="response_rate" type="number" defaultValue="80"/><Field label="Reliability score" name="reliability_score" type="number" defaultValue="85"/></div><label className="check"><input name="proof_of_funds_verified" type="checkbox"/><span>Proof of funds verified</span></label><button className="primary" disabled={loading}>Save buyer</button></form>; }
 
