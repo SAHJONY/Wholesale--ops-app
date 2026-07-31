@@ -46,11 +46,13 @@ from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
+from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
 
+install_session_time_compatibility()
 configure_schema(Base, engine)
 install_observability(app)
 app.add_middleware(SecurityMiddleware)
