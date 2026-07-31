@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import re
 from datetime import datetime, timezone
 
@@ -18,7 +20,7 @@ router = APIRouter(prefix="/acquisition-intake", tags=["autonomous acquisition i
 
 ALLOWED_SOURCES = {
     "propstream", "batchdata", "attom", "county", "mls", "fsbo",
-    "facebook", "driving_for_dollars", "csv", "manual", "other",
+    "facebook", "driving_for_dollars", "csv", "manual", "public_address_paste", "other",
 }
 
 
@@ -77,10 +79,70 @@ def _normalize_record(record: dict, default_source: str) -> dict:
         "asking_price": record.get("asking_price") or record.get("list_price"),
         "arv": record.get("arv"),
         "repairs": record.get("repairs") or record.get("repair_estimate"),
+        "latitude": record.get("latitude"),
+        "longitude": record.get("longitude"),
         "distress_signals": list(dict.fromkeys(distress if isinstance(distress, list) else [])),
         "external_id": _clean(record.get("external_id") or record.get("record_id") or record.get("property_id")),
         "raw": record,
     }
+
+
+def parse_pasted_addresses(text: str) -> tuple[list[dict], list[dict]]:
+    """Parse address CSV with optional asking price and source URL."""
+    records: list[dict] = []
+    rejected: list[dict] = []
+    seen: set[str] = set()
+    rows = csv.reader(io.StringIO(str(text or "")))
+    for line_number, row in enumerate(rows, 1):
+        values = [_clean(value) for value in row]
+        if not any(values):
+            continue
+        if line_number == 1 and {value.lower() for value in values} >= {"address", "city", "state"}:
+            continue
+        if len(values) >= 4:
+            address, city, state, zip_code = values[:4]
+            asking_price = values[4] if len(values) > 4 else ""
+            source_url = values[5] if len(values) > 5 else ""
+        elif len(values) == 3:
+            match = re.fullmatch(r"([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)", values[2])
+            if not match:
+                rejected.append({"line": line_number, "input": ", ".join(values), "reason": "expected_state_zip"})
+                continue
+            address, city = values[:2]
+            state, zip_code = match.groups()
+            asking_price = source_url = ""
+        else:
+            raw = values[0] if values else ""
+            match = re.match(r"^(.+?),\s*([^,]+?),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$", raw)
+            if not match:
+                rejected.append({"line": line_number, "input": raw, "reason": "expected_street_city_state_zip"})
+                continue
+            address, city, state, zip_code = match.groups()
+            asking_price = source_url = ""
+        state = state.upper()
+        if not address or not city or not re.fullmatch(r"[A-Z]{2}", state) or not re.fullmatch(r"\d{5}(?:-\d{4})?", zip_code):
+            rejected.append({"line": line_number, "input": ", ".join(values), "reason": "invalid_address_components"})
+            continue
+        key = _address_key(address, city, state, zip_code)
+        if key in seen:
+            rejected.append({"line": line_number, "input": ", ".join(values), "reason": "duplicate_in_paste"})
+            continue
+        seen.add(key)
+        record = {
+            "address": address, "city": city, "state": state, "zip_code": zip_code,
+            "source": "public_address_paste",
+        }
+        if asking_price:
+            normalized_price = re.sub(r"[$,\s]", "", asking_price)
+            try:
+                record["asking_price"] = float(normalized_price)
+            except ValueError:
+                rejected.append({"line": line_number, "input": asking_price, "reason": "invalid_asking_price"})
+                continue
+        if source_url:
+            record["external_id"] = source_url
+        records.append(record)
+    return records, rejected
 
 
 def _number(value, cast=float):
@@ -161,13 +223,13 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
         if match:
             lead, prop = match
             changed = {}
-            if not lead.phone and record["phone"]:
+            if not review_only and not lead.phone and record["phone"]:
                 lead.phone = record["phone"]
                 changed["phone"] = record["phone"]
-            if not lead.email and record["email"]:
+            if not review_only and not lead.email and record["email"]:
                 lead.email = record["email"]
                 changed["email"] = record["email"]
-            for field in ("bedrooms", "bathrooms", "sqft", "asking_price", "arv", "repairs"):
+            for field in ("bedrooms", "bathrooms", "sqft", "asking_price", "arv", "repairs", "latitude", "longitude"):
                 incoming = _number(record[field], int if field in {"bedrooms", "sqft"} else float)
                 if getattr(prop, field) in (None, 0) and incoming is not None:
                     setattr(prop, field, incoming)
@@ -211,6 +273,7 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             sqft=_number(record["sqft"], int), asking_price=_number(record["asking_price"]),
             arv=_number(record["arv"]), repairs=_number(record["repairs"]),
             distress_signals=record["distress_signals"],
+            latitude=_number(record["latitude"]), longitude=_number(record["longitude"]),
         )
         db.add(lead)
         db.flush()
@@ -255,4 +318,82 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
         "created": created, "updated": updated, "duplicate": duplicate,
         "rejected": rejected, "results": results,
         "review_only": review_only,
+    }
+
+
+@router.post("/paste-addresses")
+async def paste_addresses(payload: dict, principal: Principal = Depends(require_role("manager")), db: Session = Depends(get_db)):
+    text = str(payload.get("text") or "")
+    records, rejected = parse_pasted_addresses(text)
+    if not records:
+        raise HTTPException(422, {"message": "No valid addresses found", "rejected": rejected[:50]})
+    if len(records) > 50:
+        raise HTTPException(422, "A paste analysis is limited to 50 unique addresses")
+    requested_source = _clean(payload.get("source") or "public_address_paste").lower()
+    if requested_source not in {"public_address_paste", "facebook", "fsbo", "other"}:
+        raise HTTPException(422, "Unsupported pasted listing source")
+    source_reference = _clean(payload.get("source_reference"))
+    if source_reference and not re.match(r"^https://", source_reference, re.IGNORECASE):
+        raise HTTPException(422, "Source reference must use HTTPS")
+    for record in records:
+        record["source"] = requested_source
+        if source_reference and not record.get("external_id"):
+            record["external_id"] = source_reference
+
+    from .nationwide_public_data import enrich_address
+
+    verified_records: list[dict] = []
+    analyses: list[dict] = []
+    for index, record in enumerate(records):
+        if record["state"] == "TX":
+            rejected.append({"line": index + 1, "input": record["address"], "reason": "texas_excluded"})
+            continue
+        try:
+            enrichment = await enrich_address(record, principal)
+        except HTTPException as exc:
+            rejected.append({
+                "line": index + 1, "input": record["address"],
+                "reason": "official_address_verification_failed", "detail": str(exc.detail),
+            })
+            continue
+        matched = enrichment["property"]
+        components = matched.get("address_components") or {}
+        coordinates = matched.get("coordinates") or {}
+        verified_records.append({
+            **record,
+            "address": components.get("street") or record["address"],
+            "city": components.get("city") or record["city"],
+            "state": components.get("state") or record["state"],
+            "zip_code": components.get("zip_code") or record["zip_code"],
+            "latitude": coordinates.get("latitude"),
+            "longitude": coordinates.get("longitude"),
+        })
+        analyses.append({
+            "input": record,
+            "matched_address": matched.get("matched_address"),
+            "county_context": enrichment.get("county_context"),
+            "terrain_context": enrichment.get("terrain_context"),
+            "truth_report": enrichment.get("truth_report"),
+            "provenance": enrichment.get("provenance"),
+        })
+    if not verified_records:
+        raise HTTPException(422, {"message": "No addresses passed official verification", "rejected": rejected[:50]})
+    imported = import_records(
+        {
+            "source": requested_source,
+            "records": verified_records,
+            "_autonomous_review_only": True,
+            "external_batch_id": f"paste-{datetime.now(timezone.utc).isoformat()}",
+        },
+        principal,
+        db,
+    )
+    return {
+        **imported,
+        "verified": len(verified_records),
+        "rejected_lines": rejected,
+        "analyses": analyses,
+        "valuation_ready": False,
+        "outreach_allowed": False,
+        "next_step": "Add licensed comparable sales and verify ownership before underwriting or outreach.",
     }

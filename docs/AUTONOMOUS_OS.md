@@ -46,6 +46,10 @@ Configure:
 
 The response must be a JSON array or `{ "records": [...] }`. Discovered records are normalized and deduplicated through the tenant-scoped acquisition intake. New records are created as `property_candidate`, owner and contact fields are suppressed, and the system emits `PropertyCandidateDiscovered`. Human verification is required before lead conversion or outreach.
 
+### Paste and verify addresses
+
+Managers can paste up to 50 addresses at `/owner/acquisition` using either `street, city, ST ZIP` lines or CSV with optional asking price and HTTPS source URL. Sources may be labeled as public data, Facebook Marketplace/Group, FSBO, or another marketplace. `POST /acquisition-intake/paste-addresses` validates the input, rejects duplicates, verifies each location with Census, adds USGS terrain context, and creates review-only property candidates. The application does not log into or scrape marketplaces or private groups. Pasted addresses and asking prices are operator-supplied claims—not proof of listing rights, ownership, value, distress, or contact consent. Licensed comparable sales are required before wholesale valuation.
+
 ## Required production services
 
 - Managed PostgreSQL / Neon via `DATABASE_URL`
