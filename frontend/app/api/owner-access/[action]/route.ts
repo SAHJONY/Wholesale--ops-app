@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://wholesale-ops-2kqe2x2q1-personal-d82253df.vercel.app';
 const ALLOWED_ACTIONS = new Set(['health', 'login']);
 
 async function proxy(request: NextRequest, context: { params: Promise<{ action: string }> }) {
