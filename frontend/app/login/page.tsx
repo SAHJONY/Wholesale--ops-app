@@ -5,12 +5,12 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 const SESSION_STORAGE = 'sahjony_owner_session';
 const OWNER_EMAIL = 'sahjonycapitalllc@outlook.com';
-const DEFAULT_DESTINATION = '/owner/deals';
+const DEFAULT_DESTINATION = '/owner';
 
 function safeReturnTo() {
   if (typeof window === 'undefined') return DEFAULT_DESTINATION;
   const value = new URLSearchParams(window.location.search).get('returnTo') || DEFAULT_DESTINATION;
-  return value.startsWith('/owner/') && !value.startsWith('//') ? value : DEFAULT_DESTINATION;
+  return value.startsWith('/owner') && !value.startsWith('//') ? value : DEFAULT_DESTINATION;
 }
 
 export default function UnifiedLoginPage() {
