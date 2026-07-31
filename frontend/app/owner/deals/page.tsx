@@ -3,9 +3,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../owner.module.css';
 
-const API_URL = 'https://backend-pi-opal-65.vercel.app';
+const API_URL = '/api/backend';
 const SESSION_STORAGE = 'sahjony_owner_session';
-const SIGN_IN_URL = '/owner?returnTo=%2Fowner%2Fdeals';
+const SIGN_IN_URL = '/owner-access';
 
 type Deal = { id:number; property_id:number; stage:string; target_contract_price?:number; target_buyer_price?:number; projected_assignment_fee?:number; next_action?:string };
 type Packet = { id:number; deal_id:number; packet_type:string; status:string; signer_name?:string; signer_email?:string; template_id?:string; provider?:string; provider_status?:string; provider_reference?:string; docusign_envelope_id?:string; error?:string; created_at:string; sent_at?:string };
