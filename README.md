@@ -14,6 +14,7 @@ Production-oriented MVP for residential and commercial real-estate wholesale ope
 - Predictive cash-buyer matching
 - Driving-for-dollars lead intake
 - Human approval gates and audit-ready architecture
+- Property Truth Reports with field-level provenance, explicit unknowns, and evidence gates
 
 ## Quick start
 
