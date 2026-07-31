@@ -66,6 +66,18 @@ Authorized reverse-address or people-search findings may be recorded as owner-ca
 - Property/MLS/public-record provider credentials for automatic acquisition
 - Google Maps Platform credentials for mapping and Street View workflows
 
+## Business operating system
+
+The authenticated owner workspace includes `/owner/business` for company-level management beyond individual transactions:
+
+- monthly revenue, closed-contract, marketing, cash, and tax-reserve targets;
+- a tenant-scoped manual income and expense ledger;
+- net operating cash, tax reserve, marketing utilization, and cash-runway calculations;
+- recurring financial, compliance, vendor, and operational obligations with due-date alerts;
+- default daily, weekly, acquisition, and contract-to-close operating playbooks.
+
+This ledger is an operating dashboard, not a replacement for bookkeeping, tax, legal, payroll, or licensed accounting systems. Recorded figures should be reconciled against the company bank account and accounting platform.
+
 ## Deployment
 
 ```bash
