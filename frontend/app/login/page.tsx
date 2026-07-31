@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 const SESSION_STORAGE = 'sahjony_owner_session';
@@ -22,54 +23,29 @@ export default function UnifiedLoginPage() {
 
   useEffect(() => {
     const existing = window.localStorage.getItem(SESSION_STORAGE);
-    if (existing) {
-      window.location.replace(destination);
-      return;
-    }
-
+    if (existing) { window.location.replace(destination); return; }
     fetch('/api/owner-access/health', { cache: 'no-store' })
-      .then(async response => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        setStatus('System online');
-      })
+      .then(async response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); setStatus('System online'); })
       .catch(() => setStatus('System temporarily unavailable'));
   }, [destination]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
-
+    event.preventDefault(); setLoading(true); setError('');
     try {
       const response = await fetch('/api/owner-access/login', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
-
       const text = await response.text();
       let data: Record<string, unknown> = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(`Unreadable sign-in response (HTTP ${response.status}).`);
-      }
-
-      if (!response.ok) {
-        throw new Error(`${String(data.detail || 'Sign-in failed')} (HTTP ${response.status})`);
-      }
-
+      try { data = text ? JSON.parse(text) : {}; } catch { throw new Error(`Unreadable sign-in response (HTTP ${response.status}).`); }
+      if (!response.ok) throw new Error(`${String(data.detail || 'Sign-in failed')} (HTTP ${response.status})`);
       const token = String(data.access_token || '');
       if (!token) throw new Error('Sign-in succeeded without a session token.');
-
       window.localStorage.setItem(SESSION_STORAGE, token);
       window.location.replace(destination);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to sign in.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to sign in.'); }
+    finally { setLoading(false); }
   }
 
   return (
@@ -87,6 +63,7 @@ export default function UnifiedLoginPage() {
           <input id="app-password" value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete="current-password" required style={{padding:13,borderRadius:9,border:'1px solid #3b465a',fontSize:16}} />
           <button type="submit" disabled={loading || status !== 'System online'} style={{padding:13,borderRadius:9,fontWeight:800,fontSize:16,cursor:'pointer'}}>{loading?'Signing in…':'Sign in to SAHJONY Wholesale OS'}</button>
         </form>
+        <p style={{marginTop:14}}><Link href="/forgot-password" style={{color:'#b8d4ff'}}>Forgot password?</Link></p>
         <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>All authentication traffic stays on this application origin and is relayed through the secure backend gateway.</p>
       </section>
     </main>
