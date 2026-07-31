@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 
 from .acquisition_intake_models import AcquisitionImportBatch
 from .auth import Principal, get_principal, require_role
-from .auth_models import CrmActivity, WorkspaceEntity
+from .auth_models import CrmActivity, FollowUpTask, WorkspaceEntity
+from .background_jobs import BackgroundJob
 from .database import get_db
 from .event_bus import emit_event
-from .models import Lead, Property
+from .models import Deal, Lead, OpsTask, Property
 
 router = APIRouter(prefix="/acquisition-intake", tags=["autonomous acquisition intake"])
 
@@ -165,9 +166,28 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
     ).where(AcquisitionImportBatch.organization_id == principal.organization_id).group_by(
         AcquisitionImportBatch.status
     )).all())
+    candidate_ids = db.scalars(select(WorkspaceEntity.entity_id).where(
+        WorkspaceEntity.organization_id == principal.organization_id,
+        WorkspaceEntity.entity_type == "lead",
+    )).all()
+    candidates = db.scalars(select(Lead).where(
+        Lead.id.in_(candidate_ids),
+        Lead.status == "property_candidate",
+    ).order_by(Lead.created_at.desc()).limit(100)).all() if candidate_ids else []
     return {
         "counts": totals,
         "autonomous_feed": acquisition_feed_status(),
+        "candidates": [{
+            "lead_id": lead.id,
+            "property_id": lead.property.id if lead.property else None,
+            "address": lead.property.address if lead.property else None,
+            "city": lead.property.city if lead.property else None,
+            "state": lead.property.state if lead.property else None,
+            "zip_code": lead.property.zip_code if lead.property else None,
+            "source": lead.source,
+            "asking_price": lead.property.asking_price if lead.property else None,
+            "created_at": lead.created_at,
+        } for lead in candidates],
         "batches": [{
             "id": row.id, "source": row.source, "status": row.status,
             "records_received": row.records_received, "records_created": row.records_created,
@@ -175,6 +195,81 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             "records_rejected": row.records_rejected, "result": row.result_json,
             "created_at": row.created_at, "completed_at": row.completed_at,
         } for row in batches],
+    }
+
+
+@router.delete("/leads/{lead_id}")
+def delete_lead(
+    lead_id: int,
+    payload: dict | None = None,
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    linked = db.scalar(select(WorkspaceEntity).where(
+        WorkspaceEntity.organization_id == principal.organization_id,
+        WorkspaceEntity.entity_type == "lead",
+        WorkspaceEntity.entity_id == lead_id,
+    ))
+    lead = db.get(Lead, lead_id)
+    if not linked or not lead:
+        raise HTTPException(404, "Lead not found in this workspace")
+    active_deal = db.scalar(select(Deal).join(Property, Deal.property_id == Property.id).where(
+        Property.lead_id == lead_id,
+        Deal.stage.not_in(["closed", "dead"]),
+    ))
+    if active_deal:
+        raise HTTPException(409, f"Lead has active deal #{active_deal.id}; close or mark the deal dead before deletion")
+    reason = _clean((payload or {}).get("reason") or "Removed by workspace manager")
+    property_id = lead.property.id if lead.property else None
+    db.add(CrmActivity(
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+        lead_id=lead.id,
+        activity_type="lead_deleted",
+        summary=f"Lead #{lead.id} removed from active workspace",
+        metadata_json={"lead_id": lead.id, "property_id": property_id, "reason": reason, "deletion_mode": "soft_delete_pii_suppressed"},
+    ))
+    lead.status = "deleted"
+    lead.seller_name = "Deleted lead"
+    lead.phone = "deleted"
+    lead.email = None
+    lead.notes = f"Soft deleted at {datetime.now(timezone.utc).isoformat()}. Reason: {reason}"
+    for task in db.scalars(select(OpsTask).where(OpsTask.lead_id == lead_id, OpsTask.status.in_(["queued", "pending"]))).all():
+        task.status = "cancelled"
+    for follow_up in db.scalars(select(FollowUpTask).where(
+        FollowUpTask.organization_id == principal.organization_id,
+        FollowUpTask.lead_id == lead_id,
+        FollowUpTask.status.in_(["open", "pending"]),
+    )).all():
+        follow_up.status = "cancelled"
+    for job in db.scalars(select(BackgroundJob).where(
+        BackgroundJob.organization_id == principal.organization_id,
+        BackgroundJob.job_type == "acquisition_lead",
+        BackgroundJob.status.in_(["queued", "retry"]),
+    )).all():
+        if int((job.payload_json or {}).get("lead_id") or 0) == lead_id:
+            job.status = "cancelled"
+            job.completed_at = datetime.now(timezone.utc)
+    db.query(WorkspaceEntity).filter(
+        WorkspaceEntity.organization_id == principal.organization_id,
+        WorkspaceEntity.entity_type == "lead",
+        WorkspaceEntity.entity_id == lead_id,
+    ).delete(synchronize_session=False)
+    if property_id:
+        db.query(WorkspaceEntity).filter(
+            WorkspaceEntity.organization_id == principal.organization_id,
+            WorkspaceEntity.entity_type == "property",
+            WorkspaceEntity.entity_id == property_id,
+        ).delete(synchronize_session=False)
+    db.commit()
+    return {
+        "lead_id": lead_id,
+        "property_id": property_id,
+        "status": "deleted",
+        "recoverable_from_audit": False,
+        "audit_retained": True,
+        "contact_data_removed": True,
+        "reason": reason,
     }
 
 

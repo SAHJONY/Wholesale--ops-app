@@ -50,6 +50,12 @@ The response must be a JSON array or `{ "records": [...] }`. Discovered records 
 
 Managers can paste up to 50 addresses at `/owner/acquisition` using either `street, city, ST ZIP` lines or CSV with optional asking price and HTTPS source URL. Sources may be labeled as public data, Facebook Marketplace/Group, FSBO, or another marketplace. `POST /acquisition-intake/paste-addresses` validates the input, rejects duplicates, verifies each location with Census, adds USGS terrain context, and creates review-only property candidates. The application does not log into or scrape marketplaces or private groups. Pasted addresses and asking prices are operator-supplied claims—not proof of listing rights, ownership, value, distress, or contact consent. Licensed comparable sales are required before wholesale valuation.
 
+### Delete leads and research owner candidates
+
+Workspace managers can delete property-candidate leads from `/owner/acquisition`. Deletion removes the lead and property from the active workspace, suppresses seller contact data, cancels queued work, and records an audit activity. Leads attached to an active deal cannot be deleted until the deal is closed or marked dead.
+
+Authorized reverse-address or people-search findings may be recorded as owner-candidate research with a maximum confidence of 40%. They cannot verify legal ownership. Verification still requires corroboration from an official county assessor, recorder, clerk, or tax-collector record. The application does not automate or scrape people-search websites.
+
 ## Required production services
 
 - Managed PostgreSQL / Neon via `DATABASE_URL`
