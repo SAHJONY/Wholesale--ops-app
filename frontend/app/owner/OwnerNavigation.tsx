@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 type NavItem = { href: string; label: string; icon: string };
 
 const primary: NavItem[] = [
-  { href: '/owner/ceo-command', label: 'CEO command center', icon: '⌂' },
+  { href: '/owner', label: 'CEO command center', icon: '⌂' },
   { href: '/owner/attention', label: 'Attention', icon: '!' },
   { href: '/owner/acquisition', label: 'Acquisition pipeline', icon: '↗' },
   { href: '/owner/deals', label: 'Deals', icon: '◇' },
@@ -34,7 +34,7 @@ function LinkGroup({ label, items, pathname, onNavigate }: { label: string; item
   return <section className="ownerNavGroup">
     <span>{label}</span>
     {items.map(item => {
-      const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      const active = item.href === '/owner' ? pathname === '/owner' || pathname === '/owner/ceo-command' : pathname === item.href || pathname.startsWith(`${item.href}/`);
       return <a key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate}>
         <i aria-hidden="true">{item.icon}</i><span>{item.label}</span>
       </a>;
@@ -49,14 +49,14 @@ export default function OwnerNavigation() {
 
   return <>
     <header className="ownerMobileBar">
-      <a href="/owner/ceo-command" className="ownerMobileBrand"><span>S</span><b>SAHJONY</b></a>
+      <a href="/owner" className="ownerMobileBrand"><span>S</span><b>SAHJONY</b></a>
       <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls="owner-navigation">
         <span className="srOnly">Toggle navigation</span><i/><i/><i/>
       </button>
     </header>
     {open && <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} />}
     <aside id="owner-navigation" className={`ownerNav ${open ? 'open' : ''}`}>
-      <a href="/owner/ceo-command" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale OS</small></div></a>
+      <a href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale OS</small></div></a>
       <nav aria-label="Owner workspace">
         <LinkGroup label="Executive workspace" items={primary} pathname={pathname} onNavigate={() => setOpen(false)} />
         <LinkGroup label="Intelligence" items={intelligence} pathname={pathname} onNavigate={() => setOpen(false)} />
