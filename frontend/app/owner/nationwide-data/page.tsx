@@ -22,6 +22,7 @@ type Enrichment = {
     geography?: Record<string, string | null>;
   };
   county_context?: Record<string, string | number | null> | null;
+  terrain_context?: Record<string, string | number | boolean | null> | null;
   truth_report: {
     grade: string; verified_claims: number; total_claims: number; coverage_percent: number;
     claims: { field: string; value?: string | number | null; status: string; source: string; confidence: string; scope: string }[];
@@ -130,6 +131,10 @@ export default function NationwideDataPage() {
         </section>
         <div className={styles.cycleSummary}>{result.truth_report.decision_gate.reason}</div>
         <div className={styles.list}>{result.truth_report.claims.map(item => <div key={item.field}><span><b>{item.field.replaceAll('_', ' ')}</b><small>{String(item.value ?? 'Not returned')} · {item.source} · {item.scope} · {item.confidence}</small></span><strong>{item.status}</strong></div>)}</div>
+      </section>
+      <section className={styles.cardWide}>
+        <div className={styles.cardHeader}><div><span className={styles.eyebrow}>USGS TERRAIN CONTEXT</span><h2>3DEP ground elevation</h2></div><strong>{result.terrain_context ? 'AVAILABLE' : 'UNAVAILABLE'}</strong></div>
+        <div className={styles.list}>{result.terrain_context ? Object.entries(result.terrain_context).map(([key, value]) => <div key={key}><span><b>{key.replaceAll('_', ' ')}</b><small>{String(value ?? 'n/a')}</small></span></div>) : <p>USGS did not return terrain context for this coordinate.</p>}</div>
       </section>
       <section className={styles.cardWide}>
         <div className={styles.cardHeader}><div><span className={styles.eyebrow}>CORE FACTS STILL REQUIRED</span><h2>Unknown means unknown</h2></div><strong>{result.truth_report.unknowns.length} BLOCKERS</strong></div>

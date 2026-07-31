@@ -39,7 +39,7 @@ class BackgroundJob(Base):
 
 
 router = APIRouter(prefix="/jobs", tags=["durable background jobs"])
-SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead"}
+SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead", "autonomous_property_acquisition"}
 STALE_LOCK_MINUTES = 20
 SCHEDULE = "*/15 * * * *"
 
@@ -121,6 +121,9 @@ async def _execute_job(db: Session, principal: Principal, job: BackgroundJob) ->
         except Exception as exc:
             raise RuntimeError(f"Acquisition worker unavailable: {type(exc).__name__}: {exc}") from exc
         return await _process_one(db, principal, lead, force=bool(job.payload_json.get("force")))
+    if job.job_type == "autonomous_property_acquisition":
+        from .autonomous_property_acquisition import run_autonomous_property_acquisition
+        return await run_autonomous_property_acquisition(db, principal)
     raise RuntimeError(f"Unsupported job type: {job.job_type}")
 
 
@@ -264,6 +267,23 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
             results.append({"organization_id": organization.id, "status": "skipped", "reason": "active owner not found"})
             continue
         try:
+            from .autonomous_property_acquisition import acquisition_feed_status
+            feed = acquisition_feed_status()
+            pending_feed_job = db.scalar(select(BackgroundJob.id).where(
+                BackgroundJob.organization_id == organization.id,
+                BackgroundJob.job_type == "autonomous_property_acquisition",
+                BackgroundJob.status.in_(["queued", "retry", "running"]),
+            ))
+            if feed["enabled"] and feed["configured"] and feed["secure"] and not pending_feed_job:
+                db.add(BackgroundJob(
+                    organization_id=organization.id,
+                    job_type="autonomous_property_acquisition",
+                    status="queued",
+                    priority=70,
+                    payload_json={"review_only": True},
+                    created_by_user_id=principal.user_id,
+                ))
+                db.commit()
             results.append(await _run_available(db, principal, 20, "vercel_cron"))
         except Exception as exc:
             db.rollback()

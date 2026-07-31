@@ -33,6 +33,19 @@ The system may analyze, prioritize, draft, queue, and recommend autonomously. It
 
 Acquisition source tasks never fabricate property records. When a licensed/public source connector is absent, the run completes with `connector_required`. Real ingestion requires an authorized provider or public data adapter.
 
+## Autonomous property discovery
+
+The durable job system supports `autonomous_property_acquisition`. On each scheduled run, it can pull up to 1,000 JSON records from one operator-configured HTTPS feed. Arbitrary user-supplied feed URLs are not accepted.
+
+Configure:
+
+- `ENABLE_AUTONOMOUS_PROPERTY_ACQUISITION=true`
+- `AUTONOMOUS_PROPERTY_FEED_URL=https://authorized-provider.example/feed`
+- `AUTONOMOUS_PROPERTY_FEED_SOURCE=county` (or another supported intake source)
+- `AUTONOMOUS_PROPERTY_FEED_TOKEN=` when the provider uses bearer authentication
+
+The response must be a JSON array or `{ "records": [...] }`. Discovered records are normalized and deduplicated through the tenant-scoped acquisition intake. New records are created as `property_candidate`, owner and contact fields are suppressed, and the system emits `PropertyCandidateDiscovered`. Human verification is required before lead conversion or outreach.
+
 ## Required production services
 
 - Managed PostgreSQL / Neon via `DATABASE_URL`

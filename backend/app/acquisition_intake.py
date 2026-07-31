@@ -94,6 +94,7 @@ def _number(value, cast=float):
 
 @router.get("/snapshot")
 def snapshot(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
+    from .autonomous_property_acquisition import acquisition_feed_status
     batches = db.scalars(select(AcquisitionImportBatch).where(
         AcquisitionImportBatch.organization_id == principal.organization_id
     ).order_by(AcquisitionImportBatch.created_at.desc()).limit(50)).all()
@@ -104,6 +105,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
     )).all())
     return {
         "counts": totals,
+        "autonomous_feed": acquisition_feed_status(),
         "batches": [{
             "id": row.id, "source": row.source, "status": row.status,
             "records_received": row.records_received, "records_created": row.records_created,
@@ -124,6 +126,7 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
         raise HTTPException(422, "records must be a non-empty list")
     if len(records) > 1000:
         raise HTTPException(422, "A single import is limited to 1,000 records")
+    review_only = bool(payload.get("_autonomous_review_only"))
 
     batch = AcquisitionImportBatch(
         organization_id=principal.organization_id,
@@ -191,9 +194,15 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             continue
 
         lead = Lead(
-            seller_name=record["seller_name"], phone=record["phone"] or "unknown",
-            email=record["email"], source=record["source"], status="new",
-            notes=f"Imported through acquisition intake batch #{batch.id}",
+            seller_name="Unverified owner" if review_only else record["seller_name"],
+            phone="unknown" if review_only else record["phone"] or "unknown",
+            email=None if review_only else record["email"], source=record["source"],
+            status="property_candidate" if review_only else "new",
+            notes=(
+                f"Autonomously discovered through acquisition intake batch #{batch.id}. "
+                "Ownership, contact consent, and outreach eligibility are not verified."
+                if review_only else f"Imported through acquisition intake batch #{batch.id}"
+            ),
         )
         prop = Property(
             lead=lead, address=record["address"], city=record["city"], state=record["state"],
@@ -217,9 +226,16 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             ),
         ])
         event = emit_event(
-            db, principal.organization_id, "LeadCreated", "lead", lead.id,
-            payload={"property_id": prop.id, "source": source, "batch_id": batch.id},
-            source="acquisition_intake",
+            db, principal.organization_id,
+            "PropertyCandidateDiscovered" if review_only else "LeadCreated",
+            "property" if review_only else "lead",
+            prop.id if review_only else lead.id,
+            payload={
+                "lead_id": lead.id, "property_id": prop.id, "source": source,
+                "batch_id": batch.id, "review_only": review_only,
+                "outreach_allowed": False if review_only else None,
+            },
+            source="autonomous_property_acquisition" if review_only else "acquisition_intake",
             event_key=f"acquisition:{principal.organization_id}:{source}:{record['external_id'] or key}",
         )
         created += 1
@@ -238,4 +254,5 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
         "batch_id": batch.id, "source": source, "received": len(records),
         "created": created, "updated": updated, "duplicate": duplicate,
         "rejected": rejected, "results": results,
+        "review_only": review_only,
     }

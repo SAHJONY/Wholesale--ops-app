@@ -21,6 +21,10 @@ CENSUS_ACS_URL = os.getenv(
     "CENSUS_ACS_URL",
     "https://api.census.gov/data/2024/acs/acs5",
 )
+USGS_ELEVATION_URL = os.getenv(
+    "USGS_ELEVATION_URL",
+    "https://epqs.nationalmap.gov/v1/json",
+)
 REQUEST_TIMEOUT_SECONDS = 15.0
 MAX_ATTEMPTS = 3
 
@@ -88,6 +92,7 @@ def build_truth_report(
     normalized: dict[str, Any],
     county_context: dict[str, Any] | None,
     observed_at: str,
+    terrain_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Turn provider output into field-level evidence without promoting estimates to facts."""
     geography = normalized.get("geography") or {}
@@ -125,6 +130,13 @@ def build_truth_report(
             "high_for_aggregate_context",
             "county",
         )
+    claim(
+        "ground_elevation_feet",
+        terrain_context.get("elevation_feet") if terrain_context else None,
+        "usgs_3dep",
+        "interpolated_not_survey_grade",
+        "coordinate",
+    )
 
     verified = sum(item["status"] == "verified" for item in claims)
     unknowns = [
@@ -164,7 +176,7 @@ def build_truth_report(
     }
 
 
-async def _request_json(url: str, params: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
+async def _request_json(url: str, params: dict[str, Any]) -> tuple[Any, int, int]:
     last_error: Exception | None = None
     started = time.perf_counter()
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=True) as client:
@@ -189,6 +201,8 @@ async def _county_context(state_fips: str | None, county_fips: str | None) -> di
         "for": f"county:{county_fips}",
         "in": f"state:{state_fips}",
     }
+    if os.getenv("CENSUS_API_KEY"):
+        params["key"] = os.environ["CENSUS_API_KEY"]
     try:
         data, latency_ms, retries = await _request_json(CENSUS_ACS_URL, params)
     except HTTPException:
@@ -217,14 +231,53 @@ async def _county_context(state_fips: str | None, county_fips: str | None) -> di
     }
 
 
+async def _terrain_context(longitude: Any, latitude: Any) -> dict[str, Any] | None:
+    if longitude is None or latitude is None:
+        return None
+    try:
+        data, latency_ms, retries = await _request_json(
+            USGS_ELEVATION_URL,
+            {
+                "x": longitude,
+                "y": latitude,
+                "units": "Feet",
+                "wkid": 4326,
+                "includeDate": "false",
+            },
+        )
+        value = data.get("value") if isinstance(data, dict) else None
+        elevation = round(float(value), 1)
+    except (HTTPException, TypeError, ValueError):
+        return None
+    return {
+        "elevation_feet": elevation,
+        "dataset": "USGS 3D Elevation Program (3DEP)",
+        "resolution_meters": data.get("resolution"),
+        "raster_id": data.get("rasterId"),
+        "latency_ms": latency_ms,
+        "retries": retries,
+        "survey_grade": False,
+    }
+
+
 @router.get("/status")
 async def status(principal: Principal = Depends(get_principal)):
     services = []
-    for provider_id, url in (("census_geocoder", CENSUS_GEOCODER_URL), ("census_acs", CENSUS_ACS_URL)):
+    for provider_id, url in (
+        ("census_geocoder", CENSUS_GEOCODER_URL),
+        ("census_acs", CENSUS_ACS_URL),
+        ("usgs_3dep", USGS_ELEVATION_URL),
+    ):
         started = time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-                response = await client.get(url, params={"get": "NAME"} if provider_id == "census_acs" else {"benchmark": "Public_AR_Current", "format": "json"})
+                if provider_id == "census_acs":
+                    params = {"get": "NAME", "for": "us:*", **({"key": os.environ["CENSUS_API_KEY"]} if os.getenv("CENSUS_API_KEY") else {})}
+                elif provider_id == "usgs_3dep":
+                    params = {"x": -77.0365, "y": 38.8977, "units": "Feet", "wkid": 4326}
+                else:
+                    params = {"benchmark": "Public_AR_Current", "format": "json"}
+                response = await client.get(url, params=params)
             reachable = response.status_code < 500
             status_code = response.status_code
         except httpx.HTTPError:
@@ -280,7 +333,11 @@ async def enrich_address(payload: dict[str, Any], principal: Principal = Depends
         raise HTTPException(404, "Census did not return an address match")
     normalized = _normalize_match(matches[0])
     geography = normalized["geography"]
-    county_context = await _county_context(geography.get("state_fips"), geography.get("county_fips"))
+    coordinates = normalized["coordinates"]
+    county_context, terrain_context = await asyncio.gather(
+        _county_context(geography.get("state_fips"), geography.get("county_fips")),
+        _terrain_context(coordinates.get("longitude"), coordinates.get("latitude")),
+    )
     observed_at = datetime.now(timezone.utc).isoformat()
     return {
         "organization_id": principal.organization_id,
@@ -288,7 +345,8 @@ async def enrich_address(payload: dict[str, Any], principal: Principal = Depends
         "input": {"street": street, "city": city, "state": state, "zip_code": zip_code},
         "property": normalized,
         "county_context": county_context,
-        "truth_report": build_truth_report(normalized, county_context, observed_at),
+        "terrain_context": terrain_context,
+        "truth_report": build_truth_report(normalized, county_context, observed_at, terrain_context),
         "provenance": [
             {
                 "provider_id": "census_geocoder",
@@ -308,11 +366,21 @@ async def enrich_address(payload: dict[str, Any], principal: Principal = Depends
                 "latency_ms": county_context.get("latency_ms"),
                 "retries": county_context.get("retries"),
             }] if county_context else []),
+            *([{
+                "provider_id": "usgs_3dep",
+                "provider": "U.S. Geological Survey 3D Elevation Program",
+                "observed_at": observed_at,
+                "authority_tier": "federal_public_topography",
+                "confidence": "interpolated_not_survey_grade",
+                "latency_ms": terrain_context.get("latency_ms"),
+                "retries": terrain_context.get("retries"),
+            }] if terrain_context else []),
         ],
         "limitations": [
             "Census geocodes address ranges and does not prove that a structure exists.",
             "This response does not establish legal ownership, liens, probate, tax delinquency, or seller contact data.",
             "County-level context is aggregate statistical data and not a property valuation.",
+            "USGS elevation is interpolated terrain context and is not a survey, flood determination, or engineering measurement.",
         ],
         "workflow": {
             "committed": False,
