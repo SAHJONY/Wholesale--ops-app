@@ -35,7 +35,7 @@ def test_batchdata_verification_requires_controlled_address(monkeypatch):
     assert "street|city|state|zip" in result["reason"]
 
 
-def test_batchdata_verification_uses_post_without_exposing_data(monkeypatch):
+def test_batchdata_verification_uses_official_requests_address_contract(monkeypatch):
     monkeypatch.setenv("BATCHDATA_TEST_ADDRESS", "123 Main St|Pensacola|FL|32501")
     captured = {}
 
@@ -69,10 +69,13 @@ def test_batchdata_verification_uses_post_without_exposing_data(monkeypatch):
     result = verify_credentials(config)
 
     assert captured["url"] == config.lookup_url
-    assert captured["json"]["propertyAddress"]["street"] == "123 Main St"
+    assert captured["json"]["requests"][0]["address"]["street"] == "123 Main St"
+    assert captured["headers"]["Authorization"] == "Bearer sandbox-secret"
+    assert "X-API-Key" not in captured["headers"]
     assert result["state"] == "ready_verified"
     assert result["verified"] is True
     assert result["method"] == "POST"
+    assert result["request_contract"] == "requests[].address"
     assert result["request_id"] == "verify-123"
     assert result["data_committed"] is False
     assert result["contacts_exposed"] is False
@@ -121,6 +124,8 @@ def test_provider_intelligence_v3_is_preview_first_and_fail_closed():
     assert "BATCHDATA_PROPERTY_LOOKUP_URL" in adapter
     assert "BATCHDATA_SANDBOX_API_KEY" in adapter
     assert "BATCHDATA_TEST_ADDRESS" in adapter
+    assert '"requests"' in adapter
+    assert '"address"' in adapter
     assert "client.post" in adapter
     assert "test_address_redacted" in adapter
     assert "follow_redirects=False" in adapter
