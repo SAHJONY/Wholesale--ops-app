@@ -12,11 +12,12 @@ def test_provider_intelligence_v2_routes_and_contracts_present():
     assert 'prefix="/provider-intelligence"' in backend
     assert '@router.get("/snapshot")' in backend
     assert '@router.post("/orchestrate")' in backend
+    assert '@router.post("/verify")' in backend
     assert 'priority_then_fallback' in backend
     assert 'provenance' in backend
     assert 'confidence' in backend
     assert 'provider_intelligence_router' in index
-    assert "new Set(['snapshot','orchestrate'])" in gateway
+    assert "new Set(['snapshot','orchestrate','verify'])" in gateway
     assert '/api/provider-intelligence' in page
     assert 'Provider Intelligence Layer' in page
 
