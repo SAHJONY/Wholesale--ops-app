@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-const SESSION_STORAGE = 'sahjony_owner_session';
 const OWNER_EMAIL = 'sahjonycapitalllc@outlook.com';
 const DEFAULT_DESTINATION = '/owner';
 
@@ -22,30 +21,50 @@ export default function UnifiedLoginPage() {
   const destination = useMemo(() => safeReturnTo(), []);
 
   useEffect(() => {
-    const existing = window.localStorage.getItem(SESSION_STORAGE);
-    if (existing) { window.location.replace(destination); return; }
-    fetch('/api/owner-access/health', { cache: 'no-store' })
-      .then(async response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); setStatus('System online'); })
-      .catch(() => setStatus('System temporarily unavailable'));
+    let cancelled = false;
+    async function initialize() {
+      try {
+        const session = await fetch('/api/owner-access/session', { cache: 'no-store', credentials: 'same-origin' });
+        const sessionData = await session.json().catch(() => ({}));
+        if (session.ok && sessionData.authenticated) {
+          window.location.replace(destination);
+          return;
+        }
+        const health = await fetch('/api/owner-access/health', { cache: 'no-store' });
+        if (!health.ok) throw new Error(`HTTP ${health.status}`);
+        if (!cancelled) setStatus('System online');
+      } catch {
+        if (!cancelled) setStatus('System temporarily unavailable');
+      }
+    }
+    void initialize();
+    return () => { cancelled = true; };
   }, [destination]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setLoading(true); setError('');
+    event.preventDefault();
+    setLoading(true);
+    setError('');
     try {
       const response = await fetch('/api/owner-access/login', {
-        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       const text = await response.text();
       let data: Record<string, unknown> = {};
-      try { data = text ? JSON.parse(text) : {}; } catch { throw new Error(`Unreadable sign-in response (HTTP ${response.status}).`); }
+      try { data = text ? JSON.parse(text) : {}; }
+      catch { throw new Error(`Unreadable sign-in response (HTTP ${response.status}).`); }
       if (!response.ok) throw new Error(`${String(data.detail || 'Sign-in failed')} (HTTP ${response.status})`);
-      const token = String(data.access_token || '');
-      if (!token) throw new Error('Sign-in succeeded without a session token.');
-      window.localStorage.setItem(SESSION_STORAGE, token);
+      window.localStorage.removeItem('sahjony_owner_session');
       window.location.replace(destination);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to sign in.'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -64,7 +83,7 @@ export default function UnifiedLoginPage() {
           <button type="submit" disabled={loading || status !== 'System online'} style={{padding:13,borderRadius:9,fontWeight:800,fontSize:16,cursor:'pointer'}}>{loading?'Signing in…':'Sign in to SAHJONY Wholesale OS'}</button>
         </form>
         <p style={{marginTop:14}}><Link href="/forgot-password" style={{color:'#b8d4ff'}}>Forgot password?</Link></p>
-        <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>All authentication traffic stays on this application origin and is relayed through the secure backend gateway.</p>
+        <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>Authentication uses a secure same-origin HttpOnly session cookie.</p>
       </section>
     </main>
   );
