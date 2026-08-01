@@ -17,6 +17,7 @@ const primary: NavItem[] = [
 ];
 
 const intelligence: NavItem[] = [
+  { href: '/owner/live-data', label: 'Live data control plane', icon: '◉' },
   { href: '/owner/real-estate-intelligence', label: 'Property intelligence', icon: '◆' },
   { href: '/owner/nationwide-data', label: 'Nationwide data', icon: '✓' },
   { href: '/owner/national-intelligence', label: 'Market intelligence', icon: '◫' },
