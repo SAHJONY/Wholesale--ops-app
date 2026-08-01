@@ -22,11 +22,7 @@ class BatchDataConfig:
         if not api_key:
             return None
         lookup_url = (os.getenv("BATCHDATA_PROPERTY_LOOKUP_URL") or "").strip()
-        return cls(
-            api_key=api_key,
-            lookup_url=lookup_url,
-            environment="sandbox" if sandbox_key else "production",
-        )
+        return cls(api_key=api_key, lookup_url=lookup_url, environment="sandbox" if sandbox_key else "production")
 
 
 class BatchDataProviderError(RuntimeError):
@@ -53,7 +49,6 @@ def _classify(status_code: int) -> str:
 def _headers(api_key: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {api_key}",
-        "X-API-Key": api_key,
         "Accept": "application/json",
         "Content-Type": "application/json",
         "User-Agent": "SAHJONY-Wholesale-OS/Provider-Intelligence-v3",
@@ -62,12 +57,16 @@ def _headers(api_key: str) -> dict[str, str]:
 
 def _lookup_payload(address: dict[str, str]) -> dict[str, Any]:
     return {
-        "propertyAddress": {
-            "street": address.get("street", "").strip(),
-            "city": address.get("city", "").strip(),
-            "state": address.get("state", "").strip(),
-            "zip": address.get("zip", "").strip(),
-        }
+        "requests": [
+            {
+                "address": {
+                    "street": address.get("street", "").strip(),
+                    "city": address.get("city", "").strip(),
+                    "state": address.get("state", "").strip(),
+                    "zip": address.get("zip", "").strip(),
+                }
+            }
+        ]
     }
 
 
@@ -82,52 +81,27 @@ def _verification_address_from_env() -> dict[str, str] | None:
     return {"street": street, "city": city, "state": state, "zip": zip_code}
 
 
+def _post_lookup(config: BatchDataConfig, address: dict[str, str]) -> httpx.Response:
+    with httpx.Client(timeout=30.0, follow_redirects=False) as client:
+        return client.post(config.lookup_url, headers=_headers(config.api_key), json=_lookup_payload(address))
+
+
 def verify_credentials(config: BatchDataConfig) -> dict[str, Any]:
     if not config.lookup_url:
-        return {
-            "state": "configured_unverified",
-            "verified": False,
-            "environment": config.environment,
-            "reason": "BATCHDATA_PROPERTY_LOOKUP_URL missing",
-        }
+        return {"state": "configured_unverified", "verified": False, "environment": config.environment, "reason": "BATCHDATA_PROPERTY_LOOKUP_URL missing"}
     if not config.lookup_url.startswith("https://"):
-        return {
-            "state": "unavailable",
-            "verified": False,
-            "environment": config.environment,
-            "reason": "BatchData lookup URL must use HTTPS",
-        }
+        return {"state": "unavailable", "verified": False, "environment": config.environment, "reason": "BatchData lookup URL must use HTTPS"}
 
     address = _verification_address_from_env()
     if not address:
-        return {
-            "state": "configured_unverified",
-            "verified": False,
-            "environment": config.environment,
-            "reason": "BATCHDATA_TEST_ADDRESS missing or invalid; expected street|city|state|zip",
-        }
+        return {"state": "configured_unverified", "verified": False, "environment": config.environment, "reason": "BATCHDATA_TEST_ADDRESS missing or invalid; expected street|city|state|zip"}
 
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=False) as client:
-            response = client.post(
-                config.lookup_url,
-                headers=_headers(config.api_key),
-                json=_lookup_payload(address),
-            )
+        response = _post_lookup(config, address)
     except httpx.TimeoutException:
-        return {
-            "state": "unavailable",
-            "verified": False,
-            "environment": config.environment,
-            "reason": "verification timeout",
-        }
+        return {"state": "unavailable", "verified": False, "environment": config.environment, "reason": "verification timeout"}
     except httpx.HTTPError as exc:
-        return {
-            "state": "unavailable",
-            "verified": False,
-            "environment": config.environment,
-            "reason": type(exc).__name__,
-        }
+        return {"state": "unavailable", "verified": False, "environment": config.environment, "reason": type(exc).__name__}
 
     state = _classify(response.status_code)
     reason: str | None = None
@@ -151,6 +125,7 @@ def verify_credentials(config: BatchDataConfig) -> dict[str, Any]:
         "http_status": response.status_code,
         "request_id": response.headers.get("x-request-id") or response.headers.get("request-id"),
         "method": "POST",
+        "request_contract": "requests[].address",
         "test_address_redacted": True,
         "data_committed": False,
         "contacts_exposed": False,
@@ -166,12 +141,7 @@ def lookup_property(config: BatchDataConfig, address: dict[str, str]) -> dict[st
         raise BatchDataProviderError("unavailable", "BatchData lookup URL must use HTTPS")
 
     try:
-        with httpx.Client(timeout=30.0, follow_redirects=False) as client:
-            response = client.post(
-                config.lookup_url,
-                headers=_headers(config.api_key),
-                json=_lookup_payload(address),
-            )
+        response = _post_lookup(config, address)
     except httpx.TimeoutException as exc:
         raise BatchDataProviderError("unavailable", "BatchData lookup timed out") from exc
     except httpx.HTTPError as exc:
@@ -179,28 +149,18 @@ def lookup_property(config: BatchDataConfig, address: dict[str, str]) -> dict[st
 
     state = _classify(response.status_code)
     if state != "ready_verified":
-        raise BatchDataProviderError(
-            state,
-            f"BatchData lookup failed with HTTP {response.status_code}",
-            response.status_code,
-        )
+        raise BatchDataProviderError(state, f"BatchData lookup failed with HTTP {response.status_code}", response.status_code)
 
     try:
         raw = response.json()
     except ValueError as exc:
-        raise BatchDataProviderError(
-            "unavailable",
-            "BatchData returned unreadable JSON",
-            response.status_code,
-        ) from exc
+        raise BatchDataProviderError("unavailable", "BatchData returned unreadable JSON", response.status_code) from exc
 
-    request_id = response.headers.get("x-request-id") or response.headers.get("request-id")
-    observed_at = datetime.now(timezone.utc).isoformat()
     return {
         "provider_id": "batchdata",
         "environment": config.environment,
-        "request_id": request_id,
-        "observed_at": observed_at,
+        "request_id": response.headers.get("x-request-id") or response.headers.get("request-id"),
+        "observed_at": datetime.now(timezone.utc).isoformat(),
         "http_status": response.status_code,
         "raw": raw,
     }
