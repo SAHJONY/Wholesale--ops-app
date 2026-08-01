@@ -9,6 +9,7 @@ const primary: NavItem[] = [
   { href: '/owner', label: 'CEO command center', icon: '⌂' },
   { href: '/owner/attention', label: 'Attention', icon: '!' },
   { href: '/owner/nationwide-acquisition', label: 'Nationwide acquisition', icon: '★' },
+  { href: '/owner/properties', label: 'Property workspaces', icon: '▣' },
   { href: '/owner/acquisition', label: 'Acquisition pipeline', icon: '↗' },
   { href: '/owner/deals', label: 'Deals', icon: '◇' },
   { href: '/owner/communications', label: 'Seller communications', icon: '◌' },
