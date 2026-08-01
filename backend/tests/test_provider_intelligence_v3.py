@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from app.providers.batchdata import BatchDataConfig, canonicalize_lookup
+from app.providers import batchdata
+from app.providers.batchdata import BatchDataConfig, canonicalize_lookup, verify_credentials
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +22,63 @@ def test_batchdata_config_prefers_sandbox(monkeypatch):
     assert config.api_key == "sandbox-secret"
     assert config.environment == "sandbox"
     assert config.lookup_url.startswith("https://")
+
+
+def test_batchdata_verification_requires_controlled_address(monkeypatch):
+    monkeypatch.delenv("BATCHDATA_TEST_ADDRESS", raising=False)
+    config = BatchDataConfig("sandbox-secret", "https://example.test/property/lookup", "sandbox")
+
+    result = verify_credentials(config)
+
+    assert result["state"] == "configured_unverified"
+    assert result["verified"] is False
+    assert "street|city|state|zip" in result["reason"]
+
+
+def test_batchdata_verification_uses_post_without_exposing_data(monkeypatch):
+    monkeypatch.setenv("BATCHDATA_TEST_ADDRESS", "123 Main St|Pensacola|FL|32501")
+    captured = {}
+
+    class Response:
+        status_code = 200
+        headers = {"x-request-id": "verify-123"}
+
+        @staticmethod
+        def json():
+            return {"results": [{"owner": {"name": "Must not be returned"}}]}
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            captured["client_kwargs"] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, *, headers, json):
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["json"] = json
+            return Response()
+
+    monkeypatch.setattr(batchdata.httpx, "Client", Client)
+    config = BatchDataConfig("sandbox-secret", "https://example.test/property/lookup", "sandbox")
+
+    result = verify_credentials(config)
+
+    assert captured["url"] == config.lookup_url
+    assert captured["json"]["propertyAddress"]["street"] == "123 Main St"
+    assert result["state"] == "ready_verified"
+    assert result["verified"] is True
+    assert result["method"] == "POST"
+    assert result["request_id"] == "verify-123"
+    assert result["data_committed"] is False
+    assert result["contacts_exposed"] is False
+    assert result["external_actions"] is False
+    assert "owner" not in result
+    assert "raw" not in result
 
 
 def test_batchdata_canonicalizer_adds_field_level_provenance():
@@ -62,6 +120,11 @@ def test_provider_intelligence_v3_is_preview_first_and_fail_closed():
     assert "contact_data_committed\":False" in source
     assert "BATCHDATA_PROPERTY_LOOKUP_URL" in adapter
     assert "BATCHDATA_SANDBOX_API_KEY" in adapter
+    assert "BATCHDATA_TEST_ADDRESS" in adapter
+    assert "client.post" in adapter
+    assert "test_address_redacted" in adapter
     assert "follow_redirects=False" in adapter
     assert "include_contacts:false" in page
+    assert "PROVIDER INTELLIGENCE V3" in page
+    assert "Canonical Property Intelligence" in page
     assert "Provider data is evidence, not automatic authority" in page
