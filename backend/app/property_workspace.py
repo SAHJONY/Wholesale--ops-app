@@ -34,6 +34,29 @@ def _assert_property_access(db: Session, principal: Principal, property_id: int)
     return item
 
 
+def _buyer_zip_codes(buyer: Buyer) -> set[str]:
+    values = buyer.zip_codes if isinstance(buyer.zip_codes, list) else []
+    return {str(value).strip()[:5] for value in values if str(value).strip()}
+
+
+def _buyers_for_zip(db: Session, zip_code: str | None, limit: int = 25) -> list[Buyer]:
+    """Match buyers portably without database-specific JSON containment operators.
+
+    ``buyers.zip_codes`` is stored as SQLAlchemy JSON rather than PostgreSQL JSONB.
+    Filtering with ``.contains([zip])`` can therefore compile into a dialect-specific
+    operation that fails in production. Fetching the bounded buyer directory and
+    applying normalized ZIP membership in Python is portable across SQLite and
+    PostgreSQL and keeps an optional buyer match from crashing the property record.
+    """
+    normalized = str(zip_code or "").strip()[:5]
+    if not normalized:
+        return []
+    candidates = db.scalars(
+        select(Buyer).order_by(Buyer.reliability_score.desc(), Buyer.id.asc()).limit(1000)
+    ).all()
+    return [buyer for buyer in candidates if normalized in _buyer_zip_codes(buyer)][:limit]
+
+
 @router.get("")
 def list_property_workspaces(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     ids = _linked_property_ids(db, principal.organization_id)
@@ -78,7 +101,7 @@ def get_property_workspace(property_id: int, principal: Principal = Depends(get_
         Approval.entity_type.in_(["lead", "property", "deal"]),
         Approval.entity_id.in_([item.lead_id, property_id, deal.id if deal else -1]),
     ).order_by(Approval.created_at.desc())).all()
-    buyers = db.scalars(select(Buyer).where(Buyer.zip_codes.contains([item.zip_code])).order_by(Buyer.reliability_score.desc()).limit(25)).all() if item.zip_code else []
+    buyers = _buyers_for_zip(db, item.zip_code)
     return {
         "property": {
             "id": item.id, "address": item.address, "city": item.city, "state": item.state, "zip_code": item.zip_code,
