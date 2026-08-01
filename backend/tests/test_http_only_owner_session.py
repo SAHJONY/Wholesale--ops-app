@@ -37,3 +37,12 @@ def test_provider_ui_does_not_read_owner_token_from_browser_storage():
     source = read("frontend/app/owner/live-data/page.tsx")
     assert "localStorage.getItem" not in source
     assert "credentials:'same-origin'" in source
+
+
+def test_login_uses_cookie_session_and_cannot_loop_on_stale_local_storage():
+    source = read("frontend/app/login/page.tsx")
+    assert "/api/owner-access/session" in source
+    assert "sessionData.authenticated" in source
+    assert "localStorage.getItem" not in source
+    assert "localStorage.setItem" not in source
+    assert "localStorage.removeItem('sahjony_owner_session')" in source
