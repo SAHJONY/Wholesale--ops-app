@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-const SESSION='sahjony_owner_session';
 type Provider={id:string;name:string;priority:number;public:boolean;configured:boolean;verified:boolean;state:string;missing:string[];capabilities:string[];truth:string[];verification?:{http_status?:number;reason?:string|null}|null};
 type Snapshot={version:string;ready_count:number;provider_count:number;providers:Provider[];orchestration:Record<string,unknown>;safety:Record<string,boolean>};
 type RunResult={processed_count:number;committed_count:number;skipped_count:number;commit:boolean;results:Array<{property_id:number;status:string;address?:string;reason?:string;canonical?:Record<string,any>;providers_used?:string[];confidence?:number}>;truth_contract:Record<string,boolean>};
@@ -13,7 +12,7 @@ const stateLabel=(state:string)=>state.replaceAll('_',' ').toUpperCase();
 export default function LiveDataControlPlane(){
   const [data,setData]=useState<Snapshot|null>(null);const [result,setResult]=useState<RunResult|null>(null);
   const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [notice,setNotice]=useState('');
-  const request=useCallback(async(path:string,options:RequestInit={})=>{const token=localStorage.getItem(SESSION)||'';if(!token){location.replace('/login?returnTo=/owner/live-data');throw new Error('Owner session required');}const response=await fetch(`/api/provider-intelligence${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(options.headers||{})}});const body=await response.json().catch(()=>({}));if(response.status===401||response.status===403){localStorage.removeItem(SESSION);location.replace('/login?returnTo=/owner/live-data');throw new Error('Owner session expired');}if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);return body;},[]);
+  const request=useCallback(async(path:string,options:RequestInit={})=>{const response=await fetch(`/api/provider-intelligence${path}`,{...options,cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})}});const body=await response.json().catch(()=>({}));if(response.status===401||response.status===403){location.replace('/login?returnTo=/owner/live-data');throw new Error('Owner session expired');}if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);return body;},[]);
   const load=useCallback(async()=>{setLoading(true);setError('');try{setData(await request('/snapshot'));}catch(e){setError(e instanceof Error?e.message:'Unable to load Provider Intelligence');}finally{setLoading(false);}},[request]);
   useEffect(()=>{void load();},[load]);
   async function verify(providerId:string){setLoading(true);setError('');setNotice('');try{const response=await request('/verify',{method:'POST',body:JSON.stringify({provider_id:providerId})});const provider=response.provider as Provider;setNotice(`${provider.name}: ${stateLabel(provider.state)}${provider.verification?.http_status?` (HTTP ${provider.verification.http_status})`:''}`);await load();}catch(e){setError(e instanceof Error?e.message:'Provider verification failed');}finally{setLoading(false);}}
