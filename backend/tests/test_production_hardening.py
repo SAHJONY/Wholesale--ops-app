@@ -47,7 +47,13 @@ def test_every_api_operation_is_published_in_openapi():
 def test_all_owner_pages_are_present_and_nonempty():
     pages = sorted((ROOT / "frontend/app/owner").glob("**/page.tsx"))
     assert len(pages) >= 30
-    assert all("export default" in page.read_text() for page in pages)
+    assert all(
+    (
+        "export default" in page.read_text()
+        or "export { default }" in page.read_text()
+    )
+    for page in pages
+)
 
 
 def test_frontend_workspace_uses_only_root_lockfile():
