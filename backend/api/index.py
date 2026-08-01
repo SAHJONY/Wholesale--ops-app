@@ -39,6 +39,7 @@ from app.observability_middleware import install_observability
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
+from app.property_workspace import router as property_workspace_router
 from app.provider_activation import router as provider_activation_router
 from app.public_data_providers import router as public_data_router
 from app.real_estate_intelligence import router as real_estate_intelligence_router
@@ -71,6 +72,7 @@ app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)
 app.include_router(real_estate_intelligence_router)
+app.include_router(property_workspace_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)
