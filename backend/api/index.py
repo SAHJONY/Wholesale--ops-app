@@ -31,6 +31,7 @@ from app.integration_reliability import router as integration_reliability_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
+from app.live_public_enrichment import router as live_public_enrichment_router
 from app.main import app
 from app.national_intelligence_safe import router as national_intelligence_router
 from app.nationwide_public_data import router as nationwide_public_data_router
@@ -67,6 +68,7 @@ app.include_router(go_live_router)
 app.include_router(launch_validation_router)
 app.include_router(provider_activation_router)
 app.include_router(public_data_router)
+app.include_router(live_public_enrichment_router)
 app.include_router(nationwide_public_data_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
