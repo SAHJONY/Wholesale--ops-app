@@ -17,7 +17,7 @@ def test_provider_intelligence_v4_routes_and_contracts_present():
     assert 'field_level_provenance' in backend
     assert 'confidence' in backend
     assert 'provider_intelligence_router' in index
-    assert "'snapshot','orchestrate','verify','batchdata/connect','batchdata/disconnect'" in gateway
+    assert "'snapshot','orchestrate','verify'" in gateway
     assert '/api/provider-intelligence' in page
     assert 'PROVIDER INTELLIGENCE V4' in page
     assert 'Canonical Property Intelligence' in page

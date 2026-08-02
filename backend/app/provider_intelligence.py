@@ -4,15 +4,13 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import Principal, require_role
 from .auth_models import CrmActivity, WorkspaceEntity
-from .config import settings
 from .database import get_db
 from .live_public_enrichment import _fetch_census, _one_line_address
 from .models import Property
@@ -20,11 +18,8 @@ from .providers.batchdata import (
     BatchDataConfig,
     BatchDataProviderError,
     canonicalize_lookup,
-    complete_oauth,
-    disconnect,
+    credential_status,
     lookup_property,
-    oauth_status,
-    start_oauth,
     verify_credentials,
 )
 
@@ -36,7 +31,7 @@ PROVIDERS = (
     {"id":"county_recorder","name":"County Recorder","priority":95,"public":True,"credential_env":"COUNTY_RECORDER_BASE_URL","capabilities":["deeds","mortgages","liens","releases"],"truth":["recorded_documents"]},
     {"id":"attom","name":"ATTOM","priority":90,"public":False,"credential_env":"ATTOM_API_KEY","capabilities":["property","owner","mortgage","avm","foreclosure"],"truth":["licensed_property_data"]},
     {"id":"mls_idx","name":"MLS/IDX","priority":85,"public":False,"credential_env":"MLS_IDX_BASE_URL","capabilities":["sold_comps","listings","days_on_market","price_history"],"truth":["licensed_listing_data"]},
-    {"id":"batchdata","name":"BatchData MCP","priority":80,"public":False,"credential_env":"BATCHDATA_MCP_URL","capabilities":["property","owner","phones","emails","valuation","mortgages","liens","comparables","contact_confidence"],"truth":["licensed_property_data","licensed_owner_data","licensed_contact_data"]},
+    {"id":"batchdata","name":"BatchData MCP","priority":80,"public":False,"credential_env":"BATCHDATA_API_TOKEN","capabilities":["property","owner","phones","emails","valuation","mortgages","liens","comparables","contact_confidence"],"truth":["licensed_property_data","licensed_owner_data","licensed_contact_data"]},
 )
 
 
@@ -53,7 +48,10 @@ class ProviderVerificationRequest(BaseModel):
 
 
 def _batchdata_configured() -> bool:
-    return bool((os.getenv("BATCHDATA_MCP_URL") or "").strip())
+    return bool(
+        (os.getenv("BATCHDATA_MCP_URL") or "").strip()
+        and (os.getenv("BATCHDATA_API_TOKEN") or "").strip()
+    )
 
 
 def _status(
@@ -71,14 +69,15 @@ def _status(
     verification: dict[str, Any] | None = None
     missing = [] if configured else ([env] if env else [])
 
-    if provider["id"] == "batchdata" and configured:
+    if provider["id"] == "batchdata":
         config = BatchDataConfig.from_env()
-        connection = oauth_status(config, db, organization_id)
+        connection = credential_status(config)
+        configured = bool(connection["configured"])
         state = connection["state"]
         verified = False
         missing = connection["missing"]
         verification = connection
-        if verify_live and config and connection.get("connected"):
+        if verify_live and config and configured:
             verification = verify_credentials(config, db, organization_id)
             state = verification["state"]
             verified = bool(verification["verified"])
@@ -162,7 +161,7 @@ def snapshot(
             "field_level_provenance":True,
             "confidence_required":True,
             "preview_first":True,
-            "batchdata_mode":"oauth_mcp",
+            "batchdata_mode":"server_token_mcp",
         },
         "safety": {
             "external_actions":False,
@@ -192,51 +191,6 @@ def verify_provider(
         "safe_check_only": True,
         "credentials_exposed": False,
     }
-
-
-@router.post("/batchdata/connect")
-def connect_batchdata(
-    principal: Principal = Depends(require_role("manager")),
-    db: Session = Depends(get_db),
-):
-    config = BatchDataConfig.from_env()
-    if not config:
-        raise HTTPException(503, "BATCHDATA_MCP_URL is not configured")
-    try:
-        result = start_oauth(config, db, principal.organization_id, principal.user_id)
-    except BatchDataProviderError as exc:
-        raise HTTPException(exc.http_status or 503, str(exc)) from exc
-    return {**result, "external_actions": False, "owner_authorization_required": True}
-
-
-@router.get("/batchdata/callback", include_in_schema=False)
-def batchdata_callback(
-    code: str = Query(min_length=1),
-    state: str = Query(min_length=1),
-    db: Session = Depends(get_db),
-):
-    config = BatchDataConfig.from_env()
-    target = f"{settings.app_url.rstrip('/')}/owner/live-data"
-    if not config:
-        return RedirectResponse(f"{target}?batchdata=configuration_error", status_code=303)
-    try:
-        complete_oauth(config, db, code, state)
-    except BatchDataProviderError:
-        db.rollback()
-        return RedirectResponse(f"{target}?batchdata=authorization_error", status_code=303)
-    return RedirectResponse(f"{target}?batchdata=connected", status_code=303)
-
-
-@router.post("/batchdata/disconnect")
-def disconnect_batchdata(
-    principal: Principal = Depends(require_role("owner")),
-    db: Session = Depends(get_db),
-):
-    config = BatchDataConfig.from_env()
-    if not config:
-        raise HTTPException(503, "BATCHDATA_MCP_URL is not configured")
-    disconnected = disconnect(config, db, principal.organization_id)
-    return {"disconnected": disconnected, "external_actions": False}
 
 
 @router.post("/orchestrate")

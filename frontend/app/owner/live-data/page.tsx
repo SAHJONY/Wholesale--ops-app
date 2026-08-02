@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-type Provider={id:string;name:string;priority:number;public:boolean;configured:boolean;verified:boolean;state:string;missing:string[];capabilities:string[];truth:string[];verification?:{http_status?:number;reason?:string|null;environment?:string;connected?:boolean}|null};
+type Provider={id:string;name:string;priority:number;public:boolean;configured:boolean;verified:boolean;state:string;missing:string[];capabilities:string[];truth:string[];verification?:{http_status?:number;reason?:string|null;environment?:string}|null};
 type Snapshot={version:string;ready_count:number;provider_count:number;providers:Provider[];orchestration:Record<string,unknown>;safety:Record<string,boolean>};
 type ProviderError={provider_id:string;state:string;http_status?:number|null;reason:string};
 type ResultRow={property_id:number;status:string;address?:string;reason?:string;canonical?:Record<string,any>;providers_used?:string[];provider_errors?:ProviderError[];confidence?:number;owner_review_required?:boolean;external_actions?:boolean};
@@ -42,30 +42,7 @@ export default function LiveDataControlPlane(){
     finally{setLoading(false);}
   },[request]);
 
-  useEffect(()=>{
-    const oauth=new URLSearchParams(location.search).get('batchdata');
-    if(oauth==='connected')setNotice('BatchData MCP OAuth connected. Verify the lookup_property tool before running property queries.');
-    if(oauth==='authorization_error'||oauth==='configuration_error')setError('BatchData authorization did not complete. Review the backend configuration and try again.');
-    if(oauth)history.replaceState(null,'',location.pathname);
-    void load();
-  },[load]);
-
-  async function connectBatchData(){
-    setLoading(true);setError('');setNotice('');
-    try{
-      const response=await request('/batchdata/connect',{method:'POST',body:'{}'});
-      if(!response.authorization_url)throw new Error('BatchData did not return an authorization URL');
-      location.assign(response.authorization_url);
-    }catch(e){setError(e instanceof Error?e.message:'Unable to start BatchData authorization');setLoading(false);}
-  }
-
-  async function disconnectBatchData(){
-    if(!confirm('Disconnect BatchData MCP for this workspace? Property queries will stop until an owner reconnects.'))return;
-    setLoading(true);setError('');setNotice('');
-    try{await request('/batchdata/disconnect',{method:'POST',body:'{}'});setNotice('BatchData MCP disconnected.');await load();}
-    catch(e){setError(e instanceof Error?e.message:'Unable to disconnect BatchData');}
-    finally{setLoading(false);}
-  }
+  useEffect(()=>{void load();},[load]);
 
   async function verify(providerId:string){
     setLoading(true);setError('');setNotice('');
@@ -94,7 +71,7 @@ export default function LiveDataControlPlane(){
 
   return <main className={styles.page}>
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>PROVIDER INTELLIGENCE V4</span><h1>Canonical Property Intelligence</h1><p>Nationwide provider orchestration with BatchData MCP OAuth, Census fallback, field-level provenance, underwriting gates, and owner-controlled commits.</p></div>
+      <div><span className={styles.eyebrow}>PROVIDER INTELLIGENCE V4</span><h1>Canonical Property Intelligence</h1><p>Nationwide provider orchestration with BatchData MCP server-token authentication, Census fallback, field-level provenance, underwriting gates, and owner-controlled commits.</p></div>
       <div className={styles.actions}>
         <button onClick={()=>void run(false)} disabled={loading}>Preview orchestration</button>
         <button onClick={()=>void run(true)} disabled={loading}>Commit governed record</button>
@@ -124,7 +101,7 @@ export default function LiveDataControlPlane(){
 
     <section className={styles.cardWide}>
       <div className={styles.cardHeader}><div><span className={styles.eyebrow}>PROVIDER MESH</span><h2>Priority, readiness, and credential verification</h2></div><strong>{data?.provider_count||0}</strong></div>
-      <div className={styles.list}>{data?.providers.map(p=><div key={p.id}><span><b>{p.name}</b><small>Priority {p.priority} · {p.capabilities.join(', ')}{p.missing.length?` · Missing: ${p.missing.join(', ')}`:''}{p.verification?.environment?` · ${p.verification.environment}`:''}{p.verification?.http_status?` · HTTP ${p.verification.http_status}`:''}{p.verification?.reason?` · ${p.verification.reason}`:''}</small></span><span><strong>{stateLabel(p.state)}</strong>{p.id==='batchdata'&&!p.verification?.connected&&p.configured&&<button onClick={()=>void connectBatchData()} disabled={loading}>Connect OAuth</button>}{p.id==='batchdata'&&p.verification?.connected&&<button onClick={()=>void disconnectBatchData()} disabled={loading}>Disconnect</button>}{p.configured&&!p.public&&(p.id!=='batchdata'||p.verification?.connected)&&<button onClick={()=>void verify(p.id)} disabled={loading}>Verify</button>}</span></div>)}{!data&&<p>Loading provider intelligence.</p>}</div>
+      <div className={styles.list}>{data?.providers.map(p=><div key={p.id}><span><b>{p.name}</b><small>Priority {p.priority} · {p.capabilities.join(', ')}{p.missing.length?` · Missing: ${p.missing.join(', ')}`:''}{p.verification?.environment?` · ${p.verification.environment}`:''}{p.verification?.http_status?` · HTTP ${p.verification.http_status}`:''}{p.verification?.reason?` · ${p.verification.reason}`:''}</small></span><span><strong>{stateLabel(p.state)}</strong>{p.configured&&!p.public&&<button onClick={()=>void verify(p.id)} disabled={loading}>Verify</button>}</span></div>)}{!data&&<p>Loading provider intelligence.</p>}</div>
     </section>
 
     <section className={styles.cardWide}>
