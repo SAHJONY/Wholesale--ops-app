@@ -148,6 +148,14 @@ def snapshot(
 ):
     providers = sorted((_status(p, db, principal.organization_id) for p in PROVIDERS), key=lambda p: -p["priority"])
     ready = [p for p in providers if p["state"] in {"ready", "ready_verified"}]
+    allowed_ids = _allowed_ids(db, principal.organization_id)
+    workspace_properties = list(db.scalars(select(Property).where(Property.id.in_(allowed_ids))).all()) if allowed_ids else []
+    eligible_property_count = sum(
+        1
+        for item in workspace_properties
+        if (item.state or "").upper() != "TX"
+        and all((value or "").strip() for value in (item.address, item.city, item.state, item.zip_code))
+    )
     return {
         "organization_id": principal.organization_id,
         "version": "4.0",
@@ -155,6 +163,7 @@ def snapshot(
         "providers": providers,
         "ready_count": len(ready),
         "provider_count": len(providers),
+        "eligible_property_count": eligible_property_count,
         "orchestration": {
             "strategy":"priority_then_fallback",
             "canonical_contract":True,

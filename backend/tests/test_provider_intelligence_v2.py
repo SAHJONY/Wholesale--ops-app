@@ -21,6 +21,20 @@ def test_provider_intelligence_v4_routes_and_contracts_present():
     assert '/api/provider-intelligence' in page
     assert 'PROVIDER INTELLIGENCE V4' in page
     assert 'Canonical Property Intelligence' in page
+    assert 'eligible_property_count' in backend
+    assert 'Providers available' in page
+    assert 'No Provider Intelligence v4 run' in page
+    assert 'Checking…' in page
+    assert 'AbortSignal.timeout(60000)' in gateway
+
+
+def test_provider_verification_does_not_immediately_erase_verified_state():
+    page = (ROOT / "frontend/app/owner/live-data/page.tsx").read_text()
+    verify_block = page.split("async function verify", 1)[1].split("async function run", 1)[0]
+
+    assert "setData(current=>" in verify_block
+    assert "await load()" not in verify_block
+    assert "Provider check timed out safely" in page
 
 
 def test_provider_intelligence_preserves_truth_and_safety_controls():
