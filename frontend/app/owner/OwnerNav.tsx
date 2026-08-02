@@ -17,6 +17,7 @@ const SECTIONS: { title: string; links: { href: string; label: string }[] }[] = 
   {
     title: 'Command',
     links: [
+      { href: '/owner/start', label: 'Start Here' },
       { href: '/owner', label: 'Control Plane' },
       { href: '/owner/attention', label: 'Needs Attention' },
       { href: '/owner/operations', label: 'Operations' },

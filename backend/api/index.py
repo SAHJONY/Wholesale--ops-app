@@ -27,6 +27,7 @@ from app.distress_providers import router as distress_providers_router
 from app.docuseal_events import router as docuseal_events_router
 from app.event_core import router as event_core_router
 from app.executive_ops import router as executive_ops_router
+from app.getting_started import router as getting_started_router
 from app.go_live import router as go_live_router
 from app.human_auth import router as human_auth_router
 from app.integration_hub import router as integration_hub_router
@@ -77,6 +78,7 @@ app.include_router(distress_ingest_router)
 app.include_router(distress_discovery_router)
 app.include_router(lead_verification_router)
 app.include_router(market_selection_router)
+app.include_router(getting_started_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)
