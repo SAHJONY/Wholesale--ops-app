@@ -26,12 +26,12 @@ export default function EventCorePage(){
     const text=await r.text();
     let body:any={};
     if(text){try{body=JSON.parse(text);}catch{body={detail:text};}}
-    if(r.status===401||r.status===403){localStorage.removeItem(SESSION_STORAGE);window.location.replace(SIGN_IN_URL);throw new Error('Owner session expired');}
+    if(r.status===401||r.status===403){window.location.replace(SIGN_IN_URL);throw new Error('Owner session expired');}
     if(!r.ok)throw new Error(typeof body.detail==='string'?body.detail:`Request failed (${r.status})`);
     return body;
   },[token]);
   const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{setData(await request('/snapshot',{},override));}catch(e){setError(e instanceof Error?e.message:'Unable to load event core');}finally{setLoading(false);}},[request]);
-  useEffect(()=>{const stored=localStorage.getItem(SESSION_STORAGE)||'';if(!stored){window.location.replace(SIGN_IN_URL);return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){window.location.replace(SIGN_IN_URL);return;}setToken(stored);void load(stored);},[load]);
   async function process(){setLoading(true);setError('');try{const r=await request('/process',{method:'POST',body:JSON.stringify({limit:100})});setNotice(`Processed ${r.processed}; completed ${r.completed}; failed ${r.failed}.`);await load();}catch(e){setError(e instanceof Error?e.message:'Unable to process events');}finally{setLoading(false);}}
   async function replay(id:number){setLoading(true);setError('');try{await request(`/events/${id}/replay`,{method:'POST',body:'{}'});setNotice(`Event #${id} queued for replay.`);await load();}catch(e){setError(e instanceof Error?e.message:'Unable to replay event');}finally{setLoading(false);}}
   async function toggle(s:Subscription){setLoading(true);setError('');try{await request(`/subscriptions/${s.id}`,{method:'PATCH',body:JSON.stringify({is_active:!s.is_active})});await load();}catch(e){setError(e instanceof Error?e.message:'Unable to update subscription');}finally{setLoading(false);}}

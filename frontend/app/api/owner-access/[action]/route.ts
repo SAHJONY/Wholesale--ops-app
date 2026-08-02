@@ -27,10 +27,42 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
   const { action } = await context.params;
 
   if (action === 'session') {
-    return NextResponse.json(
-      { authenticated: Boolean(request.cookies.get(SESSION_COOKIE)?.value) },
-      { headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
-    );
+    const token = request.cookies.get(SESSION_COOKIE)?.value || '';
+    if (!token) {
+      return NextResponse.json(
+        { authenticated: false },
+        { headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+      );
+    }
+    try {
+      const upstream = await fetch(`${BACKEND_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (upstream.status === 401 || upstream.status === 403) {
+        return clearSession(NextResponse.json(
+          { authenticated: false },
+          { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+        ));
+      }
+      if (!upstream.ok) {
+        return NextResponse.json(
+          { authenticated: false, detail: 'Session validation unavailable' },
+          { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+        );
+      }
+      const principal = await upstream.json();
+      return NextResponse.json(
+        { authenticated: true, principal },
+        { headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+      );
+    } catch {
+      return NextResponse.json(
+        { authenticated: false, detail: 'Session validation unavailable' },
+        { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+      );
+    }
   }
 
   const mapping = ACTIONS[action];

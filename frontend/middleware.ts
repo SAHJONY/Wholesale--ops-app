@@ -11,6 +11,21 @@ function safeOwnerReturnTo(value: string | null, fallback = '/owner') {
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  if (pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/owner';
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/owner-access/')) {
+    const session = request.cookies.get(SESSION_COOKIE)?.value;
+    if (session) {
+      const headers = new Headers(request.headers);
+      headers.set('authorization', `Bearer ${session}`);
+      return NextResponse.next({ request: { headers } });
+    }
+  }
+
   if (pathname === '/owner-access') {
     const url = request.nextUrl.clone();
     const requestedReturnTo = request.nextUrl.searchParams.get('returnTo');
@@ -21,12 +36,6 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === '/login') {
-    if (request.cookies.get(SESSION_COOKIE)?.value) {
-      const url = request.nextUrl.clone();
-      url.pathname = safeOwnerReturnTo(request.nextUrl.searchParams.get('returnTo'));
-      url.search = '';
-      return NextResponse.redirect(url);
-    }
     return NextResponse.next();
   }
 
@@ -44,5 +53,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/owner-access', '/login', '/owner/:path*'],
+  matcher: ['/', '/api/:path*', '/owner-access', '/login', '/owner/:path*'],
 };

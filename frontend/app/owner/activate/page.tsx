@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../owner.module.css';
 
-const API_URL = 'https://backend-pi-opal-65.vercel.app';
+const API_URL = '/api/backend';
 const SESSION_STORAGE = 'sahjony_owner_session';
 
 type Lead = {
@@ -119,7 +119,7 @@ export default function ActivationConsole() {
   }, [request, selectedLeadId]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(SESSION_STORAGE) || '';
+    const stored = 'cookie-session';
     setToken(stored);
     if (stored) void load(stored);
   }, [load]);

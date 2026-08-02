@@ -30,7 +30,11 @@ def health():
     return {"status": "ok", "service": "wholesale-ops-api", "version": "0.3.0"}
 
 
-@app.get("/dashboard")
+def _retired_legacy_endpoint():
+    raise HTTPException(410, "Legacy global endpoint retired; use an authenticated workspace endpoint")
+
+
+@app.get("/dashboard", dependencies=[Depends(_retired_legacy_endpoint)])
 def dashboard(db: Session = Depends(get_db)):
     leads = db.scalars(select(Lead)).all(); buyers = db.scalars(select(Buyer)).all()
     calls = db.scalars(select(Call)).all(); tasks = db.scalars(select(OpsTask)).all()
@@ -46,7 +50,7 @@ def dashboard(db: Session = Depends(get_db)):
             "autonomy_mode": "supervised_autonomous"}
 
 
-@app.post("/leads")
+@app.post("/leads", dependencies=[Depends(_retired_legacy_endpoint)])
 def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
     p = payload.property; score = distress_score(p.distress_signals)
     mao = calculate_mao(p.arv, p.repairs) if p.arv is not None and p.repairs is not None else None
@@ -61,7 +65,7 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
             "mao": mao, "autonomy_task_id": task.id}
 
 
-@app.get("/leads")
+@app.get("/leads", dependencies=[Depends(_retired_legacy_endpoint)])
 def list_leads(db: Session = Depends(get_db)):
     leads = db.scalars(select(Lead).order_by(Lead.created_at.desc())).all()
     return [{"id": x.id, "property_id": x.property.id if x.property else None,
@@ -72,13 +76,13 @@ def list_leads(db: Session = Depends(get_db)):
              "mao": x.property.mao if x.property else None} for x in leads]
 
 
-@app.post("/buyers")
+@app.post("/buyers", dependencies=[Depends(_retired_legacy_endpoint)])
 def create_buyer(payload: BuyerCreate, db: Session = Depends(get_db)):
     buyer = Buyer(**payload.model_dump()); db.add(buyer); db.commit(); db.refresh(buyer)
     return {"id": buyer.id, "name": buyer.name}
 
 
-@app.post("/underwrite")
+@app.post("/underwrite", dependencies=[Depends(_retired_legacy_endpoint)])
 def underwrite(payload: UnderwriteRequest):
     mao = calculate_mao(payload.arv, payload.repairs, payload.assignment_fee, payload.mao_factor)
     return {"arv": payload.arv, "repairs": payload.repairs, "assignment_fee": payload.assignment_fee,
@@ -86,7 +90,7 @@ def underwrite(payload: UnderwriteRequest):
             "flip_roi_on_cost": round(((payload.arv - payload.repairs - mao) / max(1, mao + payload.repairs)) * 100, 2)}
 
 
-@app.get("/properties/{property_id}/matches", response_model=list[MatchResult])
+@app.get("/properties/{property_id}/matches", response_model=list[MatchResult], dependencies=[Depends(_retired_legacy_endpoint)])
 def buyer_matches(property_id: int, db: Session = Depends(get_db)):
     prop = db.get(Property, property_id)
     if not prop: raise HTTPException(404, "Property not found")
@@ -97,7 +101,7 @@ def buyer_matches(property_id: int, db: Session = Depends(get_db)):
     return sorted(results, key=lambda item: item.score, reverse=True)
 
 
-@app.get("/properties/{property_id}/buyer-appetite")
+@app.get("/properties/{property_id}/buyer-appetite", dependencies=[Depends(_retired_legacy_endpoint)])
 def property_buyer_appetite(property_id: int, db: Session = Depends(get_db)):
     try: return buyer_appetite(db, property_id)
     except ValueError as exc: raise HTTPException(404, str(exc)) from exc
@@ -105,7 +109,9 @@ def property_buyer_appetite(property_id: int, db: Session = Depends(get_db)):
 
 @app.post("/webhooks/bland")
 def bland_webhook(payload: dict, x_webhook_secret: str | None = Header(default=None), db: Session = Depends(get_db)):
-    if settings.bland_webhook_secret and x_webhook_secret != settings.bland_webhook_secret:
+    if not settings.bland_webhook_secret:
+        raise HTTPException(503, "Bland webhook is not configured")
+    if x_webhook_secret != settings.bland_webhook_secret:
         raise HTTPException(401, "Invalid webhook secret")
     call_id = str(payload.get("call_id") or payload.get("id") or "")
     if not call_id: raise HTTPException(422, "Missing call_id")
@@ -117,17 +123,17 @@ def bland_webhook(payload: dict, x_webhook_secret: str | None = Header(default=N
     return {"accepted": True, "call_id": call_id}
 
 
-@app.post("/driving-for-dollars")
+@app.post("/driving-for-dollars", dependencies=[Depends(_retired_legacy_endpoint)])
 def driving_for_dollars(payload: LeadCreate, db: Session = Depends(get_db)):
     payload.source = "driving_for_dollars"
     return create_lead(payload, db)
 
 
-@app.get("/autonomy/agents")
+@app.get("/autonomy/agents", dependencies=[Depends(_retired_legacy_endpoint)])
 def autonomy_agents(): return AUTONOMY_AGENTS
 
 
-@app.get("/autonomy/status")
+@app.get("/autonomy/status", dependencies=[Depends(_retired_legacy_endpoint)])
 def autonomy_status(db: Session = Depends(get_db)):
     tasks = db.scalars(select(OpsTask).order_by(OpsTask.created_at.desc())).all()
     approvals = db.scalars(select(Approval).order_by(Approval.created_at.desc())).all()
@@ -145,7 +151,7 @@ def autonomy_status(db: Session = Depends(get_db)):
                            "sent_count": x.sent_count, "response_count": x.response_count} for x in campaigns]}
 
 
-@app.post("/autonomy/run")
+@app.post("/autonomy/run", dependencies=[Depends(_retired_legacy_endpoint)])
 def autonomy_run(payload: dict, db: Session = Depends(get_db)):
     agent_name = str(payload.get("agent_name") or "executive-orchestrator")
     objective = str(payload.get("objective") or "Run daily wholesale operations")
@@ -154,7 +160,7 @@ def autonomy_run(payload: dict, db: Session = Depends(get_db)):
             "confidence": run.confidence, "output": run.output_json}
 
 
-@app.post("/autonomy/tasks")
+@app.post("/autonomy/tasks", dependencies=[Depends(_retired_legacy_endpoint)])
 def enqueue_task(payload: dict, db: Session = Depends(get_db)):
     task = create_task(db, str(payload.get("task_type") or "daily_orchestration"), payload.get("payload") or {},
                        priority=int(payload.get("priority") or 50), lead_id=payload.get("lead_id"),
@@ -162,28 +168,28 @@ def enqueue_task(payload: dict, db: Session = Depends(get_db)):
     return {"id": task.id, "status": task.status, "task_type": task.task_type}
 
 
-@app.post("/autonomy/execute")
+@app.post("/autonomy/execute", dependencies=[Depends(_retired_legacy_endpoint)])
 def execute_tasks(payload: dict | None = None, db: Session = Depends(get_db)):
     tasks = execute_next_tasks(db, max(1, min(int((payload or {}).get("limit", 10)), 50)))
     return {"executed": len(tasks), "tasks": [{"id": x.id, "type": x.task_type,
             "status": x.status, "result": x.result, "error": x.error} for x in tasks]}
 
 
-@app.post("/autonomy/disposition/{property_id}")
+@app.post("/autonomy/disposition/{property_id}", dependencies=[Depends(_retired_legacy_endpoint)])
 def create_disposition(property_id: int, db: Session = Depends(get_db)):
     if not db.get(Property, property_id): raise HTTPException(404, "Property not found")
     task = create_task(db, "create_disposition_campaign", {"property_id": property_id}, priority=95, requires_approval=True)
     return {"task_id": task.id, "status": task.status, "approval_gate": True}
 
 
-@app.post("/acquisition/schedule")
+@app.post("/acquisition/schedule", dependencies=[Depends(_retired_legacy_endpoint)])
 def acquisition_schedule(payload: dict | None = None, db: Session = Depends(get_db)):
     payload = payload or {}
     runs = schedule_acquisition_runs(db, payload.get("markets"), payload.get("sources"))
     return {"scheduled": len(runs), "runs": [{"id": x.id, "source": x.source_type, "market": x.market} for x in runs]}
 
 
-@app.post("/deals/from-property/{property_id}")
+@app.post("/deals/from-property/{property_id}", dependencies=[Depends(_retired_legacy_endpoint)])
 def deal_from_property(property_id: int, db: Session = Depends(get_db)):
     try: deal = create_or_update_deal(db, property_id)
     except ValueError as exc: raise HTTPException(404, str(exc)) from exc
@@ -192,7 +198,7 @@ def deal_from_property(property_id: int, db: Session = Depends(get_db)):
             "projected_assignment_fee": deal.projected_assignment_fee, "next_action": deal.next_action}
 
 
-@app.get("/deals")
+@app.get("/deals", dependencies=[Depends(_retired_legacy_endpoint)])
 def list_deals(db: Session = Depends(get_db)):
     deals = db.scalars(select(Deal).order_by(Deal.created_at.desc())).all()
     return [{"id": x.id, "property_id": x.property_id, "stage": x.stage, "strategy": x.strategy,
@@ -202,7 +208,7 @@ def list_deals(db: Session = Depends(get_db)):
              "next_action": x.next_action} for x in deals]
 
 
-@app.post("/deals/{deal_id}/seller-offer")
+@app.post("/deals/{deal_id}/seller-offer", dependencies=[Depends(_retired_legacy_endpoint)])
 def seller_offer(deal_id: int, payload: dict | None = None, db: Session = Depends(get_db)):
     try: offer, approval = build_seller_offer(db, deal_id, (payload or {}).get("amount"))
     except ValueError as exc: raise HTTPException(422, str(exc)) from exc
@@ -210,18 +216,18 @@ def seller_offer(deal_id: int, payload: dict | None = None, db: Session = Depend
             "approval_id": approval.id, "approval_required": True}
 
 
-@app.post("/deals/{deal_id}/closing")
+@app.post("/deals/{deal_id}/closing", dependencies=[Depends(_retired_legacy_endpoint)])
 def start_closing(deal_id: int, db: Session = Depends(get_db)):
     try: items = initialize_closing(db, deal_id)
     except ValueError as exc: raise HTTPException(404, str(exc)) from exc
     return {"deal_id": deal_id, "items": [{"id": x.id, "type": x.item_type, "status": x.status} for x in items]}
 
 
-@app.get("/executive/brief")
+@app.get("/executive/brief", dependencies=[Depends(_retired_legacy_endpoint)])
 def get_executive_brief(db: Session = Depends(get_db)): return executive_brief(db)
 
 
-@app.post("/approvals/{approval_id}/decision")
+@app.post("/approvals/{approval_id}/decision", dependencies=[Depends(_retired_legacy_endpoint)])
 def decide_approval(approval_id: int, payload: dict, db: Session = Depends(get_db)):
     approval = db.get(Approval, approval_id)
     if not approval: raise HTTPException(404, "Approval not found")
@@ -242,7 +248,8 @@ def decide_approval(approval_id: int, payload: dict, db: Session = Depends(get_d
 @app.get("/cron/operations")
 def cron_operations(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
     secret = os.getenv("CRON_SECRET")
-    if secret and authorization != f"Bearer {secret}": raise HTTPException(401, "Invalid cron authorization")
+    if not secret: raise HTTPException(503, "Cron is not configured")
+    if authorization != f"Bearer {secret}": raise HTTPException(401, "Invalid cron authorization")
     run = run_agent(db, "executive-orchestrator", "Scheduled daily wholesale operations", {"trigger": "vercel_cron"})
     tasks = execute_next_tasks(db, 25)
     return {"agent_run_id": run.id, "executed": len(tasks), "brief": executive_brief(db)}

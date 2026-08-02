@@ -29,14 +29,14 @@ export default function GoLivePage(){
     try{
       const response=await fetch(API,{cache:'no-store',headers:{Authorization:`Bearer ${active}`}});
       const text=await response.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
-      if(response.status===401||response.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');return;}
+      if(response.status===401||response.status===403){location.replace('/owner-access');return;}
       if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);
       setData(body);
     }catch(e){setError(e instanceof Error?e.message:'Unable to load launch readiness');}
     finally{setLoading(false);}
   },[token]);
 
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
 
   const blockers=useMemo(()=>data.checks.filter(item=>!item.ready),[data.checks]);
   const ready=useMemo(()=>data.checks.filter(item=>item.ready),[data.checks]);

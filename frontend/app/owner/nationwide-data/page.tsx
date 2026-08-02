@@ -53,7 +53,7 @@ export default function NationwideDataPage() {
     let body: any = {};
     if (text) { try { body = JSON.parse(text); } catch { body = { detail: text }; } }
     if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem(SESSION);
+
       location.replace('/owner-access');
       throw new Error('Owner session expired');
     }
@@ -69,7 +69,7 @@ export default function NationwideDataPage() {
   }
 
   useEffect(() => {
-    const stored = localStorage.getItem(SESSION) || '';
+    const stored = 'cookie-session';
     if (!stored) { location.replace('/owner-access'); return; }
     setToken(stored);
     void loadStatus(stored);

@@ -26,7 +26,7 @@ export default function PublicDataPage(){
     setLoading(true);setNotice('');
     try{
       const response=await fetch(`${API}/catalog`,{cache:'no-store',headers:{Authorization:`Bearer ${active}`}});
-      if(response.status===401||response.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');return;}
+      if(response.status===401||response.status===403){location.replace('/owner-access');return;}
       const body=await response.json();
       if(!response.ok) throw new Error(body.detail||`Request failed (${response.status})`);
       setData({...empty,...body,providers:Array.isArray(body.providers)?body.providers:[]});
@@ -34,7 +34,7 @@ export default function PublicDataPage(){
     finally{setLoading(false);}
   },[token]);
 
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
 
   const licensed=data.providers.filter(p=>p.license_required);
   const publicSources=data.providers.filter(p=>!p.license_required);

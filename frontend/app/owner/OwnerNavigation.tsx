@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -33,14 +34,31 @@ const operations: NavItem[] = [
   { href: '/owner/security', label: 'Administration & security', icon: '⌾' },
 ];
 
+const advanced: NavItem[] = [
+  { href: '/owner/acquisition-automation', label: 'Acquisition automation', icon: '↯' },
+  { href: '/owner/activate', label: 'Activation console', icon: '△' },
+  { href: '/owner/audit', label: 'Audit trail', icon: '≡' },
+  { href: '/owner/continuity', label: 'Business continuity', icon: '∞' },
+  { href: '/owner/county', label: 'County verification', icon: '▤' },
+  { href: '/owner/data-intake', label: 'Data intake', icon: '⇩' },
+  { href: '/owner/events', label: 'Event core', icon: '⌁' },
+  { href: '/owner/go-live', label: 'Go-live readiness', icon: '▷' },
+  { href: '/owner/intelligence', label: 'Canonical intelligence', icon: '◈' },
+  { href: '/owner/launch-validation', label: 'Launch validation', icon: '✓' },
+  { href: '/owner/provider-activation', label: 'Provider activation', icon: '⊕' },
+  { href: '/owner/public-data', label: 'Public data providers', icon: '◎' },
+  { href: '/owner/sessions', label: 'Active sessions', icon: '⌁' },
+  { href: '/owner/test-deal', label: 'Deal rehearsal', icon: '◇' },
+];
+
 function LinkGroup({ label, items, pathname, onNavigate }: { label: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
   return <section className="ownerNavGroup">
     <span>{label}</span>
     {items.map(item => {
       const active = item.href === '/owner' ? pathname === '/owner' || pathname === '/owner/ceo-command' : pathname === item.href || pathname.startsWith(`${item.href}/`);
-      return <a key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate}>
+      return <Link key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate}>
         <i aria-hidden="true">{item.icon}</i><span>{item.label}</span>
-      </a>;
+      </Link>;
     })}
   </section>;
 }
@@ -52,18 +70,19 @@ export default function OwnerNavigation() {
 
   return <>
     <header className="ownerMobileBar">
-      <a href="/owner" className="ownerMobileBrand"><span>S</span><b>SAHJONY</b></a>
+      <Link href="/owner" className="ownerMobileBrand"><span>S</span><b>SAHJONY</b></Link>
       <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls="owner-navigation">
         <span className="srOnly">Toggle navigation</span><i/><i/><i/>
       </button>
     </header>
     {open && <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} />}
     <aside id="owner-navigation" className={`ownerNav ${open ? 'open' : ''}`}>
-      <a href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale OS</small></div></a>
+      <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale OS</small></div></Link>
       <nav aria-label="Owner workspace">
         <LinkGroup label="Executive workspace" items={primary} pathname={pathname} onNavigate={() => setOpen(false)} />
         <LinkGroup label="Intelligence" items={intelligence} pathname={pathname} onNavigate={() => setOpen(false)} />
         <LinkGroup label="Business operations" items={operations} pathname={pathname} onNavigate={() => setOpen(false)} />
+        <LinkGroup label="Advanced & setup" items={advanced} pathname={pathname} onNavigate={() => setOpen(false)} />
       </nav>
       <footer><span className="ownerLiveDot"/><div><b>Supervised autonomy</b><small>Human approval enforced</small></div></footer>
     </aside>

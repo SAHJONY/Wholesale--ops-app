@@ -18,13 +18,13 @@ export default function AcquisitionAutomationPage(){
     if(!active){location.replace('/owner-access');throw new Error('Owner session required');}
     const r=await fetch(`${API}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});
     const text=await r.text(); let body:any={}; if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
-    if(r.status===401||r.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');throw new Error('Owner session expired');}
+    if(r.status===401||r.status===403){location.replace('/owner-access');throw new Error('Owner session expired');}
     if(r.status===404)throw new Error('Acquisition Worker API is not deployed yet. Redeploy the backend from latest main.');
     if(!r.ok)throw new Error(body.detail||`Request failed (${r.status})`);
     return body;
   },[token]);
   const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{setData(await request('/snapshot',{},override));}catch(e){setError(e instanceof Error?e.message:'Unable to load automation');}finally{setLoading(false);}},[request]);
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
   async function runPending(){setLoading(true);setError('');try{const r=await request('/run-pending',{method:'POST',body:JSON.stringify({limit:10})});setNotice(`Processed ${r.processed} lead(s).`);await load();}catch(e){setError(e instanceof Error?e.message:'Automation run failed');}finally{setLoading(false);}}
   async function retry(leadId:number){setLoading(true);setError('');try{await request(`/leads/${leadId}/run`,{method:'POST',body:JSON.stringify({force:true})});setNotice(`Lead #${leadId} reprocessed.`);await load();}catch(e){setError(e instanceof Error?e.message:'Lead retry failed');}finally{setLoading(false);}}
   return <main className={styles.page}>

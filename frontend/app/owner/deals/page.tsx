@@ -29,7 +29,7 @@ export default function DealExecutionCenter() {
   const selectedDeal = useMemo(() => snapshot.deals.find(d => d.id === dealId) || snapshot.deals[0], [snapshot.deals,dealId]);
 
   const redirectToSignIn = useCallback(() => {
-    window.localStorage.removeItem(SESSION_STORAGE);
+
     setToken('');
     setAuthenticated(false);
     window.location.replace(SIGN_IN_URL);
@@ -58,7 +58,7 @@ export default function DealExecutionCenter() {
   },[request,dealId]);
 
   useEffect(()=>{
-    const stored=window.localStorage.getItem(SESSION_STORAGE)||'';
+    const stored='cookie-session';
     if (!stored) { redirectToSignIn(); return; }
     setToken(stored);
     void load(stored);
