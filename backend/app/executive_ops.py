@@ -9,6 +9,7 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .autonomy import AUTONOMY_AGENTS, create_task, execute_next_tasks, run_agent
 from .database import get_db
 from .models import AgentRun, Approval, Buyer, Deal, Lead, OpsTask, Property
+from .percentages import canonical_percentage
 from .services import lead_score
 
 router = APIRouter(prefix="/executive", tags=["executive operations"])
@@ -63,6 +64,15 @@ def _agent_health(runs: list[AgentRun], now: datetime) -> list[dict]:
     return health
 
 
+def _weighted_revenue(deals: list[Deal]) -> float:
+    return sum(
+        (deal.projected_assignment_fee or 0)
+        * canonical_percentage(deal.probability_to_close)
+        / 100
+        for deal in deals
+    )
+
+
 @router.get("/command-center")
 def command_center(
     principal: Principal = Depends(get_principal),
@@ -113,7 +123,7 @@ def command_center(
             "deal_id": deal.id,
             "stage": deal.stage,
             "risk_score": float(deal.risk_score or 0),
-            "probability_to_close": float(deal.probability_to_close or 0),
+            "probability_to_close": canonical_percentage(deal.probability_to_close),
             "projected_assignment_fee": deal.projected_assignment_fee or 0,
             "next_action": deal.next_action,
             "property": {
@@ -131,10 +141,7 @@ def command_center(
     failed = [task for task in tasks if task.status == "failed"]
     pending = [approval for approval in approvals if approval.status == "pending"]
     projected_revenue = sum(deal.projected_assignment_fee or 0 for deal in active_deals)
-    weighted_revenue = sum(
-        (deal.projected_assignment_fee or 0) * (deal.probability_to_close or 0) / 100
-        for deal in active_deals
-    )
+    weighted_revenue = _weighted_revenue(active_deals)
 
     return {
         "generated_at": now.isoformat(),
