@@ -102,7 +102,7 @@ def test_batchdata_canonicalizer_adds_field_level_provenance():
     assert canonical["confidence"] == 0.90
 
 
-def test_provider_intelligence_v3_is_preview_first_and_fail_closed():
+def test_provider_intelligence_v4_is_preview_first_and_fail_closed():
     source = read("backend/app/provider_intelligence.py")
     adapter = read("backend/app/providers/batchdata.py")
     page = read("frontend/app/owner/live-data/page.tsx")
