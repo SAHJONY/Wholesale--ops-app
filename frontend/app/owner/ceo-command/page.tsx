@@ -176,7 +176,7 @@ export default function CEOCommandCenter() {
         <div className={styles.dealList}>
           {(command?.deal_risk || []).slice(0, 8).map(deal => <div key={deal.deal_id}>
             <span><b>Deal #{deal.deal_id} · {label(deal.stage)}</b><small>{deal.next_action || 'Review next milestone'}</small></span>
-            <span><b>{money(deal.projected_assignment_fee)}</b><small>{Math.round((deal.probability_to_close || 0) * 100)}% close probability</small></span>
+            <span><b>{money(deal.projected_assignment_fee)}</b><small>{Math.round(deal.probability_to_close || 0)}% close probability</small></span>
           </div>)}
           {!command?.deal_risk?.length && <p className={styles.empty}>{command ? 'No active deal forecast yet.' : 'Executive intelligence source unavailable.'}</p>}
         </div>
