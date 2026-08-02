@@ -71,7 +71,7 @@ export default function LiveDataControlPlane(){
 
   return <main className={styles.page}>
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>PROVIDER INTELLIGENCE V3</span><h1>Canonical Property Intelligence</h1><p>Nationwide provider orchestration with BatchData, Census fallback, field-level provenance, underwriting gates, and owner-controlled commits.</p></div>
+      <div><span className={styles.eyebrow}>PROVIDER INTELLIGENCE V4</span><h1>Canonical Property Intelligence</h1><p>Nationwide provider orchestration with BatchData MCP server-token authentication, Census fallback, field-level provenance, underwriting gates, and owner-controlled commits.</p></div>
       <div className={styles.actions}>
         <button onClick={()=>void run(false)} disabled={loading}>Preview orchestration</button>
         <button onClick={()=>void run(true)} disabled={loading}>Commit governed record</button>
@@ -85,7 +85,7 @@ export default function LiveDataControlPlane(){
     {error&&<div className={styles.error}>{error}</div>}
 
     <section className={styles.metrics}>
-      <article><span>Version</span><strong>{data?.version||'3.0'}</strong></article>
+      <article><span>Version</span><strong>{data?.version||'4.0'}</strong></article>
       <article><span>Providers verified</span><strong>{data?`${data.ready_count}/${data.provider_count}`:'—'}</strong></article>
       <article><span>BatchData mode</span><strong>{String(data?.orchestration?.batchdata_mode||'—').toUpperCase()}</strong></article>
       <article><span>Processed</span><strong>{result?.processed_count||0}</strong></article>

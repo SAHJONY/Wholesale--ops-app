@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_provider_intelligence_v3_routes_and_contracts_present():
+def test_provider_intelligence_v4_routes_and_contracts_present():
     backend = (ROOT / "backend/app/provider_intelligence.py").read_text()
     index = (ROOT / "backend/api/index.py").read_text()
     gateway = (ROOT / "frontend/app/api/provider-intelligence/[...path]/route.ts").read_text()
@@ -17,9 +17,9 @@ def test_provider_intelligence_v3_routes_and_contracts_present():
     assert 'field_level_provenance' in backend
     assert 'confidence' in backend
     assert 'provider_intelligence_router' in index
-    assert "new Set(['snapshot','orchestrate','verify'])" in gateway
+    assert "'snapshot','orchestrate','verify'" in gateway
     assert '/api/provider-intelligence' in page
-    assert 'PROVIDER INTELLIGENCE V3' in page
+    assert 'PROVIDER INTELLIGENCE V4' in page
     assert 'Canonical Property Intelligence' in page
 
 

@@ -18,11 +18,12 @@ from .providers.batchdata import (
     BatchDataConfig,
     BatchDataProviderError,
     canonicalize_lookup,
+    credential_status,
     lookup_property,
     verify_credentials,
 )
 
-router = APIRouter(prefix="/provider-intelligence", tags=["provider intelligence v3"])
+router = APIRouter(prefix="/provider-intelligence", tags=["provider intelligence v4"])
 
 PROVIDERS = (
     {"id":"census_geocoder","name":"US Census Geocoder","priority":100,"public":True,"credential_env":None,"capabilities":["address_standardization","coordinates","county","tract","block"],"truth":["geography"]},
@@ -30,7 +31,7 @@ PROVIDERS = (
     {"id":"county_recorder","name":"County Recorder","priority":95,"public":True,"credential_env":"COUNTY_RECORDER_BASE_URL","capabilities":["deeds","mortgages","liens","releases"],"truth":["recorded_documents"]},
     {"id":"attom","name":"ATTOM","priority":90,"public":False,"credential_env":"ATTOM_API_KEY","capabilities":["property","owner","mortgage","avm","foreclosure"],"truth":["licensed_property_data"]},
     {"id":"mls_idx","name":"MLS/IDX","priority":85,"public":False,"credential_env":"MLS_IDX_BASE_URL","capabilities":["sold_comps","listings","days_on_market","price_history"],"truth":["licensed_listing_data"]},
-    {"id":"batchdata","name":"BatchData","priority":80,"public":False,"credential_env":"BATCHDATA_API_KEY","capabilities":["property","owner","phones","emails","valuation","mortgages","liens","comparables","contact_confidence"],"truth":["licensed_property_data","licensed_owner_data","licensed_contact_data"]},
+    {"id":"batchdata","name":"BatchData MCP","priority":80,"public":False,"credential_env":"BATCHDATA_API_TOKEN","capabilities":["property","owner","phones","emails","valuation","mortgages","liens","comparables","contact_confidence"],"truth":["licensed_property_data","licensed_owner_data","licensed_contact_data"]},
 )
 
 
@@ -47,10 +48,18 @@ class ProviderVerificationRequest(BaseModel):
 
 
 def _batchdata_configured() -> bool:
-    return bool((os.getenv("BATCHDATA_SANDBOX_API_KEY") or os.getenv("BATCHDATA_API_KEY") or "").strip())
+    return bool(
+        (os.getenv("BATCHDATA_MCP_URL") or "").strip()
+        and (os.getenv("BATCHDATA_API_TOKEN") or "").strip()
+    )
 
 
-def _status(provider: dict[str, Any], verify_live: bool = False) -> dict[str, Any]:
+def _status(
+    provider: dict[str, Any],
+    db: Session,
+    organization_id: int,
+    verify_live: bool = False,
+) -> dict[str, Any]:
     env = provider["credential_env"]
     configured = True if env is None else bool((os.getenv(env) or "").strip())
     if provider["id"] == "batchdata":
@@ -60,17 +69,18 @@ def _status(provider: dict[str, Any], verify_live: bool = False) -> dict[str, An
     verification: dict[str, Any] | None = None
     missing = [] if configured else ([env] if env else [])
 
-    if provider["id"] == "batchdata" and configured:
+    if provider["id"] == "batchdata":
         config = BatchDataConfig.from_env()
-        if verify_live and config:
-            verification = verify_credentials(config)
+        connection = credential_status(config)
+        configured = bool(connection["configured"])
+        state = connection["state"]
+        verified = False
+        missing = connection["missing"]
+        verification = connection
+        if verify_live and config and configured:
+            verification = verify_credentials(config, db, organization_id)
             state = verification["state"]
             verified = bool(verification["verified"])
-        else:
-            state = "configured_unverified"
-            verified = False
-        if config and not config.lookup_url:
-            missing = ["BATCHDATA_PROPERTY_LOOKUP_URL"]
 
     return {
         **provider,
@@ -132,12 +142,15 @@ def _underwriting_inputs(canonical: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/snapshot")
-def snapshot(principal: Principal = Depends(require_role("manager"))):
-    providers = sorted((_status(p, verify_live=p["id"] == "batchdata") for p in PROVIDERS), key=lambda p: -p["priority"])
+def snapshot(
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    providers = sorted((_status(p, db, principal.organization_id) for p in PROVIDERS), key=lambda p: -p["priority"])
     ready = [p for p in providers if p["state"] in {"ready", "ready_verified"}]
     return {
         "organization_id": principal.organization_id,
-        "version": "3.0",
+        "version": "4.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "providers": providers,
         "ready_count": len(ready),
@@ -148,7 +161,7 @@ def snapshot(principal: Principal = Depends(require_role("manager"))):
             "field_level_provenance":True,
             "confidence_required":True,
             "preview_first":True,
-            "batchdata_mode":"sandbox" if (os.getenv("BATCHDATA_SANDBOX_API_KEY") or "").strip() else "production",
+            "batchdata_mode":"server_token_mcp",
         },
         "safety": {
             "external_actions":False,
@@ -162,11 +175,15 @@ def snapshot(principal: Principal = Depends(require_role("manager"))):
 
 
 @router.post("/verify")
-def verify_provider(payload: ProviderVerificationRequest, principal: Principal = Depends(require_role("manager"))):
+def verify_provider(
+    payload: ProviderVerificationRequest,
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
     provider = next((item for item in PROVIDERS if item["id"] == payload.provider_id), None)
     if not provider:
         raise HTTPException(404, "Provider not found")
-    status = _status(provider, verify_live=True)
+    status = _status(provider, db, principal.organization_id, verify_live=True)
     return {
         "organization_id": principal.organization_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -215,7 +232,7 @@ def orchestrate(
 
         if config and payload.use_batchdata:
             try:
-                batch_result = lookup_property(config, _address_parts(item))
+                batch_result = lookup_property(config, db, principal.organization_id, _address_parts(item))
                 batch_canonical = canonicalize_lookup(batch_result)
                 if not payload.include_contacts:
                     batch_canonical = _redact_contacts(batch_canonical)
@@ -262,10 +279,10 @@ def orchestrate(
                 organization_id=principal.organization_id,
                 user_id=getattr(principal, "user_id", None),
                 lead_id=item.lead_id,
-                activity_type="provider_intelligence_v3_enriched",
-                summary="Provider Intelligence v3 created a governed canonical enrichment record",
+                activity_type="provider_intelligence_v4_enriched",
+                summary="Provider Intelligence v4 created a governed canonical enrichment record",
                 metadata_json={
-                    "version":"3.0",
+                    "version":"4.0",
                     "providers":providers_used,
                     "field_provenance":canonical.get("field_provenance", {}),
                     "confidence":confidence,
@@ -293,7 +310,7 @@ def orchestrate(
         db.commit()
 
     return {
-        "version":"3.0",
+        "version":"4.0",
         "processed_count":len(properties),
         "committed_count":committed,
         "skipped_count":skipped,
