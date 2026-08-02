@@ -6,6 +6,7 @@ psycopg[binary]==3.2.13
 pydantic==2.10.4
 pydantic-settings==2.7.0
 httpx==0.28.1
+cryptography==45.0.6
 upstash-redis==1.2.0
 anthropic==0.42.0
 python-multipart==0.0.20

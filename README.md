@@ -32,3 +32,8 @@ API docs: http://localhost:8000/docs
 Lead intake → distress scoring → seller call → underwriting → approval → buyer matching → disposition → closing.
 
 See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint.
+# BatchData MCP OAuth
+
+Provider Intelligence uses BatchData's MCP server through an owner-authorized OAuth flow. Configure `BATCHDATA_MCP_URL`, `BATCHDATA_OAUTH_CALLBACK_BASE_URL`, and a stable `BATCHDATA_OAUTH_ENCRYPTION_KEY` of at least 32 characters. Run `alembic upgrade head` from `backend/` before deploying the code that introduces the OAuth tables.
+
+The owner connects BatchData from Provider Intelligence. Tokens are encrypted at rest, scoped to the organization, refreshed server-side, and never returned to the browser. Tool verification lists available MCP tools without performing a billable property lookup. Property data remains preview-first and cannot authorize outreach or offers.

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.providers import batchdata
-from app.providers.batchdata import BatchDataConfig, canonicalize_lookup, verify_credentials
+from app.providers.batchdata import BatchDataConfig, canonicalize_lookup, lookup_property, verify_credentials
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -11,74 +11,74 @@ def read(path: str) -> str:
     return (ROOT / path).read_text()
 
 
-def test_batchdata_config_prefers_sandbox(monkeypatch):
-    monkeypatch.setenv("BATCHDATA_API_KEY", "production-secret")
-    monkeypatch.setenv("BATCHDATA_SANDBOX_API_KEY", "sandbox-secret")
-    monkeypatch.setenv("BATCHDATA_PROPERTY_LOOKUP_URL", "https://example.test/property/lookup")
+def test_batchdata_config_uses_mcp_and_stable_callback(monkeypatch):
+    monkeypatch.setenv("BATCHDATA_MCP_URL", "https://mcp.batchdata.com")
+    monkeypatch.setenv("BATCHDATA_OAUTH_CALLBACK_BASE_URL", "https://backend.example.test")
 
     config = BatchDataConfig.from_env()
 
     assert config is not None
-    assert config.api_key == "sandbox-secret"
-    assert config.environment == "sandbox"
-    assert config.lookup_url.startswith("https://")
+    assert config.mcp_url == "https://mcp.batchdata.com"
+    assert config.redirect_uri == "https://backend.example.test/provider-intelligence/batchdata/callback"
 
 
-def test_batchdata_verification_requires_controlled_address(monkeypatch):
-    monkeypatch.delenv("BATCHDATA_TEST_ADDRESS", raising=False)
-    config = BatchDataConfig("sandbox-secret", "https://example.test/property/lookup", "sandbox")
+def test_batchdata_verification_lists_tools_without_property_query(monkeypatch):
+    config = BatchDataConfig("https://mcp.batchdata.com", "https://backend.example.test")
+    monkeypatch.setattr(batchdata, "_access_token", lambda *args: "oauth-access")
+    monkeypatch.setattr(batchdata, "_mcp_exchange", lambda *args: ({"tools": [{"name": "lookup_property"}]}, "session-1"))
 
-    result = verify_credentials(config)
+    result = verify_credentials(config, object(), 7)
 
-    assert result["state"] == "configured_unverified"
-    assert result["verified"] is False
-    assert "street|city|state|zip" in result["reason"]
-
-
-def test_batchdata_verification_uses_post_without_exposing_data(monkeypatch):
-    monkeypatch.setenv("BATCHDATA_TEST_ADDRESS", "123 Main St|Pensacola|FL|32501")
-    captured = {}
-
-    class Response:
-        status_code = 200
-        headers = {"x-request-id": "verify-123"}
-
-        @staticmethod
-        def json():
-            return {"results": [{"owner": {"name": "Must not be returned"}}]}
-
-    class Client:
-        def __init__(self, *args, **kwargs):
-            captured["client_kwargs"] = kwargs
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def post(self, url, *, headers, json):
-            captured["url"] = url
-            captured["headers"] = headers
-            captured["json"] = json
-            return Response()
-
-    monkeypatch.setattr(batchdata.httpx, "Client", Client)
-    config = BatchDataConfig("sandbox-secret", "https://example.test/property/lookup", "sandbox")
-
-    result = verify_credentials(config)
-
-    assert captured["url"] == config.lookup_url
-    assert captured["json"]["propertyAddress"]["street"] == "123 Main St"
     assert result["state"] == "ready_verified"
     assert result["verified"] is True
-    assert result["method"] == "POST"
-    assert result["request_id"] == "verify-123"
-    assert result["data_committed"] is False
+    assert result["tool"] == "lookup_property"
     assert result["contacts_exposed"] is False
-    assert result["external_actions"] is False
-    assert "owner" not in result
-    assert "raw" not in result
+
+
+def test_batchdata_verification_refreshes_once_after_unauthorized(monkeypatch):
+    config = BatchDataConfig("https://mcp.batchdata.com", "https://backend.example.test")
+    calls = []
+    monkeypatch.setattr(batchdata, "_access_token", lambda *args: "expired-access")
+    monkeypatch.setattr(batchdata, "_force_refresh", lambda *args: "refreshed-access")
+
+    def exchange(config, token, method, params, request_id):
+        calls.append(token)
+        if token == "expired-access":
+            raise batchdata.BatchDataProviderError("invalid_credentials", "expired", 401)
+        return {"tools": [{"name": "lookup_property"}]}, "session-1"
+
+    monkeypatch.setattr(batchdata, "_mcp_exchange", exchange)
+
+    result = verify_credentials(config, object(), 7)
+
+    assert calls == ["expired-access", "refreshed-access"]
+    assert result["verified"] is True
+
+
+def test_batchdata_lookup_calls_official_mcp_tool_arguments(monkeypatch):
+    captured = {}
+    config = BatchDataConfig("https://mcp.batchdata.com", "https://backend.example.test")
+    monkeypatch.setattr(batchdata, "_access_token", lambda *args: "oauth-access")
+
+    def exchange(config, token, method, params, request_id):
+        captured.update({"method": method, "params": params})
+        return {"structuredContent": {"property": {"parcelNumber": "ABC"}}}, "session-1"
+
+    monkeypatch.setattr(batchdata, "_mcp_exchange", exchange)
+    result = lookup_property(config, object(), 7, {
+        "street": "123 Main St", "city": "Pensacola", "state": "FL", "zip": "32501",
+    })
+
+    assert captured["method"] == "tools/call"
+    assert captured["params"]["name"] == "lookup_property"
+    assert captured["params"]["arguments"] == {
+        "property_street": "123 Main St",
+        "property_city": "Pensacola",
+        "property_state": "FL",
+        "property_zip": "32501",
+    }
+    assert result["raw"]["property"]["parcelNumber"] == "ABC"
+    assert result["environment"] == "oauth_mcp"
 
 
 def test_batchdata_canonicalizer_adds_field_level_provenance():
@@ -112,19 +112,20 @@ def test_provider_intelligence_v3_is_preview_first_and_fail_closed():
     adapter = read("backend/app/providers/batchdata.py")
     page = read("frontend/app/owner/live-data/page.tsx")
 
-    assert '"version": "3.0"' in source
+    assert '"version": "4.0"' in source
     assert "field_level_provenance" in source
     assert "contact_data_redacted_by_default" in source
     assert "dnc_tcpa_screening_required" in source
     assert "external_offer_allowed" in source
     assert "contact_data_committed\":False" in source
-    assert "BATCHDATA_PROPERTY_LOOKUP_URL" in adapter
-    assert "BATCHDATA_SANDBOX_API_KEY" in adapter
-    assert "BATCHDATA_TEST_ADDRESS" in adapter
-    assert "client.post" in adapter
-    assert "test_address_redacted" in adapter
+    assert "BATCHDATA_MCP_URL" in adapter
+    assert "BATCHDATA_OAUTH_ENCRYPTION_KEY" in adapter
+    assert 'MCP_TOOL_NAME = "lookup_property"' in adapter
+    assert '"property_street"' in adapter
+    assert '"tools/call"' in adapter
+    assert "code_challenge_method" in adapter
     assert "follow_redirects=False" in adapter
     assert "include_contacts:false" in page
-    assert "PROVIDER INTELLIGENCE V3" in page
+    assert "PROVIDER INTELLIGENCE V4" in page
     assert "Canonical Property Intelligence" in page
     assert "Provider data is evidence, not automatic authority" in page
