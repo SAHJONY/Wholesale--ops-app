@@ -14,9 +14,9 @@ export default function AuditPage(){
   const [loading,setLoading]=useState(true);const [error,setError]=useState('');
   const request=useCallback(async(path:string,override?:string)=>{const active=override||token;if(!active){location.replace('/owner-access');throw new Error('Owner session required');}
     const r=await fetch(`${API}${path}`,{cache:'no-store',headers:{Authorization:`Bearer ${active}`}});const text=await r.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
-    if(r.status===401||r.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');throw new Error('Owner session expired');}if(!r.ok)throw new Error(body.detail||`Request failed (${r.status})`);return body;},[token]);
+    if(r.status===401||r.status===403){location.replace('/owner-access');throw new Error('Owner session expired');}if(!r.ok)throw new Error(body.detail||`Request failed (${r.status})`);return body;},[token]);
   const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{const q=new URLSearchParams({days:String(days)});if(category)q.set('category',category);setData(await request(`/snapshot?${q}`,override));}catch(e){setError(e instanceof Error?e.message:'Unable to load audit trail');}finally{setLoading(false);}},[request,days,category]);
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
   const categories=useMemo(()=>['',...Object.keys(data.category_counts).sort()],[data.category_counts]);
   async function exportCsv(){const q=new URLSearchParams({days:String(days)});if(category)q.set('category',category);const r=await fetch(`${API}/export.csv?${q}`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok){setError('Unable to export audit CSV');return;}const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='sahjony-audit.csv';a.click();URL.revokeObjectURL(url);}
   return <main className={styles.page}>

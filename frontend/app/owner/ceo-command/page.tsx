@@ -68,7 +68,7 @@ export default function CEOCommandCenter() {
   const [errors, setErrors] = useState<string[]>([]);
 
   const request = useCallback(async (path: string) => {
-    const token = window.localStorage.getItem(SESSION) || '';
+    const token = 'cookie-session';
     if (!token) {
       window.location.replace(SIGN_IN);
       throw new Error('Owner session required');
@@ -79,7 +79,7 @@ export default function CEOCommandCenter() {
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
-      window.localStorage.removeItem(SESSION);
+
       window.location.replace(SIGN_IN);
       throw new Error('Owner session expired');
     }

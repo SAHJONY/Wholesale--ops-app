@@ -34,14 +34,14 @@ export default function SystemHealthPage(){
     try{
       const response=await fetch('/api/observability/snapshot',{cache:'no-store',headers:{Authorization:`Bearer ${active}`}});
       const text=await response.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
-      if(response.status===401||response.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');return;}
+      if(response.status===401||response.status===403){location.replace('/owner-access');return;}
       if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);
       setData(body);
     }catch(e){setError(e instanceof Error?e.message:'Unable to load system health');}
     finally{setLoading(false);}
   },[token]);
 
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';setToken(stored);if(stored)void load(stored);else location.replace('/owner-access');},[load]);
+  useEffect(()=>{const stored='cookie-session';setToken(stored);if(stored)void load(stored);else location.replace('/owner-access');},[load]);
 
   return <main className={styles.page}>
     <header className={styles.header}><div><span className={styles.eyebrow}>SYSTEM RELIABILITY</span><h1>System Health</h1><p>Inspect deployment identity, database reachability, request latency, slow endpoints, and server errors.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>{loading?'Checking…':'Refresh'}</button><a className={styles.linkButton} href="/owner/integrations">Integrations</a><a className={styles.linkButton} href="/owner/attention">Attention Center</a><a className={styles.linkButton} href="/owner">Control Plane</a></div></header>

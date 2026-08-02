@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../owner.module.css';
 
-const API_URL = 'https://backend-pi-opal-65.vercel.app';
+const API_URL = '/api/backend';
 const SESSION_STORAGE = 'sahjony_owner_session';
 
 type Milestone = { id:number; milestone_type:string; label:string; status:string; due_at?:string; completed_at?:string; owner?:string; notes?:string };
@@ -34,11 +34,11 @@ export default function ClosingCommandCenter() {
   const selected=useMemo(()=>snapshot.closings.find(x=>x.deal.id===dealId)||snapshot.closings[0],[snapshot.closings,dealId]);
 
   const request=useCallback(async(path:string, options:RequestInit={})=>{
-    const active=token||window.localStorage.getItem(SESSION_STORAGE)||'';
+    const active=token||'cookie-session';
     if(!active) throw new Error('Owner session required.');
     const response=await fetch(`${API_URL}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});
     const data=await response.json().catch(()=>({}));
-    if(response.status===401||response.status===403){window.localStorage.removeItem(SESSION_STORAGE);window.location.replace('/owner-access');throw new Error('Owner session expired.');}
+    if(response.status===401||response.status===403){window.location.replace('/owner-access');throw new Error('Owner session expired.');}
     if(!response.ok) throw new Error(typeof data.detail==='string'?data.detail:`Request failed (${response.status})`);
     return data;
   },[token]);
@@ -50,7 +50,7 @@ export default function ClosingCommandCenter() {
     finally{setLoading(false);}
   },[request,dealId]);
 
-  useEffect(()=>{const stored=window.localStorage.getItem(SESSION_STORAGE)||'';if(!stored){window.location.replace('/owner-access');return;}setToken(stored);},[]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){window.location.replace('/owner-access');return;}setToken(stored);},[]);
   useEffect(()=>{if(token)void load();},[token,load]);
 
   async function initialize(){if(!selected)return;setLoading(true);setError('');try{await request(`/closing-command/deals/${selected.deal.id}/initialize`,{method:'POST',body:'{}'});setNotice('Closing command initialized.');await load();}catch(err){setError(err instanceof Error?err.message:'Unable to initialize');}finally{setLoading(false);}}

@@ -29,7 +29,7 @@ export default function IntegrationOperationsPage(){
     if(!active){location.replace('/owner-access');throw new Error('Owner session required');}
     const r=await fetch(`${base}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});
     const text=await r.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
-    if(r.status===401||r.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');throw new Error('Owner session expired');}
+    if(r.status===401||r.status===403){location.replace('/owner-access');throw new Error('Owner session expired');}
     if(!r.ok){const message=body.detail||`Request failed (${r.status})`;const err=new Error(message) as Error & {status?:number};err.status=r.status;throw err;}
     return body;
   },[token]);
@@ -66,7 +66,7 @@ export default function IntegrationOperationsPage(){
     setLoading(false);
   },[request]);
 
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
 
   async function checkAll(){
     setLoading(true);setError('');setNotice('');

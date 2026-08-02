@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-const API_URL = 'https://backend-pi-opal-65.vercel.app';
+const API_URL = '/api/backend';
 const SESSION_STORAGE = 'sahjony_owner_session';
 
 type Cycle = {
@@ -42,7 +42,7 @@ export default function OperationsConsole() {
   const [sessionExpired, setSessionExpired] = useState(false);
 
   const expireSession = useCallback(() => {
-    window.localStorage.removeItem(SESSION_STORAGE);
+
     setToken('');
     setStatus(null);
     setHistory([]);
@@ -88,7 +88,7 @@ export default function OperationsConsole() {
   }, [request]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(SESSION_STORAGE) || '';
+    const stored = 'cookie-session';
     setToken(stored);
     if (stored) void load(stored);
   }, [load]);

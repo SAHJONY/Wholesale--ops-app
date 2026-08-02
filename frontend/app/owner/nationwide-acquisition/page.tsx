@@ -24,11 +24,11 @@ export default function NationwideAcquisitionCenter() {
   const [loading, setLoading] = useState(false);
 
   const request = useCallback(async (path: string, options: RequestInit = {}) => {
-    const token = window.localStorage.getItem(SESSION) || '';
+    const token = 'cookie-session';
     if (!token) { window.location.replace(SIGN_IN); throw new Error('Owner session required'); }
     const response = await fetch(`/api/backend${path}`, { ...options, cache: 'no-store', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401 || response.status === 403) { window.localStorage.removeItem(SESSION); window.location.replace(SIGN_IN); throw new Error('Owner session expired'); }
+    if (response.status === 401 || response.status === 403) {  window.location.replace(SIGN_IN); throw new Error('Owner session expired'); }
     if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status})`);
     return body;
   }, []);
