@@ -41,6 +41,13 @@ from .auth import Principal, get_principal, require_role
 from .auth_models import WorkspaceEntity
 from .database import get_db
 from .distress_providers import EXCLUDED_STATES, PROVIDERS_BY_ID
+from .foreclosure_procedure import (
+    JUDICIAL,
+    NON_JUDICIAL,
+    PROCEDURES,
+    procedure_for_state,
+    tracks_for_state,
+)
 from .intelligence_ingest import ingest_provider_facts
 from .models import Property
 
@@ -72,6 +79,14 @@ class JurisdictionSource:
     zip_field: str | None = None
     where: str | None = None
     page_size: int = DEFAULT_PAGE_SIZE
+    # Which foreclosure track this feed represents. Defaults to the category's
+    # track and may be overridden per county, because a configured observation
+    # beats the state lookup table.
+    procedure: str = "any"
+    # Set when the declared track is not one the state is expected to produce.
+    # A warning rather than a rejection: the table is guidance, and a real
+    # filing that contradicts it is a fact, not an error.
+    procedure_warning: str | None = None
 
     def spec(self):
         return PROVIDERS_BY_ID[self.category]
@@ -118,12 +133,34 @@ def _parse_entry(entry: dict[str, Any]) -> JurisdictionSource:
             f"Allowed: {', '.join(spec.writable_fields)}",
         )
 
+    declared = str(entry.get("procedure") or "").strip().lower() or spec.procedure
+    if declared not in (*PROCEDURES, "any"):
+        raise HTTPException(
+            422,
+            f"Jurisdiction '{source_id}' declares unknown procedure '{declared}'. "
+            f"Use one of: {', '.join((*PROCEDURES, 'any'))}.",
+        )
+
+    # Only flag a confident contradiction. tracks_for_state widens "both" and
+    # unlisted states to every track, so this fires only when the state is
+    # squarely the other one -- which usually means the endpoint points at an
+    # office that does not hold this record.
+    warning = None
+    if declared in (JUDICIAL, NON_JUDICIAL) and declared not in tracks_for_state(state):
+        warning = (
+            f"{state} foreclosures are recorded on the {procedure_for_state(state)} track, but this "
+            f"feed is declared {declared}. Confirm the endpoint belongs to an office that holds "
+            f"{declared} records; guidance is routing help, not a rule."
+        )
+
     return JurisdictionSource(
         id=_require(entry, "id", source_id),
         state=state,
         county=_require(entry, "county", source_id),
         category=category,
         transport=transport,
+        procedure=declared,
+        procedure_warning=warning,
         endpoint=_require(entry, "endpoint", source_id),
         field_map={str(k): str(v) for k, v in field_map.items()},
         address_field=_require(entry, "address_field", source_id),
@@ -289,7 +326,11 @@ def jurisdictions(principal: Principal = Depends(get_principal)):
             "mapped_fields": sorted(source.field_map),
             "verification_status": source.spec().verification_status,
             "confidence": source.spec().confidence,
+            "procedure": source.procedure,
+            "state_procedure": procedure_for_state(source.state),
+            "procedure_warning": source.procedure_warning,
         } for source in sources],
+        "procedure_warnings": sum(1 for source in sources if source.procedure_warning),
         "registry_env": {"file": JURISDICTIONS_FILE_ENV, "inline": JURISDICTIONS_INLINE_ENV},
         "supported_transports": sorted(SUPPORTED_TRANSPORTS),
         "html_scraping_supported": False,

@@ -55,6 +55,11 @@ class ProviderSpec:
     license_required: bool = False
     # Transports are documented machine interfaces only.
     supported_transports: tuple[str, ...] = ("socrata", "arcgis")
+    # Which foreclosure track creates this record, and therefore which county
+    # office holds it. "any" marks categories that are not foreclosure-specific
+    # (tax rolls, code cases, permits) and "both" marks records that occur on
+    # either track. See foreclosure_procedure.py.
+    procedure: str = "any"
     notes: str = ""
 
 
@@ -110,6 +115,45 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         writable_fields=("lis_pendens_filed", "lis_pendens_filed_at", "lis_pendens_instrument"),
         feature_flag="DISTRESS_LIS_PENDENS_ENABLED",
         endpoint_env="DISTRESS_LIS_PENDENS_ENDPOINT",
+        procedure="judicial",
+        notes=(
+            "A lis pendens is recorded against the parcel but arises from a filed lawsuit, so it "
+            "appears on the judicial track. Non-judicial states produce no equivalent."
+        ),
+    ),
+    ProviderSpec(
+        id="notice_of_default",
+        name="Notice of default",
+        category="distress",
+        access="public_record",
+        authority_tier="county_recorder",
+        verification_status="verified",
+        confidence=88.0,
+        writable_fields=("notice_of_default_recorded", "notice_of_default_date", "notice_of_default_instrument"),
+        feature_flag="DISTRESS_NOD_ENABLED",
+        endpoint_env="DISTRESS_NOD_ENDPOINT",
+        procedure="non_judicial",
+        notes=(
+            "Opens the non-judicial track and starts the statutory cure period. There is no court "
+            "docket to search; the record sits with the recorder."
+        ),
+    ),
+    ProviderSpec(
+        id="notice_of_trustee_sale",
+        name="Notice of trustee sale",
+        category="distress",
+        access="public_record",
+        authority_tier="county_recorder_or_substitute_trustee",
+        verification_status="verified",
+        confidence=88.0,
+        writable_fields=("trustee_sale_scheduled", "trustee_sale_date", "trustee_sale_instrument"),
+        feature_flag="DISTRESS_NTS_ENABLED",
+        endpoint_env="DISTRESS_NTS_ENDPOINT",
+        procedure="non_judicial",
+        notes=(
+            "Published inside a statutory window before sale, sometimes by the substitute trustee "
+            "rather than the county. The window is short, so a stale feed is worse than none."
+        ),
     ),
     ProviderSpec(
         id="foreclosure_sale",
@@ -122,6 +166,11 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         writable_fields=("foreclosure_sale_scheduled", "foreclosure_sale_date", "foreclosure_case_number"),
         feature_flag="DISTRESS_FORECLOSURE_ENABLED",
         endpoint_env="DISTRESS_FORECLOSURE_ENDPOINT",
+        procedure="both",
+        notes=(
+            "The sale itself occurs on either track -- sheriff's sale after judgment, trustee's sale "
+            "under a power of sale -- so this category is configured against whichever office runs it."
+        ),
     ),
     ProviderSpec(
         id="demolition_permit",
@@ -218,6 +267,7 @@ def resolve_status(spec: ProviderSpec) -> dict[str, Any]:
         "confidence": spec.confidence,
         "writable_fields": list(spec.writable_fields),
         "supported_transports": list(spec.supported_transports),
+        "procedure": spec.procedure,
         "license_required": spec.license_required,
         "feature_flag": spec.feature_flag,
         "endpoint_env": spec.endpoint_env,
