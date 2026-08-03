@@ -1,0 +1,78 @@
+{
+  "_README": [
+    "Template for DISTRESS_JURISDICTIONS_FILE. Every value in caps is a placeholder.",
+    "",
+    "Nothing here is a working endpoint. A Socrata dataset is addressed by an opaque",
+    "four-by-four id and its columns are named by whoever published it, so an entry",
+    "written from memory is a guess, and a guessed id returns 404 -- which this",
+    "pipeline reads as 'no records in this county' rather than as a broken entry.",
+    "",
+    "Fill these from a real portal, or generate them from live catalogs with:",
+    "    python scripts/build_jurisdiction_registry.py --states FL --out jurisdictions.json",
+    "That reads one real row per candidate and writes the column names it observed.",
+    "",
+    "Then prove each entry before trusting it:",
+    "    POST /distress-ingest/validate {\"jurisdiction_id\": \"...\"}"
+  ],
+
+  "jurisdictions": [
+    {
+      "_purpose": "Recorded transfers. Feeds cash-buyer discovery via POST /cash-buyers/sync/{id}.",
+      "id": "COUNTY-deeds",
+      "state": "XX",
+      "county": "COUNTY NAME",
+      "category": "cash_purchase_deed",
+      "transport": "socrata",
+      "endpoint": "https://DOMAIN/resource/DATASET-ID.json",
+      "address_field": "COLUMN_HOLDING_THE_PROPERTY_ADDRESS",
+      "zip_field": "COLUMN_HOLDING_THE_ZIP",
+      "field_map": {
+        "last_grantee": "COLUMN_HOLDING_THE_BUYER_NAME",
+        "last_sale_price": "COLUMN_HOLDING_THE_CONSIDERATION",
+        "last_sale_date": "COLUMN_HOLDING_THE_RECORDING_DATE",
+        "last_sale_instrument": "COLUMN_HOLDING_THE_INSTRUMENT_NUMBER"
+      },
+      "where": "OPTIONAL filter, e.g. record_date > '2025-01-01'"
+    },
+
+    {
+      "_purpose": [
+        "Mortgages and deeds of trust. Optional, and the only way a purchase is",
+        "ever reported as cash: /cash-buyers/sync cross-references this index and",
+        "confirms cash only for addresses absent from it.",
+        "",
+        "Scope it with a where filter. The cross-reference is abandoned if this",
+        "index is truncated by the row cap, because an address missing from a",
+        "partial read is not an address with no mortgage."
+      ],
+      "id": "COUNTY-mortgages",
+      "state": "XX",
+      "county": "COUNTY NAME",
+      "category": "cash_purchase_deed",
+      "transport": "socrata",
+      "endpoint": "https://DOMAIN/resource/DATASET-ID.json",
+      "address_field": "COLUMN_HOLDING_THE_PROPERTY_ADDRESS",
+      "field_map": {
+        "last_sale_instrument": "COLUMN_HOLDING_THE_INSTRUMENT_NUMBER"
+      },
+      "where": "OPTIONAL filter scoping this to the same period as the deed feed"
+    },
+
+    {
+      "_purpose": "Non-judicial foreclosure. Check /foreclosure-procedure/states/XX first: judicial states produce lis_pendens instead, and a feed pointed at the wrong office returns nothing.",
+      "id": "COUNTY-nod",
+      "state": "XX",
+      "county": "COUNTY NAME",
+      "category": "notice_of_default",
+      "procedure": "non_judicial",
+      "transport": "socrata",
+      "endpoint": "https://DOMAIN/resource/DATASET-ID.json",
+      "address_field": "COLUMN_HOLDING_THE_PROPERTY_ADDRESS",
+      "field_map": {
+        "notice_of_default_recorded": "COLUMN_HOLDING_THE_STATUS",
+        "notice_of_default_date": "COLUMN_HOLDING_THE_RECORDING_DATE",
+        "notice_of_default_instrument": "COLUMN_HOLDING_THE_INSTRUMENT_NUMBER"
+      }
+    }
+  ]
+}
