@@ -9,7 +9,7 @@ def test_catalog_contains_required_public_and_licensed_sources(monkeypatch):
     assert {
         "county_recorder", "county_assessor", "tax_delinquent", "code_violations",
         "probate", "foreclosure_public", "building_permits", "municipal_open_data", "fema_national",
-        "census", "epa", "openaddresses", "usps_vacancy", "mls_idx",
+        "census", "usgs_3dep", "epa", "openaddresses", "usps_vacancy", "mls_idx",
     }.issubset(ids)
     licensed = {item["id"] for item in PUBLIC_DATA_PROVIDERS if item["license_required"]}
     assert licensed == {"usps_vacancy", "mls_idx"}
@@ -23,6 +23,16 @@ def test_sources_default_disabled_and_dry_run_safe(monkeypatch):
     assert result["state"] == "disabled"
     assert result["outbound_capable"] is False
     assert result["dry_run_safe"] is True
+
+
+def test_live_federal_sources_are_enabled_by_default(monkeypatch):
+    for provider_id in ("census", "usgs_3dep"):
+        provider = next(item for item in PUBLIC_DATA_PROVIDERS if item["id"] == provider_id)
+        monkeypatch.delenv(provider["feature_flag"], raising=False)
+        monkeypatch.delenv(provider["endpoint_env"], raising=False)
+        result = provider_status(provider)
+        assert result["enabled"] is True
+        assert result["state"] == "enabled_default_endpoint"
 
 
 def test_enabled_jurisdiction_source_requires_endpoint(monkeypatch):

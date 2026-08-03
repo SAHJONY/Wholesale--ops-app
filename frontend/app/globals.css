@@ -1204,3 +1204,58 @@ select {
     transition: none;
   }
 }
+
+/* ------------------------------------------------- data provenance flags --- */
+
+/* Marks a row whose origin is demo or duplicate data. The upstream version of
+   these rules used light-theme fills (#fff, #fee2e2), which glare against this
+   console; they are mapped onto the status tokens instead. */
+.dataBadge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.dataBadge.demo {
+  color: var(--warn);
+  background: var(--warn-wash);
+  border-color: rgba(255, 201, 120, 0.28);
+}
+
+.dataBadge.duplicate {
+  color: var(--danger);
+  background: var(--danger-wash);
+  border-color: var(--danger-edge);
+}
+
+/* Destructive actions read as destructive before they are clicked. */
+.dangerButton {
+  border: 1px solid var(--danger-edge);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+  min-height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--danger);
+  background: var(--danger-wash);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: rgba(255, 143, 143, 0.2);
+  border-color: var(--danger);
+}
+
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

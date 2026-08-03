@@ -14,6 +14,8 @@ from .event_bus import emit_event
 from .models import Lead
 
 router = APIRouter(prefix="/county-queue", tags=["county verification queue"])
+AUTHORITATIVE_SOURCE_TYPES = {"assessor", "recorder", "clerk", "tax_collector"}
+RESEARCH_SOURCE_TYPES = {"reverse_address_research", "people_search"}
 
 
 @router.get("/snapshot")
@@ -50,12 +52,37 @@ def create_case(lead_id: int, payload: dict | None = None, principal: Principal 
     if str(lead.property.state or "").upper() == "TX":
         raise HTTPException(422, "Texas is excluded from SAHJONY acquisition workflows")
     payload = payload or {}
+    source_type = str(payload.get("source_type") or "manual_research").strip().lower()
+    source_reference = str(payload.get("source_reference") or "").strip()
+    if source_reference and not source_reference.lower().startswith("https://"):
+        raise HTTPException(422, "Source reference must use HTTPS")
+    confidence = max(0, min(100, float(payload.get("confidence") or 0)))
+    if source_type in RESEARCH_SOURCE_TYPES:
+        confidence = min(confidence, 40)
+    elif source_type not in AUTHORITATIVE_SOURCE_TYPES | {"manual_research"}:
+        raise HTTPException(422, "Unsupported verification source type")
     existing = db.scalar(select(CountyVerificationCase).where(
         CountyVerificationCase.organization_id == principal.organization_id,
         CountyVerificationCase.lead_id == lead_id,
         CountyVerificationCase.status.in_(["pending", "assigned", "needs_review"]),
     ))
     if existing:
+        if source_type in RESEARCH_SOURCE_TYPES:
+            existing.source_type = source_type
+            existing.source_reference = source_reference
+            existing.confidence = confidence
+            existing.status = "needs_review"
+            existing.proposed_evidence = payload.get("proposed_evidence") or {}
+            existing.updated_at = datetime.now(timezone.utc)
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
+            return {
+                "case_id": existing.id,
+                "status": existing.status,
+                "created": False,
+                "updated": True,
+            }
         return {"case_id": existing.id, "status": existing.status, "created": False}
     case = CountyVerificationCase(
         organization_id=principal.organization_id,
@@ -64,10 +91,10 @@ def create_case(lead_id: int, payload: dict | None = None, principal: Principal 
         county=str(payload.get("county") or "").strip() or None,
         state=str(lead.property.state).upper(),
         priority=max(1, min(100, int(payload.get("priority") or 70))),
-        confidence=max(0, min(100, float(payload.get("confidence") or 0))),
+        confidence=confidence,
         due_at=datetime.now(timezone.utc) + timedelta(days=max(1, int(payload.get("due_days") or 3))),
-        source_type=str(payload.get("source_type") or "manual_research"),
-        source_reference=str(payload.get("source_reference") or "").strip() or None,
+        source_type=source_type,
+        source_reference=source_reference or None,
         proposed_evidence=payload.get("proposed_evidence") or {},
     )
     db.add(case)
