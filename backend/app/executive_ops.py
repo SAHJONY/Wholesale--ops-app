@@ -9,6 +9,7 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .autonomy import AUTONOMY_AGENTS, create_task, execute_next_tasks, run_agent
 from .database import get_db
 from .models import AgentRun, Approval, Buyer, Deal, Lead, OpsTask, Property
+from .percentages import canonical_percentage
 from .services import lead_score
 
 router = APIRouter(prefix="/executive", tags=["executive operations"])
@@ -28,6 +29,48 @@ def _rows(db: Session, model, ids: list[int]):
 def _priority(score: float, timeline_days: int | None) -> int:
     urgency = 15 if timeline_days is not None and timeline_days <= 14 else 0
     return int(max(1, min(100, round(score + urgency))))
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _sort_time(value: datetime | None) -> datetime:
+    return _as_utc(value) or datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _agent_health(runs: list[AgentRun], now: datetime) -> list[dict]:
+    now_utc = _as_utc(now) or datetime.now(timezone.utc)
+    latest_by_agent: dict[str, AgentRun] = {}
+    for run in sorted(runs, key=lambda item: _sort_time(item.created_at), reverse=True):
+        latest_by_agent.setdefault(run.agent_name, run)
+
+    health = []
+    for definition in AUTONOMY_AGENTS:
+        run = latest_by_agent.get(definition["name"])
+        created_at = _as_utc(run.created_at) if run else None
+        stale = created_at is None or created_at < now_utc - timedelta(hours=24)
+        health.append({
+            **definition,
+            "health": "idle" if not run else "stale" if stale else "healthy",
+            "last_run_at": created_at.isoformat() if created_at else None,
+            "last_status": run.status if run else None,
+            "confidence": run.confidence if run else None,
+        })
+    return health
+
+
+def _weighted_revenue(deals: list[Deal]) -> float:
+    return sum(
+        (deal.projected_assignment_fee or 0)
+        * canonical_percentage(deal.probability_to_close)
+        / 100
+        for deal in deals
+    )
 
 
 @router.get("/command-center")
@@ -56,7 +99,11 @@ def command_center(
 
     ranked_leads = []
     for lead in leads:
-        score = lead_score(lead.motivation_score, lead.equity_score, lead.distress_score)
+        score = lead_score(
+            float(lead.motivation_score or 0),
+            float(lead.equity_score or 0),
+            float(lead.distress_score or 0),
+        )
         ranked_leads.append({
             "lead_id": lead.id,
             "seller_name": lead.seller_name,
@@ -75,8 +122,8 @@ def command_center(
         deal_risk.append({
             "deal_id": deal.id,
             "stage": deal.stage,
-            "risk_score": deal.risk_score,
-            "probability_to_close": deal.probability_to_close,
+            "risk_score": float(deal.risk_score or 0),
+            "probability_to_close": canonical_percentage(deal.probability_to_close),
             "projected_assignment_fee": deal.projected_assignment_fee or 0,
             "next_action": deal.next_action,
             "property": {
@@ -85,32 +132,16 @@ def command_center(
                 "zip_code": prop.zip_code if prop else None,
             },
         })
-    deal_risk.sort(key=lambda item: item["risk_score"], reverse=True)
+    deal_risk.sort(key=lambda item: float(item["risk_score"] or 0), reverse=True)
 
     now = datetime.now(timezone.utc)
-    latest_by_agent: dict[str, AgentRun] = {}
-    for run in sorted(runs, key=lambda item: item.created_at, reverse=True):
-        latest_by_agent.setdefault(run.agent_name, run)
-    agent_health = []
-    for definition in AUTONOMY_AGENTS:
-        run = latest_by_agent.get(definition["name"])
-        stale = not run or run.created_at < now - timedelta(hours=24)
-        agent_health.append({
-            **definition,
-            "health": "idle" if not run else "stale" if stale else "healthy",
-            "last_run_at": run.created_at.isoformat() if run else None,
-            "last_status": run.status if run else None,
-            "confidence": run.confidence if run else None,
-        })
+    agent_health = _agent_health(runs, now)
 
     queued = [task for task in tasks if task.status == "queued"]
     failed = [task for task in tasks if task.status == "failed"]
     pending = [approval for approval in approvals if approval.status == "pending"]
     projected_revenue = sum(deal.projected_assignment_fee or 0 for deal in active_deals)
-    weighted_revenue = sum(
-        (deal.projected_assignment_fee or 0) * (deal.probability_to_close or 0) / 100
-        for deal in active_deals
-    )
+    weighted_revenue = _weighted_revenue(active_deals)
 
     return {
         "generated_at": now.isoformat(),
@@ -133,19 +164,19 @@ def command_center(
         "queue": [{
             "id": task.id,
             "task_type": task.task_type,
-            "priority": task.priority,
+            "priority": int(task.priority or 0),
             "status": task.status,
             "lead_id": task.lead_id,
-            "created_at": task.created_at.isoformat(),
-        } for task in sorted(queued, key=lambda item: (-item.priority, item.created_at))[:25]],
+            "created_at": _sort_time(task.created_at).isoformat(),
+        } for task in sorted(queued, key=lambda item: (-(item.priority or 0), _sort_time(item.created_at)))[:25]],
         "approvals": [{
             "id": approval.id,
             "action_type": approval.action_type,
             "summary": approval.summary,
             "entity_type": approval.entity_type,
             "entity_id": approval.entity_id,
-            "created_at": approval.created_at.isoformat(),
-        } for approval in sorted(pending, key=lambda item: item.created_at, reverse=True)[:25]],
+            "created_at": _sort_time(approval.created_at).isoformat(),
+        } for approval in sorted(pending, key=lambda item: _sort_time(item.created_at), reverse=True)[:25]],
     }
 
 

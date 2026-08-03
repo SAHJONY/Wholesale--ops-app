@@ -8,6 +8,7 @@ from .auth import Principal, get_principal
 from .auth_models import CrmActivity, FollowUpTask, WorkspaceEntity
 from .database import get_db
 from .models import Approval, Deal, Lead, OpsTask, Property
+from .percentages import canonical_percentage
 
 router = APIRouter(prefix="/owner-insights", tags=["owner attention center"])
 
@@ -21,6 +22,42 @@ def _ids(db: Session, organization_id: int, entity_type: str) -> list[int]:
 
 def _rows(db: Session, model, ids: list[int]):
     return db.scalars(select(model).where(model.id.in_(ids))).all() if ids else []
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _sort_time(value: datetime | None) -> datetime:
+    return _as_utc(value) or datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _iso_utc(value: datetime | None) -> str | None:
+    normalized = _as_utc(value)
+    return normalized.isoformat() if normalized else None
+
+
+def _follow_up_buckets(
+    follow_ups: list[FollowUpTask],
+    now: datetime,
+) -> tuple[list[FollowUpTask], list[FollowUpTask]]:
+    now_utc = _as_utc(now) or datetime.now(timezone.utc)
+    due_soon_cutoff = now_utc + timedelta(hours=24)
+    overdue = []
+    due_soon = []
+    for item in follow_ups:
+        due_at = _as_utc(item.due_at)
+        if item.status != "open" or due_at is None:
+            continue
+        if due_at < now_utc:
+            overdue.append(item)
+        elif due_at <= due_soon_cutoff:
+            due_soon.append(item)
+    return overdue, due_soon
 
 
 @router.get("/summary")
@@ -50,11 +87,7 @@ def summary(principal: Principal = Depends(get_principal), db: Session = Depends
     properties = _rows(db, Property, property_ids)
     property_by_id = {item.id: item for item in properties}
 
-    overdue = [item for item in follow_ups if item.status == "open" and item.due_at and item.due_at < now]
-    due_soon = [
-        item for item in follow_ups
-        if item.status == "open" and item.due_at and now <= item.due_at <= now + timedelta(hours=24)
-    ]
+    overdue, due_soon = _follow_up_buckets(follow_ups, now)
     failed = [item for item in tasks if item.status == "failed"]
     queued = [item for item in tasks if item.status == "queued"]
     pending = [item for item in approvals if item.status == "pending"]
@@ -87,7 +120,7 @@ def summary(principal: Principal = Depends(get_principal), db: Session = Depends
             "priority": item.priority,
             "lead_id": item.lead_id,
             "deal_id": item.deal_id,
-            "due_at": item.due_at.isoformat() if item.due_at else None,
+            "due_at": _iso_utc(item.due_at),
         } for item in overdue[:25]],
         "due_soon_followups": [{
             "id": item.id,
@@ -95,7 +128,7 @@ def summary(principal: Principal = Depends(get_principal), db: Session = Depends
             "priority": item.priority,
             "lead_id": item.lead_id,
             "deal_id": item.deal_id,
-            "due_at": item.due_at.isoformat() if item.due_at else None,
+            "due_at": _iso_utc(item.due_at),
         } for item in due_soon[:25]],
         "failed_tasks": [{
             "id": item.id,
@@ -103,21 +136,25 @@ def summary(principal: Principal = Depends(get_principal), db: Session = Depends
             "priority": item.priority,
             "lead_id": item.lead_id,
             "error": item.error,
-            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-        } for item in sorted(failed, key=lambda x: x.updated_at or x.created_at, reverse=True)[:25]],
+            "updated_at": _iso_utc(item.updated_at),
+        } for item in sorted(
+            failed,
+            key=lambda item: _sort_time(item.updated_at or item.created_at),
+            reverse=True,
+        )[:25]],
         "pending_approvals": [{
             "id": item.id,
             "action_type": item.action_type,
             "summary": item.summary,
             "entity_type": item.entity_type,
             "entity_id": item.entity_id,
-            "created_at": item.created_at.isoformat(),
-        } for item in sorted(pending, key=lambda x: x.created_at, reverse=True)[:25]],
+            "created_at": _iso_utc(item.created_at),
+        } for item in sorted(pending, key=lambda item: _sort_time(item.created_at), reverse=True)[:25]],
         "high_risk_deals": [{
             "id": item.id,
             "stage": item.stage,
             "risk_score": item.risk_score,
-            "probability_to_close": item.probability_to_close,
+            "probability_to_close": canonical_percentage(item.probability_to_close),
             "projected_assignment_fee": item.projected_assignment_fee or 0,
             "next_action": item.next_action,
             "property": {
@@ -132,6 +169,6 @@ def summary(principal: Principal = Depends(get_principal), db: Session = Depends
             "summary": item.summary,
             "lead_id": item.lead_id,
             "deal_id": item.deal_id,
-            "created_at": item.created_at.isoformat(),
+            "created_at": _iso_utc(item.created_at),
         } for item in activities[:30]],
     }

@@ -84,6 +84,86 @@ def _normalize_match(match: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_truth_report(
+    normalized: dict[str, Any],
+    county_context: dict[str, Any] | None,
+    observed_at: str,
+) -> dict[str, Any]:
+    """Turn provider output into field-level evidence without promoting estimates to facts."""
+    geography = normalized.get("geography") or {}
+    coordinates = normalized.get("coordinates") or {}
+    claims: list[dict[str, Any]] = []
+
+    def claim(
+        field: str,
+        value: Any,
+        source: str,
+        confidence: str = "high",
+        scope: str = "property",
+    ) -> None:
+        claims.append({
+            "field": field,
+            "value": value,
+            "status": "verified" if value not in {None, ""} else "unavailable",
+            "source": source,
+            "confidence": confidence if value not in {None, ""} else "none",
+            "scope": scope,
+            "observed_at": observed_at,
+        })
+
+    claim("matched_address", normalized.get("matched_address"), "census_geocoder")
+    claim("latitude", coordinates.get("latitude"), "census_geocoder", "high_for_address_range")
+    claim("longitude", coordinates.get("longitude"), "census_geocoder", "high_for_address_range")
+    claim("county", geography.get("county_name"), "census_geocoder")
+    claim("county_geoid", geography.get("county_geoid"), "census_geocoder")
+    claim("census_tract", geography.get("tract_geoid"), "census_geocoder")
+    for field in ("population", "median_gross_rent", "median_owner_value", "housing_units"):
+        claim(
+            field,
+            county_context.get(field) if county_context else None,
+            "census_acs",
+            "high_for_aggregate_context",
+            "county",
+        )
+
+    verified = sum(item["status"] == "verified" for item in claims)
+    unknowns = [
+        {
+            "field": field,
+            "status": "not_verified",
+            "required_source": required_source,
+            "blocking": True,
+        }
+        for field, required_source in (
+            ("legal_owner", "county_recorder_or_assessor"),
+            ("parcel_id", "county_assessor"),
+            ("liens_and_mortgages", "county_recorder"),
+            ("tax_delinquency", "county_tax_authority"),
+            ("foreclosure_or_probate", "court_record"),
+            ("property_condition", "inspection_or_permit_record"),
+            ("market_value_or_arv", "licensed_comps_and_human_underwriting"),
+            ("seller_contact_and_consent", "consented_first_party_record"),
+        )
+    ]
+    return {
+        "report_version": "1.0",
+        "generated_at": observed_at,
+        "grade": "context_verified_core_facts_pending",
+        "verified_claims": verified,
+        "total_claims": len(claims) + len(unknowns),
+        "coverage_percent": round((verified / max(1, len(claims) + len(unknowns))) * 100),
+        "claims": claims,
+        "unknowns": unknowns,
+        "decision_gate": {
+            "underwriting_ready": False,
+            "outreach_ready": False,
+            "contract_ready": False,
+            "reason": "Official geography and aggregate context do not verify ownership, title, condition, value, or consent.",
+            "required_human_review": True,
+        },
+    }
+
+
 async def _request_json(url: str, params: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
     last_error: Exception | None = None
     started = time.perf_counter()
@@ -217,6 +297,7 @@ async def resolve_address(
         "property": normalized,
         "county_context": county_context,
         "observed_at": observed_at,
+        "truth_report": build_truth_report(normalized, county_context, observed_at),
         "provenance": [
             {
                 "provider_id": "census_geocoder",

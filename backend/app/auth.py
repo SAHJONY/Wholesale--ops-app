@@ -28,6 +28,7 @@ ROLE_RANK = {
 HUMAN_SESSION_NAME = "Human login session"
 HUMAN_SESSION_MAX_AGE = timedelta(hours=24)
 HUMAN_SESSION_IDLE_TIMEOUT = timedelta(hours=2)
+DEFAULT_PRIMARY_OWNER_EMAIL = "sahjonycapitalllc@outlook.com"
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,14 @@ class Principal:
     email: str
     name: str
     role: str
+
+
+def _primary_owner_email() -> str:
+    return (os.getenv("PRIMARY_OWNER_EMAIL") or DEFAULT_PRIMARY_OWNER_EMAIL).strip().lower()
+
+
+def _is_primary_owner(email: str | None) -> bool:
+    return bool(email and email.strip().lower() == _primary_owner_email())
 
 
 def _hash_key(value: str) -> str:
@@ -107,6 +116,18 @@ def get_principal(
     organization = db.get(Organization, credential.organization_id)
     if not membership or not user or not organization or not user.is_active or not organization.is_active:
         raise HTTPException(403, "Workspace access disabled")
+
+    if _is_primary_owner(user.email) and membership.role != "owner":
+        previous_role = membership.role
+        membership.role = "owner"
+        db.add(CrmActivity(
+            organization_id=organization.id,
+            user_id=user.id,
+            activity_type="primary_owner_role_restored",
+            summary="Primary owner authority was automatically restored",
+            metadata_json={"previous_role": previous_role, "restored_role": "owner"},
+        ))
+
     credential.last_used_at = now
     db.commit()
     return Principal(
@@ -287,6 +308,9 @@ def add_team_member(
     caller_rank = ROLE_RANK.get(principal.role, 0)
     if ROLE_RANK[role] > caller_rank:
         raise HTTPException(403, "Cannot assign a role above your own")
+
+    if _is_primary_owner(email) and role != "owner":
+        raise HTTPException(409, "Primary owner role cannot be downgraded")
 
     user = db.scalar(select(AppUser).where(AppUser.email == email)) or AppUser(email=email, name=name)
     db.add(user)

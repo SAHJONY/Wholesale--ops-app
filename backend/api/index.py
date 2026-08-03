@@ -36,6 +36,7 @@ from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
 from app.lead_verification import router as lead_verification_router
+from app.live_public_enrichment import router as live_public_enrichment_router
 from app.main import app
 from app.market_selection import router as market_selection_router
 from app.national_intelligence_safe import router as national_intelligence_router
@@ -45,19 +46,23 @@ from app.observability_middleware import install_observability
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
+from app.property_workspace import router as property_workspace_router
 from app.provider_activation import router as provider_activation_router
+from app.provider_intelligence import router as provider_intelligence_router
 from app.public_data_providers import router as public_data_router
 from app.real_estate_intelligence import router as real_estate_intelligence_router
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
+from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
 from app.verified_ingest import router as verified_ingest_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
 
+install_session_time_compatibility()
 configure_schema(Base, engine)
 install_observability(app)
 app.add_middleware(SecurityMiddleware)
@@ -70,7 +75,9 @@ app.include_router(background_jobs_router)
 app.include_router(go_live_router)
 app.include_router(launch_validation_router)
 app.include_router(provider_activation_router)
+app.include_router(provider_intelligence_router)
 app.include_router(public_data_router)
+app.include_router(live_public_enrichment_router)
 app.include_router(nationwide_public_data_router)
 app.include_router(verified_ingest_router)
 app.include_router(distress_providers_router)
@@ -83,6 +90,7 @@ app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)
 app.include_router(real_estate_intelligence_router)
+app.include_router(property_workspace_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)

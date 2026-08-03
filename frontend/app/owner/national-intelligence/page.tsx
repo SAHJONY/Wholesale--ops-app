@@ -29,13 +29,13 @@ export default function NationalIntelligencePage() {
     const text=await response.text();
     let body:any={};
     if(text){try{body=JSON.parse(text);}catch{body={detail:text};}}
-    if(response.status===401||response.status===403){localStorage.removeItem(SESSION);location.replace('/owner-access');throw new Error('Owner session expired');}
+    if(response.status===401||response.status===403){location.replace('/owner-access');throw new Error('Owner session expired');}
     if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);
     return body;
   },[token]);
 
   const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{setData(await request('/snapshot',{},override));}catch(e){setError(e instanceof Error?e.message:'Unable to load intelligence');}finally{setLoading(false);}},[request]);
-  useEffect(()=>{const stored=localStorage.getItem(SESSION)||'';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
 
   async function refresh(){setLoading(true);setError('');try{const result=await request('/refresh',{method:'POST',body:JSON.stringify({limit:2000,trigger:'owner_dashboard'})});setNotice(`Run #${result.run_id}: ${result.properties_scored} properties scored.`);await load();}catch(e){setError(e instanceof Error?e.message:'Refresh failed');}finally{setLoading(false);}}
   const money=(value?:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value||0);
