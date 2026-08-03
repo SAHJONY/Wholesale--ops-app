@@ -36,7 +36,7 @@ router = APIRouter(prefix="/getting-started", tags=["guided setup"])
 CREDENTIAL_ENVS: dict[str, str] = {
     "Property data provider": "ATTOM_API_KEY",
     "Contact enrichment": "BATCHDATA_API_KEY",
-    "Seller communications": "BLAND_API_KEY",
+    "Seller communications": "BLAND_AI_API_KEY",
     "Contract execution": "DOCUSEAL_API_KEY",
     "Transactional email": "SMTP_USER",
 }

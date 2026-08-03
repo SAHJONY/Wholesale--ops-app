@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -15,10 +16,76 @@ from .database import get_db
 from .models import Approval, Lead
 from .outbound_models import OutboundRequest
 from .sms_models import SmsMessage
+from .voice_engine import discloses_ai, validate_call_script
+from .voice_models import VoiceCall
 
 router = APIRouter(prefix="/outbound", tags=["controlled outbound gateway"])
 
 DECISION_TTL = timedelta(minutes=15)
+
+VOICE_CHANNELS = frozenset({"automated_call", "live_call"})
+
+# +, a non-zero country code, then 7 to 14 more digits.
+E164 = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def caller_id() -> str | None:
+    """The number outbound calls are placed from, or None if unusable.
+
+    Validated rather than passed through. A caller ID copied out of a chat
+    window or a dashboard often arrives wrapped in typographic quotes, and
+    Vercel stores an environment variable exactly as pasted -- so the value
+    becomes "“+13465214387”" and every call fails at the provider with an
+    error that says nothing about quotes.
+    """
+    for name in ("BLAND_DEFAULT_FROM_NUMBER", "BLAND_DEFAULT_CALLER_ID"):
+        raw = str(os.getenv(name) or "").strip()
+        if not raw:
+            continue
+        if E164.match(raw):
+            return raw
+        raise HTTPException(503, (
+            f"{name} is not a valid E.164 number: {raw!r}. Expected +15551234567 "
+            "with no quotes, spaces or dashes."
+        ))
+    return None
+
+
+def _opening_line(request: OutboundRequest) -> str:
+    """The words the person actually hears first.
+
+    ``first_sentence`` is spoken verbatim when set. Otherwise Bland improvises
+    the opening from ``task``, so the disclosure has to be instructed there.
+    Both are joined rather than picking one, because a disclosure in either
+    place is a real disclosure and refusing it would only teach people to
+    duplicate the sentence.
+    """
+    content = request.content or {}
+    return " ".join(
+        str(content.get(field) or "") for field in ("first_sentence", "task")
+    ).strip()
+
+
+def _will_record(request: OutboundRequest) -> bool:
+    """Whether this call would be recorded.
+
+    ``_dispatch_bland`` hardcodes ``record: False`` and does not pass the field
+    through, so today this is always False. It is read from content anyway so
+    that the all-party consent check is already standing if recording is ever
+    made configurable -- the gate should not have to be remembered later.
+    """
+    return bool((request.content or {}).get("record"))
+
+
+def _call_state(db: Session, request: OutboundRequest) -> str | None:
+    """The lead's state, which decides the recording rule.
+
+    Returns None when unknown, and ``requires_all_party_consent`` reads None as
+    all-party. That is the intended direction: a missing state is missing
+    information, and only one of the two guesses is a criminal exposure.
+    """
+    lead = db.get(Lead, request.lead_id) if request.lead_id else None
+    return (getattr(lead, "state", None) or None) if lead else None
 
 
 def _validate_channel_provider(channel: str, provider: str) -> None:
@@ -147,7 +214,12 @@ def create_outbound_request(
 async def _dispatch_twilio(request: OutboundRequest) -> dict:
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    from_number = os.getenv("TWILIO_FROM_NUMBER") or os.getenv("BLAND_DEFAULT_FROM_NUMBER")
+    # Twilio's own sender only. This used to fall back to
+    # BLAND_DEFAULT_FROM_NUMBER, which meant that with no Twilio sender
+    # configured, texts went out from the Bland voice number -- a number that
+    # is not registered for A2P 10DLC messaging. Carriers either reject that
+    # traffic or fine it, and neither failure points back here.
+    from_number = os.getenv("TWILIO_FROM_NUMBER")
     messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
     if not account_sid or not auth_token or not (from_number or messaging_service_sid):
         raise HTTPException(503, "Twilio credentials or sender are not configured")
@@ -199,7 +271,7 @@ async def _dispatch_bland(request: OutboundRequest) -> dict:
         if value not in (None, ""):
             body[field] = value
     if "from" not in body:
-        default_from = os.getenv("BLAND_DEFAULT_FROM_NUMBER") or os.getenv("BLAND_DEFAULT_CALLER_ID")
+        default_from = caller_id()
         if default_from:
             body["from"] = default_from
 
@@ -246,6 +318,16 @@ async def dispatch_outbound_request(
     if suppression:
         raise HTTPException(422, "Contact became suppressed after approval; dispatch blocked")
 
+    if request.channel in VOICE_CHANNELS:
+        # Enforced here rather than only at /voice/preflight. Preflight is
+        # advisory -- nothing obliges a caller to run it -- so a script that
+        # never says it is a machine would otherwise dial anyway. The FCC
+        # treats an AI voice as an artificial voice, which is the difference
+        # between a marketing call and a TCPA claim per call.
+        problems = validate_call_script(_opening_line(request), _call_state(db, request), _will_record(request))
+        if problems:
+            raise HTTPException(422, f"Call script rejected: {', '.join(problems)}")
+
     try:
         result = await (_dispatch_twilio(request) if request.provider == "twilio" else _dispatch_bland(request))
         request.status = "queued"
@@ -270,6 +352,25 @@ async def dispatch_outbound_request(
                 status="queued",
                 provider_message_id=request.provider_reference,
                 evidence={"request_id": request.id, "provider": request.provider},
+            ))
+        if request.channel in VOICE_CHANNELS:
+            # What was disclosed is recorded per call, at the moment of the
+            # call. Deriving it from settings later would let a settings change
+            # rewrite what a past call is able to claim.
+            db.add(VoiceCall(
+                organization_id=principal.organization_id,
+                lead_id=request.lead_id,
+                direction="outbound",
+                contact=request.contact,
+                state=_call_state(db, request),
+                provider=request.provider,
+                provider_call_id=request.provider_reference,
+                decision_id=decision.id,
+                status="queued",
+                ai_disclosed=discloses_ai(_opening_line(request)),
+                recorded=_will_record(request),
+                recording_consent_basis=None,
+                evidence={"request_id": request.id, "channel": request.channel},
             ))
         db.add(CrmActivity(
             organization_id=principal.organization_id,

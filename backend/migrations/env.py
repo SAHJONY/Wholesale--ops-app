@@ -21,6 +21,7 @@ MODEL_MODULES = (
     "app.background_jobs",
     "app.cash_buyer_models",
     "app.sms_models",
+    "app.voice_models",
     "app.integration_hub_models",
     "app.integration_reliability_models",
     "app.acquisition_intake",
