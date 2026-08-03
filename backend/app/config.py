@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     claude_model: str = "claude-opus-5"
     claude_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
     claude_server_side_fallback: bool = True
+    # Second engine. Tried only when Claude is unreachable, so that a provider
+    # outage degrades to a different model rather than straight to rule-based
+    # analysis. Unset is a valid configuration -- the chain simply gets shorter.
+    openai_api_key: str | None = None
+    # Override with OPENAI_MODEL to whatever the account actually has access to;
+    # this default was not verifiable from the build environment.
+    openai_model: str = "gpt-5.1"
     google_maps_api_key: str | None = None
     app_url: str = "http://localhost:3000"
 

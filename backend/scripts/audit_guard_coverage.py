@@ -137,6 +137,15 @@ GUARDS: tuple[Guard, ...] = (
         "An accept-everything verifier makes this a public write endpoint.",
     ),
     Guard(
+        # Collapsing the refusal class into its parent makes a refusal
+        # indistinguishable from an outage, so the chain would retry a
+        # declined analysis on the second engine -- refusal shopping.
+        "app.decision_intelligence", "DecisionRefused",
+        "app.decision_intelligence.DecisionUnavailable",
+        "tests/test_decision_intelligence.py",
+        "A refusal must not be retried on a different provider.",
+    ),
+    Guard(
         # The channels the dispatcher actually runs the script gate for.
         # Emptying it leaves validate_call_script defined, imported and never
         # consulted -- which is the precise shape of every defect this tool

@@ -16,5 +16,10 @@ pytest==8.3.4
 # labelled source="deterministic" instead of using the model.
 anthropic==0.120.0
 
+# The second engine, for the same reason: with OPENAI_API_KEY set and the SDK
+# missing, a Claude outage would fall through to deterministic analysis while
+# the configuration says a fallback model is available.
+openai==2.15.0
+
 # upstash-redis stays removed: still imported nowhere. On a serverless deploy
 # an unused dependency is pure cold-start, bundle-size and CVE surface.
