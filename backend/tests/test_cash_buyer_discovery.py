@@ -153,3 +153,86 @@ def test_deed_category_writes_nothing_onto_the_distress_profile():
     # Buying a house is a sign of a buyer, not of a distressed seller.
     assert spec.category == "buyer_signal"
     assert not any("distress" in field or "delinquent" in field for field in spec.writable_fields)
+
+
+# ------------------------------------------------------- county feed wiring --
+
+class _Source:
+    """Stands in for a configured JurisdictionSource."""
+
+    def __init__(self, **kw):
+        self.category = "cash_purchase_deed"
+        self.county = "Escambia"
+        self.state = "FL"
+        self.endpoint = "https://recorder.example.gov/resource/abcd-1234.json"
+        self.address_field = "situs_address"
+        self.zip_field = "zip"
+        self.field_map = {
+            "last_grantee": "grantee_name",
+            "last_sale_price": "sale_amount",
+            "last_sale_date": "record_date",
+            "last_sale_instrument": "instrument_no",
+        }
+        self.__dict__.update(kw)
+
+
+def _row(**kw):
+    row = {
+        "grantee_name": "Apex Properties LLC",
+        "sale_amount": "150000",
+        "record_date": "2026-05-01",
+        "instrument_no": "I-1",
+        "situs_address": "100 Main St",
+        "zip": "32501",
+    }
+    row.update(kw)
+    return row
+
+
+def test_county_columns_are_translated_through_the_field_map():
+    from app.cash_buyer_discovery import deeds_from_rows
+
+    [deed_row] = deeds_from_rows(_Source(), [_row()], None)
+    assert deed_row["grantee"] == "Apex Properties LLC"
+    assert deed_row["consideration"] == "150000"
+    assert deed_row["recorded_at"] == "2026-05-01"
+    assert deed_row["instrument"] == "I-1"
+    assert deed_row["county"] == "Escambia"
+    assert deed_row["zip_code"] == "32501"
+
+
+def test_without_a_mortgage_index_the_key_is_absent_not_false():
+    # An absent key means "not searched"; False would mean "searched, none
+    # found", which is the claim that must never be manufactured.
+    from app.cash_buyer_discovery import deeds_from_rows
+
+    [deed_row] = deeds_from_rows(_Source(), [_row()], None)
+    assert "mortgage_found" not in deed_row
+    [candidate] = aggregate_deeds([deed_row])
+    assert candidate["cash_evidence"] == "unconfirmed"
+
+
+def test_an_empty_lien_set_means_searched_and_clean():
+    from app.cash_buyer_discovery import deeds_from_rows
+
+    [deed_row] = deeds_from_rows(_Source(), [_row()], set())
+    assert deed_row["mortgage_found"] is False
+    [candidate] = aggregate_deeds([deed_row])
+    assert candidate["cash_evidence"] == "confirmed"
+
+
+def test_an_encumbered_address_is_not_a_cash_purchase():
+    from app.cash_buyer_discovery import _normalize_address, deeds_from_rows
+
+    liens = {_normalize_address("100 Main St")}
+    [deed_row] = deeds_from_rows(_Source(), [_row()], liens)
+    assert deed_row["mortgage_found"] is True
+    [candidate] = aggregate_deeds([deed_row])
+    assert candidate["cash_evidence"] == "unconfirmed"
+
+
+def test_address_matching_survives_formatting_differences():
+    from app.cash_buyer_discovery import _normalize_address
+
+    assert _normalize_address("100 Main St.") == _normalize_address("100  MAIN ST")
+    assert _normalize_address("100 Main St") != _normalize_address("200 Main St")

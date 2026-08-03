@@ -192,26 +192,119 @@ def aggregate_deeds(deeds: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(grouped.values(), key=lambda e: (-e["confidence"], -e["purchase_count"]))
 
 
-@router.post("/ingest-deeds")
-def ingest_deeds(
-    payload: dict[str, Any],
+def _normalize_address(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def deeds_from_rows(
+    source: Any,
+    rows: list[dict[str, Any]],
+    liens: set[str] | None,
+) -> list[dict[str, Any]]:
+    """Translate a county's columns into the deed shape, per its field map.
+
+    ``liens`` is the set of normalized addresses carrying a recorded mortgage,
+    or None when no mortgage index was searched. The distinction is the whole
+    point: None leaves ``mortgage_found`` absent so the purchase stays
+    unconfirmed, while an empty set means a search ran and came back clean.
+    """
+    column_for = dict(source.field_map or {})
+    deeds = []
+    for row in rows:
+        address = row.get(source.address_field)
+        normalized = _normalize_address(address)
+        deed: dict[str, Any] = {
+            "grantee": row.get(column_for.get("last_grantee", "")),
+            "consideration": row.get(column_for.get("last_sale_price", "")),
+            "recorded_at": row.get(column_for.get("last_sale_date", "")),
+            "instrument": row.get(column_for.get("last_sale_instrument", "")),
+            "address": address,
+            "parcel": normalized or None,
+            "zip_code": row.get(source.zip_field) if source.zip_field else None,
+            "county": source.county,
+            "source": source.endpoint,
+        }
+        if liens is not None:
+            deed["mortgage_found"] = normalized in liens
+        deeds.append(deed)
+    return deeds
+
+
+@router.post("/sync/{jurisdiction_id}")
+async def sync_from_jurisdiction(
+    jurisdiction_id: str,
+    payload: dict[str, Any] | None = None,
     principal: Principal = Depends(require_role("manager")),
     db: Session = Depends(get_db),
 ):
-    """Turn recorded transfers into reviewable candidates. Creates no buyers."""
-    deeds = payload.get("deeds")
-    if not isinstance(deeds, list) or not deeds:
-        raise HTTPException(422, "deeds must be a non-empty list of recorded transfers")
+    """Pull recorded transfers from a configured county feed into candidates.
 
+    Optionally cross-references a mortgage index to establish cash purchases.
+    That cross-reference is only sound if the whole index was read: an address
+    missing from a truncated page is not an address with no mortgage. When the
+    mortgage fetch hits its cap the comparison is abandoned rather than
+    completed on partial data, because a false "cash confirmed" is the one
+    error here that reaches a person.
+    """
+    # Imported here: distress_ingest imports the provider registry at module
+    # scope, and a top-level import either way would close the cycle.
+    from .distress_ingest import _get_source, fetch_rows
+
+    body = payload or {}
+    max_rows = min(int(body.get("max_rows") or 1000), 5000)
+
+    source = _get_source(jurisdiction_id)
+    if source.category != "cash_purchase_deed":
+        raise HTTPException(
+            422,
+            f"Jurisdiction '{jurisdiction_id}' is category '{source.category}', not cash_purchase_deed.",
+        )
+
+    liens: set[str] | None = None
+    mortgage_note = "No mortgage index configured, so no purchase can be confirmed as cash."
+    mortgage_id = str(body.get("mortgage_jurisdiction_id") or "").strip()
+    if mortgage_id:
+        mortgage_source = _get_source(mortgage_id)
+        mortgage_rows = await fetch_rows(mortgage_source, max_rows)
+        if len(mortgage_rows) >= max_rows:
+            mortgage_note = (
+                f"Mortgage index returned {len(mortgage_rows)} rows, at the {max_rows} cap. "
+                "A truncated index cannot prove an absence, so cash was not confirmed for any "
+                "purchase. Narrow it with a where filter or raise max_rows."
+            )
+        else:
+            liens = {
+                _normalize_address(row.get(mortgage_source.address_field))
+                for row in mortgage_rows
+            }
+            liens.discard("")
+            mortgage_note = f"Mortgage index read in full: {len(liens)} encumbered addresses."
+
+    rows = await fetch_rows(source, max_rows)
+    deeds = deeds_from_rows(source, rows, liens)
+    result = _upsert_candidates(db, principal, aggregate_deeds(deeds))
+    return {
+        "organization_id": principal.organization_id,
+        "jurisdiction_id": source.id,
+        "county": source.county,
+        "state": source.state,
+        "deed_rows_read": len(rows),
+        "deed_rows_truncated": len(rows) >= max_rows,
+        "mortgage_index": mortgage_note,
+        **result,
+    }
+
+
+def _upsert_candidates(
+    db: Session, principal: Principal, aggregated: list[dict[str, Any]]
+) -> dict[str, int]:
     created = updated = 0
-    for entry in aggregate_deeds(deeds):
+    for entry in aggregated:
         candidate = db.scalar(select(CashBuyerCandidate).where(
             CashBuyerCandidate.organization_id == principal.organization_id,
             CashBuyerCandidate.normalized_name == entry["normalized_name"],
         ))
         if candidate:
-            # Re-running a sweep must not double-count; the aggregate replaces
-            # rather than accumulates, and a reviewed candidate keeps its state.
             for field in (
                 "grantee_name", "entity_type", "purchase_count", "total_consideration",
                 "cash_confirmed_count", "cash_evidence", "confidence", "zip_codes",
@@ -225,11 +318,25 @@ def ingest_deeds(
             ))
             created += 1
     db.commit()
+    return {"candidates_created": created, "candidates_updated": updated}
+
+
+@router.post("/ingest-deeds")
+def ingest_deeds(
+    payload: dict[str, Any],
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    """Turn recorded transfers into reviewable candidates. Creates no buyers."""
+    deeds = payload.get("deeds")
+    if not isinstance(deeds, list) or not deeds:
+        raise HTTPException(422, "deeds must be a non-empty list of recorded transfers")
+
+    result = _upsert_candidates(db, principal, aggregate_deeds(deeds))
     return {
         "organization_id": principal.organization_id,
         "deeds_received": len(deeds),
-        "candidates_created": created,
-        "candidates_updated": updated,
+        **result,
         "note": (
             "Candidates only. Nothing here is a buyer until an owner or manager promotes it, "
             "and cash_evidence stays 'unconfirmed' unless a mortgage search reported no lien."
