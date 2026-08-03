@@ -2,6 +2,34 @@
 
 Use a second Vercel project connected to the same GitHub repository.
 
+> **The backend does not deploy itself. Confirm this before trusting a fix is live.**
+>
+> The frontend project has a GitHub integration and redeploys on every push to
+> `main`. If the backend project is deployed from the CLI instead (`vercel
+> --prod` from a laptop), the two drift apart every time someone merges without
+> also running that command, and nothing announces it.
+>
+> This has already happened: the backend sat five merges behind `main` for ten
+> days while the frontend stayed current. Production kept raising
+> `TypeError: can't compare offset-naive and offset-aware datetimes` from a bug
+> that had been fixed and merged weeks earlier — 47 errors across 14 users —
+> because the fix had never been deployed.
+>
+> Check which commit production is actually running:
+>
+> ```bash
+> curl -s https://YOUR-BACKEND-PROJECT.vercel.app/health | jq .deployed
+> ```
+>
+> `deployed.commit` is the real answer. A `null` commit means the instance was
+> not built by Vercel; a commit that is not the tip of `main` means the backend
+> is stale no matter how green CI looks. `version` is a hardcoded string and
+> proves nothing.
+>
+> To remove the failure mode rather than watch for it, connect the backend
+> project to the repository in Vercel (Settings → Git) with production branch
+> `main` and root directory `backend`, so it deploys on merge like the frontend.
+
 ## Project settings
 
 - Repository: `SAHJONY/Wholesale--ops-app`
