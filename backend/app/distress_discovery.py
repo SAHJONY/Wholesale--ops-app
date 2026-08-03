@@ -22,6 +22,7 @@ from a catalog title may carry different columns or no rows at all.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import httpx
@@ -44,7 +45,13 @@ CATEGORY_QUERIES: dict[str, tuple[str, ...]] = {
     "tax_delinquency": ("delinquent tax", "tax delinquency", "tax certificate sale", "unpaid property tax"),
     "code_violation": ("code violation", "code enforcement", "unsafe structure", "property maintenance violation"),
     "probate": ("probate case", "probate docket", "estate case"),
-    "lis_pendens": ("lis pendens", "notice of default", "pre-foreclosure filing"),
+    # Judicial track: the artefacts of a filed lawsuit.
+    "lis_pendens": ("lis pendens", "pre-foreclosure filing", "foreclosure complaint", "notice of pendency"),
+    # Non-judicial track: recorded by the trustee or recorder, no docket exists.
+    "notice_of_default": ("notice of default", "default notice", "notice of delinquency"),
+    "notice_of_trustee_sale": (
+        "notice of trustee sale", "trustee sale", "notice of sale", "substitute trustee",
+    ),
     "foreclosure_sale": ("foreclosure sale", "sheriff sale", "tax deed auction", "foreclosure auction"),
     "demolition_permit": ("demolition permit", "demolition", "building permit demolition"),
 }
@@ -55,6 +62,20 @@ def _public_record_categories() -> list[str]:
         category for category in CATEGORY_QUERIES
         if PROVIDERS_BY_ID[category].access == "public_record"
     ]
+
+
+def categories_without_queries() -> list[str]:
+    """Public-record categories a sweep cannot find.
+
+    A category with no search terms is invisible to discovery, so adding one to
+    the provider registry without adding terms here silently removes it from
+    nationwide coverage. That happened when the foreclosure track was split.
+    A test asserts this stays empty.
+    """
+    return sorted(
+        spec.id for spec in PROVIDERS_BY_ID.values()
+        if spec.access == "public_record" and spec.id not in CATEGORY_QUERIES
+    )
 
 
 async def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -112,11 +133,55 @@ async def search_arcgis(query: str, limit: int) -> list[dict[str, Any]]:
     return candidates
 
 
+STATE_NAMES: dict[str, str] = {
+    "AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas", "CA": "california",
+    "CO": "colorado", "CT": "connecticut", "DE": "delaware", "DC": "district of columbia",
+    "FL": "florida", "GA": "georgia", "HI": "hawaii", "ID": "idaho", "IL": "illinois",
+    "IN": "indiana", "IA": "iowa", "KS": "kansas", "KY": "kentucky", "LA": "louisiana",
+    "ME": "maine", "MD": "maryland", "MA": "massachusetts", "MI": "michigan", "MN": "minnesota",
+    "MS": "mississippi", "MO": "missouri", "MT": "montana", "NE": "nebraska", "NV": "nevada",
+    "NH": "new hampshire", "NJ": "new jersey", "NM": "new mexico", "NY": "new york",
+    "NC": "north carolina", "ND": "north dakota", "OH": "ohio", "OK": "oklahoma",
+    "OR": "oregon", "PA": "pennsylvania", "RI": "rhode island", "SC": "south carolina",
+    "SD": "south dakota", "TN": "tennessee", "TX": "texas", "UT": "utah", "VT": "vermont",
+    "VA": "virginia", "WA": "washington", "WV": "west virginia", "WI": "wisconsin",
+    "WY": "wyoming",
+}
+
+
 def _matches_state(candidate: dict[str, Any], states: set[str]) -> bool:
+    """Whether a catalog hit plausibly belongs to one of the requested states.
+
+    Substring matching on the abbreviation is unusable here, and was: "IN"
+    matched every dataset titled "Building" or "Index", "CA" matched "vacant"
+    and "Chicago", "OR" matched "Records", "LA" matched "Violation". A sweep
+    filtered that way returns most of the country whichever state you ask for,
+    which is worse than no filter because it looks like it worked.
+
+    Three signals are accepted instead: the full state name anywhere, the
+    abbreviation as a whole word, and the abbreviation as a domain label, which
+    is how government portals encode it (``data.ca.gov``, ``gis.tn.us``).
+    """
     if not states:
         return True
-    haystack = " ".join(str(candidate.get(key) or "") for key in ("domain", "title", "description")).lower()
-    return any(state.lower() in haystack for state in states)
+
+    domain = str(candidate.get("domain") or "").lower()
+    haystack = " ".join(
+        str(candidate.get(key) or "") for key in ("domain", "title", "description")
+    ).lower()
+
+    for state in states:
+        code = state.lower()
+        name = STATE_NAMES.get(state.upper())
+        if name and name in haystack:
+            return True
+        # Whole word only: "in" must not match "building".
+        if re.search(rf"\b{re.escape(code)}\b", haystack):
+            return True
+        # A domain label, e.g. data.ca.gov or maps.tn.us.
+        if re.search(rf"(^|\.){re.escape(code)}\.", domain):
+            return True
+    return False
 
 
 @router.get("/categories")
@@ -126,6 +191,7 @@ def categories(principal: Principal = Depends(get_principal)):
         "categories": [{
             "id": category,
             "queries": list(queries),
+            "procedure": PROVIDERS_BY_ID[category].procedure,
             "verification_status": PROVIDERS_BY_ID[category].verification_status,
             "writable_fields": list(PROVIDERS_BY_ID[category].writable_fields),
         } for category, queries in CATEGORY_QUERIES.items()],
@@ -180,6 +246,10 @@ async def sweep(payload: dict[str, Any], principal: Principal = Depends(get_prin
                         **hit,
                         "category": category,
                         "status": "unvalidated",
+                        # Which county office creates this record, so an
+                        # operator can tell whether a hit is even plausible for
+                        # the state before spending a validation call on it.
+                        "procedure": PROVIDERS_BY_ID[category].procedure,
                         "suggested_registry_entry": {
                             "id": f"{hit['catalog']}-{hit['dataset_id']}-{category}",
                             "state": "REPLACE",
