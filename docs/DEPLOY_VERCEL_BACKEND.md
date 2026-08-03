@@ -26,9 +26,36 @@ Use a second Vercel project connected to the same GitHub repository.
 > is stale no matter how green CI looks. `version` is a hardcoded string and
 > proves nothing.
 >
-> To remove the failure mode rather than watch for it, connect the backend
-> project to the repository in Vercel (Settings → Git) with production branch
-> `main` and root directory `backend`, so it deploys on merge like the frontend.
+> To remove the failure mode rather than watch for it, either connect the
+> backend project to the repository in Vercel (Settings → Git) with production
+> branch `main` and root directory `backend`, or use the deploy workflow below,
+> which drives both projects from the repository.
+
+## Deploying from the repository
+
+`.github/workflows/deploy.yml` deploys on every push to `main`, in the order the
+system actually requires: migrate, then backend, then frontend. Relying on the
+Vercel Git integration alone proved unreliable here — it produced a production
+deployment for only two of six consecutive merges — and the backend was never
+connected to it at all.
+
+Add one secret under **Settings → Secrets and variables → Actions**:
+
+| Secret | Required | Purpose |
+| --- | --- | --- |
+| `VERCEL_TOKEN` | yes | A Vercel access token with deploy rights. Without it every job skips with a warning instead of failing. |
+| `PRODUCTION_DATABASE_URL` | no | When set, `alembic upgrade head` runs before the backend deploys, so new code never meets an older schema. When unset, migrations are skipped and any new tables are reported missing rather than created. |
+
+The Vercel org and project IDs live in the workflow in plain text. They are
+identifiers rather than credentials and are useless without the token; keeping
+them there means setup is one secret instead of five.
+
+After the backend deploys, the workflow asks the running service which commit it
+reports and compares it to the commit being deployed. Reporting no commit fails
+the run, because that can only mean code older than revision reporting is still
+being served. Reporting a *different* commit warns rather than fails, since a CLI
+deploy does not always record git metadata the way a Git-integration build does,
+and a check that fails on ambiguity gets switched off.
 
 ## Project settings
 
