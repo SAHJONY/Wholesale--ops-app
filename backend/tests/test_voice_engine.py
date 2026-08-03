@@ -162,21 +162,39 @@ def test_quiet_hours_still_cover_both_call_channels():
 
 # ------------------------------------------------- inbound number and callbacks --
 
-def test_the_inbound_number_is_validated(monkeypatch):
+def test_the_inbound_numbers_are_validated(monkeypatch):
     import pytest as _pytest
     from fastapi import HTTPException
 
     monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+12164804413")
-    assert ve.inbound_number() == "+12164804413"
+    assert ve.inbound_numbers() == ("+12164804413",)
 
     monkeypatch.setenv("BLAND_INBOUND_NUMBER", "“+12164804413”")
     with _pytest.raises(HTTPException):
-        ve.inbound_number()
+        ve.inbound_numbers()
+
+
+def test_several_inbound_lines_can_be_configured(monkeypatch):
+    # Both numbers on the Bland account answer, which is the setup that makes
+    # the callback rule satisfiable without giving either up.
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+13465214387, +12164804413")
+    assert ve.inbound_numbers() == ("+13465214387", "+12164804413")
+
+
+def test_one_bad_number_in_the_list_fails_the_whole_list(monkeypatch):
+    # Silently dropping the invalid one would leave a line nobody notices is
+    # unmonitored.
+    import pytest as _pytest
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+13465214387,216-480-4413")
+    with _pytest.raises(HTTPException):
+        ve.inbound_numbers()
 
 
 def test_an_unset_inbound_number_is_not_an_error(monkeypatch):
     monkeypatch.delenv("BLAND_INBOUND_NUMBER", raising=False)
-    assert ve.inbound_number() is None
+    assert ve.inbound_numbers() == ()
 
 
 def test_the_inbound_line_is_not_read_from_the_outbound_caller_id(monkeypatch):
@@ -185,17 +203,25 @@ def test_the_inbound_line_is_not_read_from_the_outbound_caller_id(monkeypatch):
     # outbound calls from the inbound line.
     monkeypatch.delenv("BLAND_INBOUND_NUMBER", raising=False)
     monkeypatch.setenv("BLAND_DEFAULT_CALLER_ID", "+12164804413")
-    assert ve.inbound_number() is None
+    assert ve.inbound_numbers() == ()
 
 
-def test_differing_numbers_are_reported_as_unreachable(monkeypatch):
-    # The real configuration that prompted this: outbound from a Houston
-    # number, inbound answered on a Cleveland one.
+def test_a_caller_id_with_no_agent_behind_it_is_reported(monkeypatch):
+    # Outbound from Houston, agent answering only in Cleveland.
     monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
     monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+12164804413")
     result = ve.callback_reachability()
     assert result["callback_reaches_inbound_agent"] is False
     assert "64.1601" in result["note"]
+
+
+def test_a_caller_id_among_the_answered_lines_is_reachable(monkeypatch):
+    # The fix that keeps both numbers: give the caller ID an agent too.
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+13465214387,+12164804413")
+    result = ve.callback_reachability()
+    assert result["callback_reaches_inbound_agent"] is True
+    assert result["inbound_numbers"] == ["+13465214387", "+12164804413"]
 
 
 def test_matching_numbers_are_reported_as_reachable(monkeypatch):

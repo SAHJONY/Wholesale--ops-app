@@ -92,24 +92,34 @@ def requires_all_party_consent(state: str | None) -> bool:
     return normalized in ALL_PARTY_CONSENT_STATES
 
 
-def inbound_number() -> str | None:
-    """The number sellers call in on, in E.164, or None if unset.
+def inbound_numbers() -> tuple[str, ...]:
+    """The numbers sellers can call in on, in E.164.
+
+    A comma-separated list, because an account commonly answers on more than
+    one line and the callback rule cares whether the caller ID is *among* the
+    answered numbers, not whether it equals one particular one.
 
     Distinct from the outbound caller ID. ``BLAND_DEFAULT_CALLER_ID`` is an
     outbound name -- the caller ID a call is placed *from* -- so the inbound
-    line needs its own variable rather than borrowing that one. Putting the
+    lines need their own variable rather than borrowing that one. Putting an
     inbound number there would make it the fallback outbound caller ID, and a
     typo in the real one would silently start dialling from the inbound line.
     """
     raw = str(os.getenv("BLAND_INBOUND_NUMBER") or "").strip()
     if not raw:
-        return None
-    if not re.match(r"^\+[1-9]\d{7,14}$", raw):
-        raise HTTPException(503, (
-            f"BLAND_INBOUND_NUMBER is not a valid E.164 number: {raw!r}. "
-            "Expected +15551234567 with no quotes, spaces or dashes."
-        ))
-    return raw
+        return ()
+    numbers = []
+    for part in raw.split(","):
+        value = part.strip()
+        if not value:
+            continue
+        if not re.match(r"^\+[1-9]\d{7,14}$", value):
+            raise HTTPException(503, (
+                f"BLAND_INBOUND_NUMBER contains an invalid E.164 number: {value!r}. "
+                "Expected +15551234567, comma-separated, with no quotes or dashes."
+            ))
+        numbers.append(value)
+    return tuple(numbers)
 
 
 def callback_reachability() -> dict[str, Any]:
@@ -126,27 +136,30 @@ def callback_reachability() -> dict[str, Any]:
     """
     from .outbound_gateway import caller_id
 
-    outbound, inbound = caller_id(), inbound_number()
+    outbound, inbound = caller_id(), inbound_numbers()
     if not outbound or not inbound:
         return {
             "outbound_caller_id": outbound,
-            "inbound_number": inbound,
+            "inbound_numbers": list(inbound),
             "callback_reaches_inbound_agent": None,
             "note": "Configure both numbers to check whether callbacks are answered.",
         }
-    same = outbound == inbound
+    # Among, not equal to. Answering on several lines is the normal shape, and
+    # what the rule cares about is whether the displayed number is one of them.
+    same = outbound in inbound
     return {
         "outbound_caller_id": outbound,
-        "inbound_number": inbound,
+        "inbound_numbers": list(inbound),
         "callback_reaches_inbound_agent": same,
         "note": (
-            "Callbacks to the caller ID reach the inbound agent."
+            "Callbacks to the caller ID reach an inbound agent."
             if same else
-            f"Calls display {outbound} but the inbound agent answers {inbound}. "
-            "Anyone returning the call reaches the caller ID, not the agent, unless "
-            "the carrier forwards it. 47 CFR 64.1601(e) requires a telemarketing "
-            "caller ID that can be dialled back to make a do-not-call request, so "
-            "either place calls from the inbound number or forward the caller ID to it."
+            f"Calls display {outbound}, but the agent answers only on "
+            f"{', '.join(inbound)}. Anyone returning the call reaches a number with "
+            "nothing behind it, unless the carrier forwards it. 47 CFR 64.1601(e) "
+            "requires a telemarketing caller ID that can be dialled back to make a "
+            "do-not-call request, so give the caller ID an inbound agent too, place "
+            "calls from a number that has one, or forward it."
         ),
     }
 
