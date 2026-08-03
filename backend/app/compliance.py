@@ -17,6 +17,14 @@ router = APIRouter(prefix="/compliance", tags=["communication compliance"])
 ALLOWED_CHANNELS = {"live_call", "automated_call", "sms", "email"}
 CONSENT_REQUIRED = {"automated_call", "sms"}
 CALL_CHANNELS = {"live_call", "automated_call"}
+
+# Channels the 8am-9pm restriction applies to, in the recipient's own local
+# time. SMS belongs here: the quiet-hours rule covers text messages exactly as
+# it covers calls, and a message sent at 3am is a per-message violation whether
+# it rang or buzzed. This set previously held only the call channels, so every
+# text bypassed the check entirely.
+QUIET_HOURS_CHANNELS = {"live_call", "automated_call", "sms"}
+
 DNC_MAX_AGE_DAYS = 31
 CALL_START_HOUR = 8
 CALL_END_HOUR = 21
@@ -123,7 +131,7 @@ def evaluate_contact(db: Session, principal: Principal, lead: Lead, channel: str
                 "source": consent.source,
             }
 
-    if channel in CALL_CHANNELS:
+    if channel in QUIET_HOURS_CHANNELS:
         if not recipient_timezone:
             reasons.append("recipient_timezone_missing")
         else:

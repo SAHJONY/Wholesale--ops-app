@@ -58,6 +58,7 @@ from app.real_estate_intelligence import router as real_estate_intelligence_rout
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
+from app.sms_engine import router as sms_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
@@ -115,6 +116,7 @@ app.include_router(county_verification_router)
 app.include_router(county_queue_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
+app.include_router(sms_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(disposition_router)
