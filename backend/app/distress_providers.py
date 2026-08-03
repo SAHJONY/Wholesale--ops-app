@@ -173,6 +173,27 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         ),
     ),
     ProviderSpec(
+        id="cash_purchase_deed",
+        name="Recorded deed transfers",
+        category="buyer_signal",
+        access="public_record",
+        authority_tier="county_recorder",
+        verification_status="verified",
+        confidence=90.0,
+        # A deed establishes who took title, when, and for how much. It writes
+        # nothing onto the property's distress profile: buying a house is not a
+        # sign of distress, it is a sign of a buyer.
+        writable_fields=("last_sale_price", "last_sale_date", "last_sale_instrument", "last_grantee"),
+        feature_flag="BUYER_DEED_ENABLED",
+        endpoint_env="BUYER_DEED_ENDPOINT",
+        notes=(
+            "Feeds cash-buyer discovery. A deed alone never proves a cash purchase; that requires "
+            "searching the mortgage index for the same parcel and finding nothing, which is a "
+            "separate dataset (BUYER_MORTGAGE_INDEX_ENDPOINT). Without it, purchases are reported "
+            "as unconfirmed rather than assumed to be cash."
+        ),
+    ),
+    ProviderSpec(
         id="demolition_permit",
         name="Building and demolition permits",
         category="distress",
