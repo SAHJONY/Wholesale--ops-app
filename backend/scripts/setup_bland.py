@@ -117,6 +117,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--call", metavar="E164", help="Place one real test call to this number")
     parser.add_argument("--webhook-base", default=os.getenv("APP_URL", "https://YOUR-BACKEND.vercel.app"))
+    parser.add_argument(
+        "--i-know", action="store_true",
+        help="Send a key that looks like OpenAI's anyway. Use if Bland has changed format.",
+    )
     args = parser.parse_args()
 
     api_key = (os.getenv("BLAND_AI_API_KEY") or "").strip()
@@ -152,10 +156,16 @@ def main() -> int:
     if not api_key:
         print(f"\n{RED}BLAND_AI_API_KEY is not set.{RESET}")
         return 1
-    if api_key.startswith("sk-proj-") or "T3BlbkFJ" in api_key:
-        print(f"\n{RED}That is an OpenAI key, not a Bland key.{RESET}")
-        print(f"{DIM}sk-proj- keys are OpenAI's; T3BlbkFJ is base64 for 'OpenAI'.{RESET}")
-        print(f"{DIM}Get the Bland key from the Bland dashboard under API Keys.{RESET}")
+    if (api_key.startswith("sk-proj-") or "T3BlbkFJ" in api_key) and not args.i_know:
+        # A warning rather than a refusal. The evidence is strong -- T3BlbkFJ is
+        # base64 for "OpenAI" and is embedded so secret scanners can spot leaked
+        # OpenAI keys -- but key formats change, and a check written from an
+        # assumption should not be able to stop a key that actually works.
+        print(f"\n{RED}This looks like an OpenAI key rather than a Bland key.{RESET}")
+        print(f"{DIM}  sk-proj- is OpenAI's project-key prefix, and T3BlbkFJ decodes to 'OpenAI'{RESET}")
+        print(f"{DIM}  -- a marker OpenAI embeds so secret scanners can detect leaked keys.{RESET}")
+        print(f"{DIM}  If Bland has adopted this format, re-run with --i-know to send it anyway.{RESET}")
+        print(f"{DIM}  One request settles it either way.{RESET}")
         return 1
 
     import httpx
@@ -164,11 +174,20 @@ def main() -> int:
     print(f"\n{BOLD}Placing one call to {args.call}{RESET}")
     print(f"{DIM}{json.dumps({k: v for k, v in body.items() if k != 'task'}, indent=2)}{RESET}")
 
-    response = httpx.post(
-        "https://api.bland.ai/v1/calls",
-        headers={"authorization": api_key, "Content-Type": "application/json"},
-        json=body, timeout=30,
-    )
+    try:
+        response = httpx.post(
+            "https://api.bland.ai/v1/calls",
+            headers={"authorization": api_key, "Content-Type": "application/json"},
+            json=body, timeout=30,
+        )
+    except httpx.HTTPError as exc:
+        # Reaching api.bland.ai at all is the first thing that can fail, and a
+        # raw traceback here reads as a bug in this script rather than a
+        # network or proxy problem.
+        print(f"  {RED}Could not reach api.bland.ai: {type(exc).__name__}: {exc}{RESET}")
+        print(f"{DIM}  Nothing was sent. Check outbound network access and any HTTPS proxy.{RESET}")
+        return 1
+
     try:
         data = response.json()
     except ValueError:
