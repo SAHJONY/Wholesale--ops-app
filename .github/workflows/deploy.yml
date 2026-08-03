@@ -19,8 +19,14 @@ name: Deploy
 #
 # The org and project IDs below are identifiers, not credentials; they are
 # useless without the token, so they stay in plain sight to keep setup to one
-# secret. Until VERCEL_TOKEN exists every job skips with a notice rather than
-# failing, so adding this file does not turn the repository red.
+# secret.
+#
+# A merge with no VERCEL_TOKEN skips with a warning rather than failing, so
+# adding this file does not turn the repository red before deployment is set up.
+# A run started by hand is held to a different standard: dispatching this
+# workflow is an explicit request to deploy, so skipping fails the run. Reporting
+# success for a deploy that shipped nothing is the failure that hid ten days of
+# drift, and it should not be reproducible in thirty seconds.
 #
 # The secrets context is not available to step-level `if`, so each job lifts the
 # presence of a secret into a job-level env flag and branches on that.
@@ -51,6 +57,23 @@ jobs:
       HAS_DATABASE: ${{ secrets.PRODUCTION_DATABASE_URL != '' && 'yes' || 'no' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Report which secrets reached this run
+        # Lengths only, never values. "Secrets and variables" has three separate
+        # stores behind identical-looking buttons -- Actions, Codespaces and
+        # Dependabot -- and a secret in the wrong one is invisible here while
+        # looking present in the UI. A length of 0 says the workflow cannot see
+        # it, which is the difference between a setup problem and a code problem
+        # and takes one line to establish instead of an afternoon.
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          echo "VERCEL_TOKEN            length ${#VERCEL_TOKEN}"
+          echo "PRODUCTION_DATABASE_URL length ${#PRODUCTION_DATABASE_URL}"
+          echo "0 means this workflow cannot see it. Check Settings -> Secrets and"
+          echo "variables -> Actions -> Repository secrets, not the Codespaces or"
+          echo "Dependabot tab and not the Variables tab."
 
       - name: Skip when no database is configured
         if: env.HAS_DATABASE == 'no'
@@ -83,6 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' && 'yes' || 'no' }}
+      MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'yes' || 'no' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -91,6 +115,15 @@ jobs:
         run: |
           echo "::warning::VERCEL_TOKEN is not set, so the backend was not deployed."
           echo "::warning::Production keeps serving whatever commit it already had."
+          if [ "$MANUAL_RUN" = "yes" ]; then
+            # A merge that skips is tolerable: the repository should not go red
+            # for everyone before deployment is set up. A run someone started by
+            # hand is different -- it is an explicit request to deploy, and
+            # reporting success for a run that shipped nothing is the same
+            # failure that hid ten days of drift, just faster.
+            echo "::error::This deploy was started by hand, so not deploying is a failure rather than a skip."
+            exit 1
+          fi
 
       - name: Deploy
         if: env.HAS_TOKEN == 'yes'
@@ -142,12 +175,18 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' && 'yes' || 'no' }}
+      MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'yes' || 'no' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Skip without a token
         if: env.HAS_TOKEN == 'no'
-        run: echo "::warning::VERCEL_TOKEN is not set, so the frontend was not deployed."
+        run: |
+          echo "::warning::VERCEL_TOKEN is not set, so the frontend was not deployed."
+          if [ "$MANUAL_RUN" = "yes" ]; then
+            echo "::error::This deploy was started by hand, so not deploying is a failure rather than a skip."
+            exit 1
+          fi
 
       - name: Deploy
         if: env.HAS_TOKEN == 'yes'
