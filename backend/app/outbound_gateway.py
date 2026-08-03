@@ -14,6 +14,7 @@ from .crm import _assert_linked, _workspace_link
 from .database import get_db
 from .models import Approval, Lead
 from .outbound_models import OutboundRequest
+from .sms_models import SmsMessage
 
 router = APIRouter(prefix="/outbound", tags=["controlled outbound gateway"])
 
@@ -254,6 +255,22 @@ async def dispatch_outbound_request(
         request.dispatched_by_user_id = principal.user_id
         request.dispatched_at = datetime.now(timezone.utc)
         request.error = None
+        if request.channel == "sms":
+            # Written here because this is where a message actually goes out.
+            # The frequency cap counts these rows, so a send the log never sees
+            # is a send the cap cannot count, and the limit silently becomes no
+            # limit at all.
+            db.add(SmsMessage(
+                organization_id=principal.organization_id,
+                lead_id=request.lead_id,
+                direction="outbound",
+                contact=request.contact,
+                body=str(request.content.get("body") or ""),
+                decision_id=decision.id,
+                status="queued",
+                provider_message_id=request.provider_reference,
+                evidence={"request_id": request.id, "provider": request.provider},
+            ))
         db.add(CrmActivity(
             organization_id=principal.organization_id,
             user_id=principal.user_id,
