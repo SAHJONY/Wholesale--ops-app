@@ -30,6 +30,11 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_wholesale_ops.db")
 os.environ.setdefault("APP_URL", "http://localhost:3000")
 
+# /auth/bootstrap locks itself once the first organization exists, so tests that
+# need more than one workspace require a known secret. Production stays locked
+# whenever BOOTSTRAP_SECRET is unset, which is the default outside tests.
+os.environ.setdefault("BOOTSTRAP_SECRET", "test-bootstrap-secret")
+
 # A table from the earliest schema and one from the most recent migration: the
 # pair distinguishes "no schema at all" from "schema stopped partway".
 REQUIRED_TABLES = ("app_users", "properties", "background_jobs")

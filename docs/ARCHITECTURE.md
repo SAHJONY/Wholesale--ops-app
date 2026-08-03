@@ -8,7 +8,7 @@
 - `Upstash Redis`: live call/lead state and idempotency
 - `QStash`: scheduled outreach and retry delivery
 - `Bland.ai`: inbound seller, outbound acquisition and buyer disposition calls
-- `Claude`: structured analysis, summaries and next-action recommendations
+- `Claude`: structured analysis, summaries and next-action recommendations (see `DECISION_INTELLIGENCE.md`)
 
 ## Safety boundary
 
@@ -27,6 +27,12 @@ The system may research, score, summarize, schedule and draft. A human operator 
 9. Approve assignment and coordinate closing.
 10. Feed outcomes back into buyer and lead scores.
 
+## Decision intelligence
+
+Valuation, scoring, buyer matching, and forecasting run on calibrated models
+rather than fixed formulas. See `DECISION_INTELLIGENCE.md` for the engines, their
+uncertainty handling, and the API surface.
+
 ## Production hardening backlog
 
 - Authentication and organization tenancy
@@ -34,7 +40,6 @@ The system may research, score, summarize, schedule and draft. A human operator 
 - QStash signature verification and workers
 - Upstash state adapter
 - Bland.ai call initiation service
-- Anthropic structured-output orchestrator
 - Google Maps JavaScript and Street View UI
 - Licensed property-data integrations
 - CRM/calendar/e-sign integrations
