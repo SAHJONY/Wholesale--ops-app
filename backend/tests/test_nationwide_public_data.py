@@ -1,7 +1,6 @@
-import pytest
-from fastapi import HTTPException
+import asyncio
 
-from app.nationwide_public_data import _extract_geography, _normalize_match, build_truth_report
+from app.nationwide_public_data import _extract_geography, _normalize_match, _terrain_context, build_truth_report
 
 
 def test_normalize_census_match_extracts_geography():
@@ -68,3 +67,33 @@ def test_truth_report_marks_missing_aggregate_context_unavailable():
     population = next(item for item in report["claims"] if item["field"] == "population")
     assert population["status"] == "unavailable"
     assert population["confidence"] == "none"
+
+
+def test_truth_report_includes_usgs_elevation_as_context_not_survey():
+    report = build_truth_report(
+        {"matched_address": "A", "coordinates": {}, "geography": {}},
+        None,
+        "2026-07-31T12:00:00+00:00",
+        {"elevation_feet": 294.5},
+    )
+    elevation = next(item for item in report["claims"] if item["field"] == "ground_elevation_feet")
+    assert elevation["status"] == "verified"
+    assert elevation["source"] == "usgs_3dep"
+    assert elevation["confidence"] == "interpolated_not_survey_grade"
+
+
+def test_terrain_context_normalizes_usgs_response(monkeypatch):
+    async def fake_request(url, params):
+        return {"value": 294.519, "resolution": 1, "rasterId": 29928}, 88, 0
+
+    monkeypatch.setattr("app.nationwide_public_data._request_json", fake_request)
+    result = asyncio.run(_terrain_context(-76.9274, 38.8459))
+    assert result == {
+        "elevation_feet": 294.5,
+        "dataset": "USGS 3D Elevation Program (3DEP)",
+        "resolution_meters": 1,
+        "raster_id": 29928,
+        "latency_ms": 88,
+        "retries": 0,
+        "survey_grade": False,
+    }

@@ -30,6 +30,7 @@ const intelligence: NavItem[] = [
 ];
 
 const operations: NavItem[] = [
+  { href: '/owner/business', label: 'Business OS', icon: '▦' },
   { href: '/owner/operations', label: 'Business operations', icon: '⚙' },
   { href: '/owner/closing', label: 'Closings', icon: '□' },
   { href: '/owner/jobs', label: 'AI workforce', icon: '↻' },

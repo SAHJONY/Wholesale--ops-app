@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .autonomy import AUTONOMY_AGENTS, create_task, execute_next_tasks, run_agent
+from .auth import Principal, require_role
 from .config import settings
 from .database import get_db
 from .models import AgentRun, Approval, Buyer, Call, Campaign, ClosingItem, Deal, Lead, Offer, OpsTask, Property
@@ -37,7 +38,7 @@ def _retired_legacy_endpoint():
 
 @app.get("/dashboard", dependencies=[Depends(_retired_legacy_endpoint)])
 def dashboard(db: Session = Depends(get_db)):
-    leads = db.scalars(select(Lead)).all(); buyers = db.scalars(select(Buyer)).all()
+    leads = db.scalars(select(Lead).where(Lead.status != "deleted")).all(); buyers = db.scalars(select(Buyer)).all()
     calls = db.scalars(select(Call)).all(); tasks = db.scalars(select(OpsTask)).all()
     approvals = db.scalars(select(Approval).where(Approval.status == "pending")).all()
     campaigns = db.scalars(select(Campaign)).all(); deals = db.scalars(select(Deal)).all()
@@ -68,13 +69,50 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
 
 @app.get("/leads", dependencies=[Depends(_retired_legacy_endpoint)])
 def list_leads(db: Session = Depends(get_db)):
-    leads = db.scalars(select(Lead).order_by(Lead.created_at.desc())).all()
+    leads = db.scalars(select(Lead).where(Lead.status != "deleted").order_by(Lead.created_at.desc())).all()
     return [{"id": x.id, "property_id": x.property.id if x.property else None,
              "seller_name": x.seller_name, "phone": x.phone, "status": x.status,
              "distress_score": x.distress_score, "motivation_score": x.motivation_score,
              "address": x.property.address if x.property else None,
              "zip_code": x.property.zip_code if x.property else None,
              "mao": x.property.mao if x.property else None} for x in leads]
+
+
+@app.delete("/leads/{lead_id}")
+def delete_lead(
+    lead_id: int,
+    payload: dict | None = None,
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    lead = db.get(Lead, lead_id)
+    if not lead or lead.status == "deleted":
+        raise HTTPException(404, "Lead not found")
+    active_deal = db.scalar(select(Deal).join(Property, Deal.property_id == Property.id).where(
+        Property.lead_id == lead_id,
+        Deal.stage.not_in(["closed", "dead"]),
+    ))
+    if active_deal:
+        raise HTTPException(409, f"Lead has active deal #{active_deal.id}; close or mark it dead before deletion")
+    reason = str((payload or {}).get("reason") or "Removed from Command Center").strip()[:500]
+    lead.status = "deleted"
+    lead.seller_name = "Deleted lead"
+    lead.phone = "deleted"
+    lead.email = None
+    lead.notes = f"Soft deleted at {datetime.now(timezone.utc).isoformat()}. Reason: {reason}"
+    for task in db.scalars(select(OpsTask).where(
+        OpsTask.lead_id == lead_id,
+        OpsTask.status.in_(["queued", "pending"]),
+    )).all():
+        task.status = "cancelled"
+    db.commit()
+    return {
+        "lead_id": lead_id,
+        "status": "deleted",
+        "contact_data_removed": True,
+        "reason": reason,
+        "deleted_by_user_id": principal.user_id,
+    }
 
 
 @app.post("/buyers", dependencies=[Depends(_retired_legacy_endpoint)])

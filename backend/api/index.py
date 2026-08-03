@@ -7,6 +7,7 @@ from app.activation import router as activation_router
 from app.audit_center import router as audit_router
 from app.auth import router as auth_router
 from app.buyer_intake import router as buyer_intake_router
+from app.business_os import router as business_os_router
 from app.closing_command import router as closing_command_router
 from app.compliance import router as compliance_router
 from app.contact_enrichment import router as contact_enrichment_router
@@ -89,6 +90,7 @@ app.include_router(market_selection_router)
 app.include_router(getting_started_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
+app.include_router(business_os_router)
 app.include_router(test_deal_router)
 app.include_router(real_estate_intelligence_router)
 app.include_router(property_workspace_router)
