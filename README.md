@@ -39,7 +39,7 @@ Lead intake → distress scoring → seller call → underwriting → approval �
 See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint.
 # BatchData MCP
 
-Provider Intelligence uses BatchData's MCP server with a server-side Bearer token. Configure `BATCHDATA_MCP_URL=https://mcp.batchdata.com` and the sensitive `BATCHDATA_API_TOKEN`. This integration does not require an OAuth callback, encryption key, or database migration.
+Provider Intelligence uses BatchData's MCP server with a server-side Bearer token. Configure `BATCHDATA_MCP_URL=https://mcp.batchdata.com` and the sensitive `BATCHDATA_API_TOKEN`. This integration does not require an OAuth callback, encryption key, or database migration. BatchData contact enrichment is a separate REST integration configured with `BATCHDATA_SKIPTRACE_URL` and `BATCHDATA_API_KEY`; its readiness and compliance gates do not represent MCP readiness.
 
 Tool verification lists available MCP tools without performing a billable property lookup. The token is read only by the backend and is never returned to the browser. Property data remains preview-first and cannot authorize outreach or offers.
 See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint,
