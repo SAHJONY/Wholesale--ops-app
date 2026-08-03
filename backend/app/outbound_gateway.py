@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -23,6 +24,31 @@ router = APIRouter(prefix="/outbound", tags=["controlled outbound gateway"])
 DECISION_TTL = timedelta(minutes=15)
 
 VOICE_CHANNELS = frozenset({"automated_call", "live_call"})
+
+# +, a non-zero country code, then 7 to 14 more digits.
+E164 = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def caller_id() -> str | None:
+    """The number outbound calls are placed from, or None if unusable.
+
+    Validated rather than passed through. A caller ID copied out of a chat
+    window or a dashboard often arrives wrapped in typographic quotes, and
+    Vercel stores an environment variable exactly as pasted -- so the value
+    becomes "“+13465214387”" and every call fails at the provider with an
+    error that says nothing about quotes.
+    """
+    for name in ("BLAND_DEFAULT_FROM_NUMBER", "BLAND_DEFAULT_CALLER_ID"):
+        raw = str(os.getenv(name) or "").strip()
+        if not raw:
+            continue
+        if E164.match(raw):
+            return raw
+        raise HTTPException(503, (
+            f"{name} is not a valid E.164 number: {raw!r}. Expected +15551234567 "
+            "with no quotes, spaces or dashes."
+        ))
+    return None
 
 
 def _opening_line(request: OutboundRequest) -> str:
@@ -188,7 +214,12 @@ def create_outbound_request(
 async def _dispatch_twilio(request: OutboundRequest) -> dict:
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    from_number = os.getenv("TWILIO_FROM_NUMBER") or os.getenv("BLAND_DEFAULT_FROM_NUMBER")
+    # Twilio's own sender only. This used to fall back to
+    # BLAND_DEFAULT_FROM_NUMBER, which meant that with no Twilio sender
+    # configured, texts went out from the Bland voice number -- a number that
+    # is not registered for A2P 10DLC messaging. Carriers either reject that
+    # traffic or fine it, and neither failure points back here.
+    from_number = os.getenv("TWILIO_FROM_NUMBER")
     messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
     if not account_sid or not auth_token or not (from_number or messaging_service_sid):
         raise HTTPException(503, "Twilio credentials or sender are not configured")
@@ -240,7 +271,7 @@ async def _dispatch_bland(request: OutboundRequest) -> dict:
         if value not in (None, ""):
             body[field] = value
     if "from" not in body:
-        default_from = os.getenv("BLAND_DEFAULT_FROM_NUMBER") or os.getenv("BLAND_DEFAULT_CALLER_ID")
+        default_from = caller_id()
         if default_from:
             body["from"] = default_from
 

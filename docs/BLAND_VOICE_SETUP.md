@@ -13,7 +13,7 @@ calls `api.bland.ai`.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `BLAND_AI_API_KEY` | yes | Bland API key. Every dispatch returns 503 without it. |
-| `BLAND_DEFAULT_FROM_NUMBER` | yes for outbound | Caller ID in E.164, e.g. `+18505551234`. `BLAND_DEFAULT_CALLER_ID` is read as a fallback. |
+| `BLAND_DEFAULT_FROM_NUMBER` | yes for outbound | Caller ID in E.164, e.g. `+18505551234`. `BLAND_DEFAULT_CALLER_ID` is read only if this is unset — Bland's API has one `from` field, so setting both does not configure two things. |
 | `BLAND_AI_WEBHOOK_SECRET` | yes for inbound | Shared secret for the webhook signature. Unset means every delivery is rejected. |
 | `BLAND_AI_WEBHOOK_SIGNATURE_HEADER` | usually no | Only if Bland's signature does not arrive in a conventional header. See below. |
 | `BLAND_INBOUND_ORGANIZATION_ID` | yes for inbound | The workspace owning the receiving number. |
@@ -23,6 +23,22 @@ calls `api.bland.ai`.
 > and a 503 on the first call, which is the worst kind of misconfiguration
 > because it fails in production rather than at setup. A test now holds
 > `.env.example` and the setup checklist to the name the code actually reads.
+
+### Paste the number bare
+
+`+13465214387` — no quotes, spaces or dashes. Vercel stores an environment
+variable exactly as pasted, and a number copied out of a chat window usually
+arrives wrapped in typographic quotes: `“+13465214387”`. Those survive into
+production, and the provider then rejects the call with an error that says
+nothing about quoting.
+
+The caller ID is validated as E.164 at dispatch and refused with a message that
+names the problem, so a bad paste fails immediately and legibly instead of
+turning into an opaque provider error.
+
+The voice number is **not** used for SMS. Texts require `TWILIO_FROM_NUMBER` or
+`TWILIO_MESSAGING_SERVICE_SID`; a Bland voice number is not registered for A2P
+10DLC, and carriers reject or fine that traffic.
 
 Vercel applies environment variables to *new* deployments only. Adding a
 variable changes nothing until the backend redeploys, and this backend has no

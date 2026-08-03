@@ -70,6 +70,73 @@ def test_cross_workspace_decision_is_rejected():
         _decision_for_request(FakeDb(decision(organization_id=99)), principal(), 11, 1, "sms", "+13055551212")
 
 
+# ------------------------------------------------------------- caller ID --
+
+def test_a_plain_e164_number_is_accepted(monkeypatch):
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
+    assert og.caller_id() == "+13465214387"
+
+
+def test_typographic_quotes_are_rejected_with_a_useful_message(monkeypatch):
+    # Exactly what a number copied out of a chat window looks like. Vercel
+    # stores an environment variable as pasted, so the smart quotes survive
+    # into production and the provider rejects every call with an error that
+    # never mentions quoting.
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "“+13465214387”")
+    with pytest.raises(HTTPException) as raised:
+        og.caller_id()
+    assert "E.164" in str(raised.value.detail)
+
+
+def test_common_formatting_mistakes_are_rejected(monkeypatch):
+    for value in ('"+13465214387"', "+1 346 521 4387", "+1-346-521-4387",
+                  "13465214387", "(346) 521-4387"):
+        monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", value)
+        with pytest.raises(HTTPException):
+            og.caller_id()
+
+
+def test_caller_id_falls_back_to_the_second_name(monkeypatch):
+    monkeypatch.delenv("BLAND_DEFAULT_FROM_NUMBER", raising=False)
+    monkeypatch.setenv("BLAND_DEFAULT_CALLER_ID", "+12164804413")
+    assert og.caller_id() == "+12164804413"
+
+
+def test_the_from_number_wins_when_both_are_set(monkeypatch):
+    # Setting both is not setting two things. Bland's API has one `from`
+    # field, so the second value is never sent anywhere.
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
+    monkeypatch.setenv("BLAND_DEFAULT_CALLER_ID", "+12164804413")
+    assert og.caller_id() == "+13465214387"
+
+
+def test_no_configured_caller_id_is_not_an_error(monkeypatch):
+    # Bland can place calls from a number on the account, so an unset caller
+    # ID is a valid configuration rather than a failure.
+    monkeypatch.delenv("BLAND_DEFAULT_FROM_NUMBER", raising=False)
+    monkeypatch.delenv("BLAND_DEFAULT_CALLER_ID", raising=False)
+    assert og.caller_id() is None
+
+
+def test_the_voice_number_is_never_used_as_an_sms_sender(monkeypatch):
+    # A Bland voice number is not registered for A2P 10DLC. Sending texts from
+    # it gets the traffic rejected or fined, and neither failure points back
+    # at this configuration. With a voice number but no Twilio sender, the
+    # send must fail rather than quietly borrow the voice number.
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "AC-test")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "token")
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
+    monkeypatch.delenv("TWILIO_FROM_NUMBER", raising=False)
+    monkeypatch.delenv("TWILIO_MESSAGING_SERVICE_SID", raising=False)
+
+    request = call_request(body="Hi, it's Sam with SAHJONY. Reply STOP to opt out.")
+    request.channel, request.provider = "sms", "twilio"
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(og._dispatch_twilio(request))
+    assert raised.value.status_code == 503
+    assert "sender" in str(raised.value.detail).lower()
+
+
 # ------------------------------------------- the AI-disclosure gate on calls --
 
 class DispatchDb:
