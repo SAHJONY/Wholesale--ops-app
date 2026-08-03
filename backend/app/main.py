@@ -27,9 +27,30 @@ app.add_middleware(
 )
 
 
+def deployed_revision() -> dict[str, str | None]:
+    """Which commit this instance is actually running.
+
+    Production drifted five merges behind ``main`` for ten days and nothing
+    could see it: ``/health`` reported a hardcoded version string that had not
+    changed in months, so a stale deployment and a current one were
+    indistinguishable from outside. Vercel injects these at build time; running
+    anywhere else they are absent and reported as null rather than guessed.
+    """
+    return {
+        "commit": os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("GIT_COMMIT_SHA"),
+        "branch": os.getenv("VERCEL_GIT_COMMIT_REF"),
+        "environment": os.getenv("VERCEL_ENV"),
+    }
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "wholesale-ops-api", "version": "0.3.0"}
+    return {
+        "status": "ok",
+        "service": "wholesale-ops-api",
+        "version": "0.3.0",
+        "deployed": deployed_revision(),
+    }
 
 
 def _retired_legacy_endpoint():
