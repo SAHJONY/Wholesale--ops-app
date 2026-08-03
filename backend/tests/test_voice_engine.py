@@ -160,6 +160,58 @@ def test_quiet_hours_still_cover_both_call_channels():
     assert "automated_call" in QUIET_HOURS_CHANNELS
 
 
+# ------------------------------------------------- inbound number and callbacks --
+
+def test_the_inbound_number_is_validated(monkeypatch):
+    import pytest as _pytest
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+12164804413")
+    assert ve.inbound_number() == "+12164804413"
+
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "“+12164804413”")
+    with _pytest.raises(HTTPException):
+        ve.inbound_number()
+
+
+def test_an_unset_inbound_number_is_not_an_error(monkeypatch):
+    monkeypatch.delenv("BLAND_INBOUND_NUMBER", raising=False)
+    assert ve.inbound_number() is None
+
+
+def test_the_inbound_line_is_not_read_from_the_outbound_caller_id(monkeypatch):
+    # BLAND_DEFAULT_CALLER_ID is an outbound name. If the inbound number were
+    # read from it, a typo in BLAND_DEFAULT_FROM_NUMBER would start placing
+    # outbound calls from the inbound line.
+    monkeypatch.delenv("BLAND_INBOUND_NUMBER", raising=False)
+    monkeypatch.setenv("BLAND_DEFAULT_CALLER_ID", "+12164804413")
+    assert ve.inbound_number() is None
+
+
+def test_differing_numbers_are_reported_as_unreachable(monkeypatch):
+    # The real configuration that prompted this: outbound from a Houston
+    # number, inbound answered on a Cleveland one.
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+12164804413")
+    result = ve.callback_reachability()
+    assert result["callback_reaches_inbound_agent"] is False
+    assert "64.1601" in result["note"]
+
+
+def test_matching_numbers_are_reported_as_reachable(monkeypatch):
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+12164804413")
+    monkeypatch.setenv("BLAND_INBOUND_NUMBER", "+12164804413")
+    assert ve.callback_reachability()["callback_reaches_inbound_agent"] is True
+
+
+def test_reachability_is_unknown_when_a_number_is_missing(monkeypatch):
+    # Unknown, not fine. Reporting False would be a false alarm and reporting
+    # True would be a guess.
+    monkeypatch.delenv("BLAND_INBOUND_NUMBER", raising=False)
+    monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
+    assert ve.callback_reachability()["callback_reaches_inbound_agent"] is None
+
+
 # ------------------------------------------------------ webhook signatures --
 
 import base64

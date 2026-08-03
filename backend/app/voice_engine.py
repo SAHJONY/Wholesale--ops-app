@@ -92,6 +92,65 @@ def requires_all_party_consent(state: str | None) -> bool:
     return normalized in ALL_PARTY_CONSENT_STATES
 
 
+def inbound_number() -> str | None:
+    """The number sellers call in on, in E.164, or None if unset.
+
+    Distinct from the outbound caller ID. ``BLAND_DEFAULT_CALLER_ID`` is an
+    outbound name -- the caller ID a call is placed *from* -- so the inbound
+    line needs its own variable rather than borrowing that one. Putting the
+    inbound number there would make it the fallback outbound caller ID, and a
+    typo in the real one would silently start dialling from the inbound line.
+    """
+    raw = str(os.getenv("BLAND_INBOUND_NUMBER") or "").strip()
+    if not raw:
+        return None
+    if not re.match(r"^\+[1-9]\d{7,14}$", raw):
+        raise HTTPException(503, (
+            f"BLAND_INBOUND_NUMBER is not a valid E.164 number: {raw!r}. "
+            "Expected +15551234567 with no quotes, spaces or dashes."
+        ))
+    return raw
+
+
+def callback_reachability() -> dict[str, Any]:
+    """Whether someone returning a missed call reaches the inbound agent.
+
+    This is not only an operational question. Under 47 CFR 64.1601(e) a
+    telemarketing call must transmit a caller ID number the called party can
+    dial back to make a do-not-call request. A caller ID that rings nowhere
+    does not satisfy that, and it also loses every seller who calls back
+    instead of answering -- which, on cold outbound, is a lot of them.
+
+    Reported rather than enforced: the caller ID may be forwarded to the
+    inbound line by the carrier, which cannot be determined from here.
+    """
+    from .outbound_gateway import caller_id
+
+    outbound, inbound = caller_id(), inbound_number()
+    if not outbound or not inbound:
+        return {
+            "outbound_caller_id": outbound,
+            "inbound_number": inbound,
+            "callback_reaches_inbound_agent": None,
+            "note": "Configure both numbers to check whether callbacks are answered.",
+        }
+    same = outbound == inbound
+    return {
+        "outbound_caller_id": outbound,
+        "inbound_number": inbound,
+        "callback_reaches_inbound_agent": same,
+        "note": (
+            "Callbacks to the caller ID reach the inbound agent."
+            if same else
+            f"Calls display {outbound} but the inbound agent answers {inbound}. "
+            "Anyone returning the call reaches the caller ID, not the agent, unless "
+            "the carrier forwards it. 47 CFR 64.1601(e) requires a telemarketing "
+            "caller ID that can be dialled back to make a do-not-call request, so "
+            "either place calls from the inbound number or forward the caller ID to it."
+        ),
+    }
+
+
 def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text, re.I) for pattern in patterns)
 
@@ -142,6 +201,12 @@ def preflight(
     state = str(payload.get("state") or "").strip().upper() or None
     record = bool(payload.get("record"))
     problems = validate_call_script(str(payload.get("opening_line") or ""), state, record)
+    reachability = callback_reachability()
+    warnings: list[str] = []
+    if reachability["callback_reaches_inbound_agent"] is False:
+        warnings.append("caller_id_does_not_reach_the_inbound_agent")
+    elif reachability["callback_reaches_inbound_agent"] is None:
+        warnings.append("callback_reachability_unknown")
     return {
         "organization_id": principal.organization_id,
         "state": state,
@@ -149,6 +214,10 @@ def preflight(
         "all_party_consent_state": requires_all_party_consent(state),
         "placeable": not problems,
         "blockers": problems,
+        # Warnings, not blockers: the caller ID may be forwarded to the inbound
+        # line by the carrier, which cannot be determined from here.
+        "warnings": warnings,
+        "callback": reachability,
         "note": (
             "Script checks only. The outbound gateway additionally requires a compliance "
             "decision covering written consent, DNC and quiet hours, plus owner approval. "
@@ -219,7 +288,13 @@ def record_call(
         recording_consent_basis=str(payload.get("recording_consent_basis") or "") or None,
         verbal_opt_out=opted_out,
         transcript_excerpt=transcript[:2000] or None,
-        evidence={"provider_payload_keys": sorted(payload), "source": source},
+        evidence={
+            "provider_payload_keys": sorted(payload),
+            "source": source,
+            # Which of our numbers was dialled. Worth keeping: it is the only
+            # way to tell later which line a call actually arrived on.
+            "to": normalize_phone(str(payload.get("to") or "")) or None,
+        },
     )
     db.add(call)
 

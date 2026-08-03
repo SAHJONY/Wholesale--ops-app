@@ -13,7 +13,8 @@ calls `api.bland.ai`.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `BLAND_AI_API_KEY` | yes | Bland API key. Every dispatch returns 503 without it. |
-| `BLAND_DEFAULT_FROM_NUMBER` | yes for outbound | Caller ID in E.164, e.g. `+18505551234`. `BLAND_DEFAULT_CALLER_ID` is read only if this is unset — Bland's API has one `from` field, so setting both does not configure two things. |
+| `BLAND_DEFAULT_FROM_NUMBER` | yes for outbound | Outbound caller ID in E.164, e.g. `+18505551234`. `BLAND_DEFAULT_CALLER_ID` is an alias read only if this is unset — both name the number calls are placed *from*. |
+| `BLAND_INBOUND_NUMBER` | yes for inbound | The number sellers call in on. Not the same variable as the caller ID, and ideally the same number — see below. |
 | `BLAND_AI_WEBHOOK_SECRET` | yes for inbound | Shared secret for the webhook signature. Unset means every delivery is rejected. |
 | `BLAND_AI_WEBHOOK_SIGNATURE_HEADER` | usually no | Only if Bland's signature does not arrive in a conventional header. See below. |
 | `BLAND_INBOUND_ORGANIZATION_ID` | yes for inbound | The workspace owning the receiving number. |
@@ -35,6 +36,24 @@ nothing about quoting.
 The caller ID is validated as E.164 at dispatch and refused with a message that
 names the problem, so a bad paste fails immediately and legibly instead of
 turning into an opaque provider error.
+
+### The caller ID should be the number that answers
+
+If outbound calls display one number and the inbound agent answers a different
+one, anyone who returns a missed call reaches the caller ID and not the agent.
+On cold outbound that is a large share of the responses, since many sellers call
+back rather than answer an unknown number.
+
+It is also a regulatory point. 47 CFR 64.1601(e) requires a telemarketing call
+to transmit a caller ID number the called party can dial back to make a
+do-not-call request. A caller ID that rings nowhere does not satisfy that.
+
+`GET/POST /voice/preflight` reports this under `callback`, and raises
+`caller_id_does_not_reach_the_inbound_agent` in `warnings` when the two differ.
+It is a warning rather than a blocker because the carrier may forward the caller
+ID to the inbound line, which cannot be determined from inside the application.
+
+The simplest correct setup is one number for both.
 
 The voice number is **not** used for SMS. Texts require `TWILIO_FROM_NUMBER` or
 `TWILIO_MESSAGING_SERVICE_SID`; a Bland voice number is not registered for A2P
