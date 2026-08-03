@@ -128,6 +128,15 @@ GUARDS: tuple[Guard, ...] = (
         "A spoken 'take me off your list' would stop being heard.",
     ),
     Guard(
+        # The webhook is the one endpoint here with no authentication in front
+        # of it. If verification ever returns True unconditionally, anyone on
+        # the internet can write calls and opt-outs into the workspace.
+        "app.voice_engine", "verify_webhook_signature",
+        'lambda headers, body: (True, "bypassed")',
+        "tests/test_voice_engine.py",
+        "An accept-everything verifier makes this a public write endpoint.",
+    ),
+    Guard(
         # The channels the dispatcher actually runs the script gate for.
         # Emptying it leaves validate_call_script defined, imported and never
         # consulted -- which is the precise shape of every defect this tool

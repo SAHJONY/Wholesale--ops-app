@@ -28,11 +28,15 @@ Nothing here dials. Placing a call stays with the outbound gateway.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import logging
 import os
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -40,8 +44,11 @@ from .auth import Principal, get_principal
 from .auth_models import CrmActivity
 from .compliance import normalize_phone
 from .database import get_db
+from .outbound_models import OutboundRequest
 from .sms_engine import suppress
 from .voice_models import VoiceCall
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/voice", tags=["bland.ai voice"])
 
@@ -151,19 +158,18 @@ def preflight(
     }
 
 
-@router.post("/inbound")
-def inbound(
+def record_call(
+    db: Session,
+    organization_id: int,
+    user_id: int | None,
     payload: dict[str, Any],
-    principal: Principal = Depends(get_principal),
-    db: Session = Depends(get_db),
-):
-    """Record an inbound or completed call and honour any spoken opt-out.
+    source: str,
+) -> dict[str, Any]:
+    """Log a completed call and honour any spoken opt-out.
 
-    This takes an authenticated principal, so Bland's webhook cannot be pointed
-    at it directly -- the payload has to be relayed by something holding a
-    workspace token, which is how ``sms_engine`` handles inbound too. It keeps
-    the tenant unambiguous and avoids an unauthenticated public write endpoint;
-    the cost is a relay step when the provider is wired up.
+    Shared by the authenticated route and the signed webhook so the two cannot
+    drift. A drifting copy here would mean an opt-out honoured on one path and
+    silently dropped on the other, which is the failure that costs the most.
 
     A request to stop calling is acted on immediately rather than queued: the
     caller has already said it once, and a queue means the next call may go out
@@ -173,6 +179,24 @@ def inbound(
     if not contact:
         raise HTTPException(422, "from or phone_number is required")
 
+    provider_call_id = str(payload.get("call_id") or "") or None
+    if provider_call_id:
+        # Providers retry. Without this, one redelivery becomes a second call
+        # record and a duplicated activity entry.
+        existing = db.scalar(select(VoiceCall).where(
+            VoiceCall.organization_id == organization_id,
+            VoiceCall.provider_call_id == provider_call_id,
+            VoiceCall.direction != "outbound",
+        ))
+        if existing:
+            return {
+                "contact": existing.contact,
+                "verbal_opt_out": existing.verbal_opt_out,
+                "action": "already_recorded",
+                "call_id": existing.id,
+                "duplicate": True,
+            }
+
     transcript = str(payload.get("transcript") or payload.get("concatenated_transcript") or "")
     lead_id = payload.get("lead_id")
     lead_id = int(lead_id) if lead_id else None
@@ -180,13 +204,13 @@ def inbound(
     opted_out = detect_verbal_opt_out(transcript)
 
     call = VoiceCall(
-        organization_id=principal.organization_id,
+        organization_id=organization_id,
         lead_id=lead_id,
         direction=str(payload.get("direction") or "inbound"),
         contact=contact,
         state=state,
         provider="bland",
-        provider_call_id=str(payload.get("call_id") or "") or None,
+        provider_call_id=provider_call_id,
         status="completed",
         outcome=str(payload.get("outcome") or payload.get("status") or "") or None,
         duration_seconds=float(payload["duration"]) if payload.get("duration") else None,
@@ -195,7 +219,7 @@ def inbound(
         recording_consent_basis=str(payload.get("recording_consent_basis") or "") or None,
         verbal_opt_out=opted_out,
         transcript_excerpt=transcript[:2000] or None,
-        evidence={"provider_payload_keys": sorted(payload)},
+        evidence={"provider_payload_keys": sorted(payload), "source": source},
     )
     db.add(call)
 
@@ -204,11 +228,11 @@ def inbound(
         # Both call channels and SMS. Someone asking not to be called has not
         # invited a text instead, and the request is about being contacted.
         for channel in ("live_call", "automated_call"):
-            _suppress_channel(db, principal.organization_id, contact, channel, lead_id)
+            _suppress_channel(db, organization_id, contact, channel, lead_id)
         # SMS goes through sms_engine.suppress, which also revokes any standing
         # SMS consent record rather than leaving one for a later process to read.
         suppress(
-            db, principal.organization_id, contact,
+            db, organization_id, contact,
             reason="verbal_do_not_call_request",
             source="inbound_call_transcript",
             lead_id=lead_id,
@@ -216,12 +240,15 @@ def inbound(
         action = "suppressed_all_channels"
 
     db.add(CrmActivity(
-        organization_id=principal.organization_id,
-        user_id=principal.user_id,
+        organization_id=organization_id,
+        user_id=user_id,
         lead_id=lead_id,
         activity_type="voice_call_inbound",
         summary=f"Call with {contact}: {action}",
-        metadata_json={"contact": contact, "verbal_opt_out": opted_out, "action": action},
+        metadata_json={
+            "contact": contact, "verbal_opt_out": opted_out,
+            "action": action, "source": source,
+        },
     ))
     db.commit()
     return {
@@ -229,7 +256,23 @@ def inbound(
         "verbal_opt_out": opted_out,
         "action": action,
         "call_id": call.id,
+        "duplicate": False,
     }
+
+
+@router.post("/inbound")
+def inbound(
+    payload: dict[str, Any],
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    """Record a call on behalf of an authenticated caller.
+
+    Kept alongside the signed webhook for relaying a payload by hand -- a
+    replay of a delivery Bland has already sent, or a call logged from another
+    system. The webhook is what Bland itself should point at.
+    """
+    return record_call(db, principal.organization_id, principal.user_id, payload, source="authenticated")
 
 
 def _suppress_channel(
@@ -257,6 +300,154 @@ def _suppress_channel(
         contact=contact, reason="verbal_do_not_call_request",
         source="inbound_call_transcript", active=True,
     ))
+
+
+# ---------------------------------------------------------------- webhook --
+#
+# Bland's published header name could not be confirmed while this was written,
+# so verification tries the conventional names rather than hardcoding a guess.
+# BLAND_AI_WEBHOOK_SIGNATURE_HEADER pins it once you know which one arrives,
+# and a rejected delivery reports the header names it did carry, so the first
+# real delivery tells you the answer instead of failing silently.
+SIGNATURE_HEADER_CANDIDATES = (
+    "x-webhook-signature", "x-bland-signature", "x-signature", "signature",
+)
+
+
+def _webhook_secret() -> str:
+    return str(os.getenv("BLAND_AI_WEBHOOK_SECRET") or "").strip()
+
+
+def _signature_headers() -> tuple[str, ...]:
+    configured = str(os.getenv("BLAND_AI_WEBHOOK_SIGNATURE_HEADER") or "").strip().lower()
+    return (configured,) if configured else SIGNATURE_HEADER_CANDIDATES
+
+
+def _expected_signatures(secret: str, body: bytes) -> set[str]:
+    """Every encoding a sane provider might use for the same HMAC.
+
+    Accepting hex and base64 of the same digest is not a weakening: both are
+    derived from the secret, so neither can be produced without it.
+    """
+    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256)
+    return {digest.hexdigest(), base64.b64encode(digest.digest()).decode("ascii")}
+
+
+def _presented_signature(headers: Any) -> tuple[str | None, str | None]:
+    for name in _signature_headers():
+        raw = headers.get(name)
+        if raw:
+            value = str(raw).strip()
+            # "sha256=<hex>" is a common wrapping; compare the payload only.
+            if "=" in value and value.split("=", 1)[0].lower() in {"sha256", "sha-256", "v1"}:
+                value = value.split("=", 1)[1].strip()
+            return name, value
+    return None, None
+
+
+def verify_webhook_signature(headers: Any, body: bytes) -> tuple[bool, str]:
+    """Whether this delivery was signed with the shared secret.
+
+    Fails closed on a missing secret. An unauthenticated public write endpoint
+    that accepts anything when misconfigured is worse than one that is down,
+    because nothing about it looks broken.
+    """
+    secret = _webhook_secret()
+    if not secret:
+        return False, "webhook_secret_not_configured"
+
+    name, presented = _presented_signature(headers)
+    if not presented:
+        return False, "no_signature_header"
+
+    for expected in _expected_signatures(secret, body):
+        # compare_digest, not ==, so a wrong signature cannot be recovered one
+        # character at a time from how long the comparison took.
+        if hmac.compare_digest(presented, expected):
+            return True, name
+    return False, "signature_mismatch"
+
+
+def _resolve_organization(db: Session, payload: dict[str, Any]) -> int | None:
+    """Which workspace this call belongs to.
+
+    Only reached once the signature has verified, so the payload is known to
+    come from Bland. The call id is preferred over the echoed metadata anyway:
+    it is matched against a record this system wrote, which does not depend on
+    the provider round-tripping anything faithfully.
+    """
+    call_id = str(payload.get("call_id") or "").strip()
+    if call_id:
+        prior = db.scalar(select(VoiceCall).where(VoiceCall.provider_call_id == call_id))
+        if prior:
+            return prior.organization_id
+        request = db.scalar(select(OutboundRequest).where(OutboundRequest.provider_reference == call_id))
+        if request:
+            return request.organization_id
+
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict) and str(metadata.get("organization_id") or "").isdigit():
+        return int(metadata["organization_id"])
+
+    # Inbound calls have no prior record: nobody here started them. A single
+    # configured workspace is the fallback, and without it the delivery is
+    # rejected rather than filed against a guess.
+    configured = str(os.getenv("BLAND_INBOUND_ORGANIZATION_ID") or "").strip()
+    return int(configured) if configured.isdigit() else None
+
+
+@router.post("/webhooks/bland")
+async def bland_webhook(request: Request, db: Session = Depends(get_db)):
+    """Bland posts call results here.
+
+    The signature is computed over the exact bytes received, so the body is
+    read raw and parsed only after verification. Parsing first and re-encoding
+    would change the bytes -- key order and whitespace both -- and the
+    signature would never match.
+    """
+    body = await request.body()
+    verified, detail = verify_webhook_signature(request.headers, body)
+    if not verified:
+        # The header names are echoed back because the one thing this cannot
+        # tell you from here is which name Bland actually uses. Names only:
+        # the values are the caller's own, but there is no reason to repeat
+        # them. Bland surfaces the response body in its delivery log.
+        raise HTTPException(401, {
+            "error": detail,
+            "looked_for": list(_signature_headers()),
+            "received_headers": sorted(request.headers.keys()),
+            "hint": (
+                "Set BLAND_AI_WEBHOOK_SECRET to the signing secret, and "
+                "BLAND_AI_WEBHOOK_SIGNATURE_HEADER if the header carrying the "
+                "signature is not one of the names looked for."
+            ),
+        })
+
+    try:
+        payload = await request.json()
+    except ValueError:
+        raise HTTPException(422, "Webhook body is not valid JSON")
+    if not isinstance(payload, dict):
+        raise HTTPException(422, "Webhook body must be a JSON object")
+
+    organization_id = _resolve_organization(db, payload)
+    if organization_id is None:
+        # Signed but unattributable. Recording it against a guessed workspace
+        # would put one tenant's call in another's ledger, so it is refused
+        # loudly; a 4xx keeps the delivery visible in Bland's retry log rather
+        # than disappearing into a success response.
+        logger.warning("bland webhook verified but not attributable to a workspace")
+        raise HTTPException(422, {
+            "error": "call_not_attributable_to_a_workspace",
+            "hint": (
+                "Outbound calls resolve from the call id. Inbound calls need "
+                "BLAND_INBOUND_ORGANIZATION_ID set to the workspace that owns "
+                "the receiving number."
+            ),
+        })
+
+    result = record_call(db, organization_id, None, payload, source=f"bland_webhook:{detail}")
+    return {"accepted": True, **result}
 
 
 @router.get("/recording-rules/{state}")
