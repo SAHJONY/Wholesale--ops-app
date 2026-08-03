@@ -54,6 +54,12 @@ CATEGORY_QUERIES: dict[str, tuple[str, ...]] = {
     ),
     "foreclosure_sale": ("foreclosure sale", "sheriff sale", "tax deed auction", "foreclosure auction"),
     "demolition_permit": ("demolition permit", "demolition", "building permit demolition"),
+    # Demand rather than distress: recorded transfers are how active cash
+    # buyers are found, so the sweep that builds a market covers both sides.
+    "cash_purchase_deed": (
+        "recorded deeds", "deed transfers", "property transfers", "real property sales",
+        "grantee grantor index",
+    ),
 }
 
 
