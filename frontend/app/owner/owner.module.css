@@ -462,9 +462,15 @@
 
 /* --------------------------------------------------------------- badges --- */
 
+/* .healthy/.idle/.stale carry colour only. They are listed here too so they
+   work standalone: used as a bare status pill they would otherwise render as
+   an unpadded rectangle, which is how the blocked badge read before. */
 .score,
 .risk,
-.health {
+.health,
+.healthy,
+.idle,
+.stale {
   display: inline-flex !important;
   align-items: center;
   white-space: nowrap;

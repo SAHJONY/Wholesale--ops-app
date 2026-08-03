@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-const SESSION = 'sahjony_owner_session';
-
+// The session cookie is HttpOnly and middleware attaches it to same-origin
+// /api/* requests, so this page never sees or stores a token.
 type Step = {
   id: string;
   title: string;
@@ -29,20 +29,19 @@ export default function StartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (token: string) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const response = await fetch('/api/getting-started/next-steps', {
         cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'same-origin',
       });
       const text = await response.text();
       let body: any = {};
       if (text) { try { body = JSON.parse(text); } catch { body = { detail: text }; } }
       if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem(SESSION);
-        location.replace('/owner-access');
+        location.replace('/login?returnTo=/owner/start');
         return;
       }
       if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
@@ -57,11 +56,7 @@ export default function StartPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(SESSION) || '';
-    if (!stored) { location.replace('/owner-access'); return; }
-    void load(stored);
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <main className={styles.page}>
@@ -75,11 +70,7 @@ export default function StartPage() {
           </p>
         </div>
         <div className={styles.actions}>
-          <button
-            className={styles.runButton}
-            onClick={() => { const t = localStorage.getItem(SESSION); if (t) void load(t); }}
-            disabled={loading}
-          >
+          <button className={styles.runButton} onClick={() => void load()} disabled={loading}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
           <a className={styles.linkButton} href="/owner">Control Plane</a>

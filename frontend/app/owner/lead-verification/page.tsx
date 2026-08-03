@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-const SESSION = 'sahjony_owner_session';
+// The session cookie is HttpOnly and middleware attaches it to same-origin
+// /api/* requests, so this page never sees or stores a token.
 const API = '/api/lead-verification';
 
 type LeadRow = {
@@ -19,7 +20,6 @@ type LeadRow = {
 };
 
 export default function LeadVerificationPage() {
-  const [token, setToken] = useState('');
   const [enforcement, setEnforcement] = useState<boolean | null>(null);
   const [summary, setSummary] = useState<Record<string, number> | null>(null);
   const [verified, setVerified] = useState<LeadRow[]>([]);
@@ -29,30 +29,27 @@ export default function LeadVerificationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const request = useCallback(async (path: string, override?: string) => {
-    const active = override || token;
-    if (!active) { location.replace('/owner-access'); throw new Error('Owner session required'); }
+  const request = useCallback(async (path: string) => {
     const response = await fetch(`${API}${path}`, {
       cache: 'no-store',
-      headers: { Authorization: `Bearer ${active}` },
+      credentials: 'same-origin',
     });
     const text = await response.text();
     let body: any = {};
     if (text) { try { body = JSON.parse(text); } catch { body = { detail: text }; } }
     if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem(SESSION);
-      location.replace('/owner-access');
+      location.replace('/login?returnTo=/owner/lead-verification');
       throw new Error('Owner session expired');
     }
     if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
     return body;
-  }, [token]);
+  }, []);
 
-  const load = useCallback(async (override?: string) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const body = await request('/status', override);
+      const body = await request('/status');
       setEnforcement(body.enforcement_enabled);
       setSummary(body.summary || null);
       setVerified(body.verified || []);
@@ -66,12 +63,7 @@ export default function LeadVerificationPage() {
     }
   }, [request]);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(SESSION) || '';
-    if (!stored) { location.replace('/owner-access'); return; }
-    setToken(stored);
-    void load(stored);
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const coverage = summary?.coverage_percent ?? 0;
 

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-const SESSION = 'sahjony_owner_session';
+// The session cookie is HttpOnly and middleware attaches it to same-origin
+// /api/* requests, so this page never sees or stores a token.
 const API = '/api/market-selection';
 
 type Dimension = { id: string; description: string; requires: string; default_weight: number };
@@ -32,7 +33,6 @@ const CONFIDENCE_CLASS: Record<string, string> = {
 };
 
 export default function MarketsPage() {
-  const [token, setToken] = useState('');
   const [dimensions, setDimensions] = useState<Dimension[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [statesInput, setStatesInput] = useState('');
@@ -44,27 +44,25 @@ export default function MarketsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const request = useCallback(async (path: string, init?: RequestInit, override?: string) => {
-    const active = override || token;
-    if (!active) { location.replace('/owner-access'); throw new Error('Owner session required'); }
+  const request = useCallback(async (path: string, init?: RequestInit) => {
     const response = await fetch(`${API}${path}`, {
       ...init,
       cache: 'no-store',
-      headers: { Authorization: `Bearer ${active}`, 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
     });
     const text = await response.text();
     let body: any = {};
     if (text) { try { body = JSON.parse(text); } catch { body = { detail: text }; } }
     if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem(SESSION);
-      location.replace('/owner-access');
+      location.replace('/login?returnTo=/owner/markets');
       throw new Error('Owner session expired');
     }
     if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
     return body;
-  }, [token]);
+  }, []);
 
-  const rank = useCallback(async (override?: string, activeWeights?: Record<string, number>) => {
+  const rank = useCallback(async (activeWeights?: Record<string, number>) => {
     setLoading(true);
     setError('');
     try {
@@ -76,7 +74,7 @@ export default function MarketsPage() {
           min_cash_buyers: Number(minBuyers) || 0,
           weights: activeWeights ?? weights,
         }),
-      }, override);
+      });
       setMarkets(body.markets || []);
       setUnscorable(body.unscorable_markets || []);
       setSummary(body.summary || null);
@@ -89,17 +87,14 @@ export default function MarketsPage() {
   }, [request, statesInput, minBuyers, weights]);
 
   useEffect(() => {
-    const stored = localStorage.getItem(SESSION) || '';
-    if (!stored) { location.replace('/owner-access'); return; }
-    setToken(stored);
     (async () => {
       try {
-        const body = await request('/criteria', undefined, stored);
+        const body = await request('/criteria');
         const dims: Dimension[] = body.dimensions || [];
         setDimensions(dims);
         const initial = Object.fromEntries(dims.map(d => [d.id, d.default_weight]));
         setWeights(initial);
-        await rank(stored, initial);
+        await rank(initial);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unable to load criteria');
       }
