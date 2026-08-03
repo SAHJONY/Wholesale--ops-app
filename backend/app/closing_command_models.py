@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from .database import Base, UtcDateTime
 
 
 class TitleOrder(Base):
@@ -18,13 +18,13 @@ class TitleOrder(Base):
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     order_number: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(40), default="not_ordered", index=True)
-    ordered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    commitment_due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    commitment_received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    closing_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ordered_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    commitment_due_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    commitment_received_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    closing_date: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class EarnestMoneyRecord(Base):
@@ -36,12 +36,12 @@ class EarnestMoneyRecord(Base):
     amount: Mapped[float] = mapped_column(Float, default=100)
     holder: Mapped[str | None] = mapped_column(String(180), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
-    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     receipt_reference: Mapped[str | None] = mapped_column(String(180), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class ClosingIssue(Base):
@@ -56,12 +56,12 @@ class ClosingIssue(Base):
     title: Mapped[str] = mapped_column(String(220))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     owner: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class FundingRecord(Base):
@@ -76,12 +76,12 @@ class FundingRecord(Base):
     proof_of_funds_reference: Mapped[str | None] = mapped_column(String(220), nullable=True)
     required_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     verified_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
-    funds_due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    funds_received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    funds_due_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    funds_received_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class ClosingMilestone(Base):
@@ -93,10 +93,10 @@ class ClosingMilestone(Base):
     milestone_type: Mapped[str] = mapped_column(String(80), index=True)
     label: Mapped[str] = mapped_column(String(180))
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
-    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     owner: Mapped[str | None] = mapped_column(String(160), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

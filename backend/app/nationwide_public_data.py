@@ -253,12 +253,22 @@ async def status(principal: Principal = Depends(get_principal)):
     }
 
 
-@router.post("/enrich-address")
-async def enrich_address(payload: dict[str, Any], principal: Principal = Depends(get_principal)):
-    street = _clean(payload.get("street") or payload.get("address"))
-    city = _clean(payload.get("city"))
-    state = _clean(payload.get("state")).upper()
-    zip_code = _clean(payload.get("zip_code") or payload.get("zip"))
+async def resolve_address(
+    street: str,
+    city: str,
+    state: str,
+    zip_code: str,
+) -> dict[str, Any]:
+    """Geocode one address against Census and return the normalized result.
+
+    Shared by the read-only enrichment endpoint and the verified-ingest
+    pipeline so both apply the same validation, Texas exclusion, and
+    provenance. Raises HTTPException for input, exclusion, and no-match cases.
+    """
+    street = _clean(street)
+    city = _clean(city)
+    state = _clean(state).upper()
+    zip_code = _clean(zip_code)
     if not street or not state:
         raise HTTPException(422, "street/address and state are required")
     if state == "TX":
@@ -283,11 +293,10 @@ async def enrich_address(payload: dict[str, Any], principal: Principal = Depends
     county_context = await _county_context(geography.get("state_fips"), geography.get("county_fips"))
     observed_at = datetime.now(timezone.utc).isoformat()
     return {
-        "organization_id": principal.organization_id,
-        "mode": "nationwide_read_only",
         "input": {"street": street, "city": city, "state": state, "zip_code": zip_code},
         "property": normalized,
         "county_context": county_context,
+        "observed_at": observed_at,
         "truth_report": build_truth_report(normalized, county_context, observed_at),
         "provenance": [
             {
@@ -309,6 +318,26 @@ async def enrich_address(payload: dict[str, Any], principal: Principal = Depends
                 "retries": county_context.get("retries"),
             }] if county_context else []),
         ],
+    }
+
+
+@router.post("/enrich-address")
+async def enrich_address(payload: dict[str, Any], principal: Principal = Depends(get_principal)):
+    resolved = await resolve_address(
+        _clean(payload.get("street") or payload.get("address")),
+        _clean(payload.get("city")),
+        _clean(payload.get("state")),
+        _clean(payload.get("zip_code") or payload.get("zip")),
+    )
+    normalized = resolved["property"]
+    county_context = resolved["county_context"]
+    return {
+        "organization_id": principal.organization_id,
+        "mode": "nationwide_read_only",
+        "input": resolved["input"],
+        "property": normalized,
+        "county_context": county_context,
+        "provenance": resolved["provenance"],
         "limitations": [
             "Census geocodes address ranges and does not prove that a structure exists.",
             "This response does not establish legal ownership, liens, probate, tax delinquency, or seller contact data.",

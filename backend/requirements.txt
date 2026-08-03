@@ -6,7 +6,9 @@ psycopg[binary]==3.2.13
 pydantic==2.10.4
 pydantic-settings==2.7.0
 httpx==0.28.1
-upstash-redis==1.2.0
-anthropic==0.42.0
 python-multipart==0.0.20
 pytest==8.3.4
+
+# Removed: anthropic and upstash-redis were declared but imported nowhere.
+# On a serverless deploy an unused dependency is pure cold-start, bundle-size
+# and CVE surface. Re-add when the feature that needs it is actually built.

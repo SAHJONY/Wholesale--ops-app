@@ -5,12 +5,12 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import DateTime, Integer, JSON, String, Text, func, select
+from sqlalchemy import Integer, JSON, String, Text, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .auth import Principal, get_principal, require_role
 from .auth_models import AppUser, CrmActivity, Membership, Organization, WorkspaceEntity
-from .database import Base, get_db
+from .database import Base, UtcDateTime, get_db
 from .event_bus import process_events
 from .models import Lead
 
@@ -27,15 +27,15 @@ class BackgroundJob(Base):
     result_json: Mapped[dict] = mapped_column(JSON, default=dict)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, default=5)
-    available_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    failed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    available_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    locked_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 router = APIRouter(prefix="/jobs", tags=["durable background jobs"])

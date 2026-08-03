@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 type NavItem = { href: string; label: string; icon: string };
 
 const primary: NavItem[] = [
+  { href: '/owner/start', label: 'Start here', icon: '➤' },
   { href: '/owner', label: 'CEO command center', icon: '⌂' },
   { href: '/owner/attention', label: 'Attention', icon: '!' },
   { href: '/owner/nationwide-acquisition', label: 'Nationwide acquisition', icon: '★' },
@@ -18,6 +19,8 @@ const primary: NavItem[] = [
 ];
 
 const intelligence: NavItem[] = [
+  { href: '/owner/markets', label: 'Market selection', icon: '⌖' },
+  { href: '/owner/lead-verification', label: 'Lead verification', icon: '⛨' },
   { href: '/owner/live-data', label: 'Live data control plane', icon: '◉' },
   { href: '/owner/real-estate-intelligence', label: 'Property intelligence', icon: '◆' },
   { href: '/owner/nationwide-data', label: 'Nationwide data', icon: '✓' },

@@ -21,9 +21,13 @@ from app.deal_execution import router as deal_execution_router
 from app.deal_rehearsal import router as test_deal_router
 from app.deployment_diagnostics import router as deployment_diagnostics_router
 from app.disposition import router as disposition_router
+from app.distress_discovery import router as distress_discovery_router
+from app.distress_ingest import router as distress_ingest_router
+from app.distress_providers import router as distress_providers_router
 from app.docuseal_events import router as docuseal_events_router
 from app.event_core import router as event_core_router
 from app.executive_ops import router as executive_ops_router
+from app.getting_started import router as getting_started_router
 from app.go_live import router as go_live_router
 from app.human_auth import router as human_auth_router
 from app.integration_hub import router as integration_hub_router
@@ -31,8 +35,10 @@ from app.integration_reliability import router as integration_reliability_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
+from app.lead_verification import router as lead_verification_router
 from app.live_public_enrichment import router as live_public_enrichment_router
 from app.main import app
+from app.market_selection import router as market_selection_router
 from app.national_intelligence_safe import router as national_intelligence_router
 from app.nationwide_public_data import router as nationwide_public_data_router
 from app.observability_api import router as observability_router
@@ -51,6 +57,7 @@ from app.security_middleware import SecurityMiddleware
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
+from app.verified_ingest import router as verified_ingest_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
@@ -72,6 +79,13 @@ app.include_router(provider_intelligence_router)
 app.include_router(public_data_router)
 app.include_router(live_public_enrichment_router)
 app.include_router(nationwide_public_data_router)
+app.include_router(verified_ingest_router)
+app.include_router(distress_providers_router)
+app.include_router(distress_ingest_router)
+app.include_router(distress_discovery_router)
+app.include_router(lead_verification_router)
+app.include_router(market_selection_router)
+app.include_router(getting_started_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(test_deal_router)

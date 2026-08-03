@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     bland_api_key: str | None = None
     bland_webhook_secret: str | None = None
     anthropic_api_key: str | None = None
-    claude_model: str = "claude-sonnet-4-20250514"
+    claude_model: str = "claude-opus-5"
     google_maps_api_key: str | None = None
     app_url: str = "http://localhost:3000"
 
