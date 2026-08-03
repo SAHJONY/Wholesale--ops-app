@@ -154,3 +154,55 @@ def test_frequency_cap_is_a_small_number():
     # A cap that permits daily contact is not a cap.
     assert se.MAX_MESSAGES_PER_WINDOW <= 5
     assert se.FREQUENCY_WINDOW_DAYS >= 7
+
+
+# ------------------------------------------------- the cap must actually bite --
+
+def test_the_frequency_cap_counts_real_sends(tmp_path):
+    """A cap nothing feeds is not a cap.
+
+    recent_message_count reads outbound rows from the send log. When this was
+    first written nothing anywhere created one, so the count was always zero and
+    the limit could never fire. The check looked present and did nothing.
+    """
+    from datetime import datetime, timezone
+
+    from app.database import SessionLocal
+    from app.sms_models import SmsMessage
+
+    db = SessionLocal()
+    contact = "+15550001111"
+    org = 987654
+    now = datetime.now(timezone.utc)
+    try:
+        assert se.recent_message_count(db, org, contact, now) == 0
+        for i in range(se.MAX_MESSAGES_PER_WINDOW):
+            db.add(SmsMessage(
+                organization_id=org, direction="outbound", contact=contact,
+                body=f"message {i}", status="queued",
+            ))
+        db.commit()
+
+        count = se.recent_message_count(db, org, contact, now)
+        assert count == se.MAX_MESSAGES_PER_WINDOW
+        assert count >= se.MAX_MESSAGES_PER_WINDOW, "cap should now be reached"
+
+        # Inbound replies are not sends and must not consume the allowance.
+        db.add(SmsMessage(
+            organization_id=org, direction="inbound", contact=contact,
+            body="how much?", status="received",
+        ))
+        db.commit()
+        assert se.recent_message_count(db, org, contact, now) == se.MAX_MESSAGES_PER_WINDOW
+    finally:
+        db.query(SmsMessage).filter(SmsMessage.organization_id == org).delete()
+        db.commit()
+        db.close()
+
+
+def test_the_dispatch_path_writes_a_send_row():
+    # The gap was structural: the cap read a log nothing wrote to. Assert the
+    # dispatcher is the thing that writes it, so the two cannot drift apart.
+    source = open("app/outbound_gateway.py").read()
+    assert "SmsMessage(" in source, "outbound dispatch must log sends"
+    assert 'direction="outbound"' in source
