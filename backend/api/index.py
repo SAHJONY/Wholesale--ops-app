@@ -63,6 +63,7 @@ from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
 from app.verified_ingest import router as verified_ingest_router
+from app.voice_engine import router as voice_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
 background_jobs_router = background_jobs_module.router
@@ -117,6 +118,7 @@ app.include_router(county_queue_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(sms_router)
+app.include_router(voice_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(disposition_router)

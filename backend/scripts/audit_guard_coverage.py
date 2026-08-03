@@ -99,6 +99,44 @@ GUARDS: tuple[Guard, ...] = (
         "tests/test_lead_verification.py",
         "Enforcement off would let unverified leads be actioned.",
     ),
+    Guard(
+        "app.voice_engine", "ALL_PARTY_CONSENT_STATES",
+        "frozenset()",
+        "tests/test_voice_engine.py",
+        "Emptying this permits recording a Florida call nobody consented to, "
+        "which is a criminal statute rather than a compliance ticket.",
+    ),
+    Guard(
+        # Broadened rather than emptied. A pattern matching everything is the
+        # realistic failure -- someone loosens the regex to stop a script being
+        # rejected -- and it silently passes calls that disclose nothing.
+        "app.voice_engine", "AI_DISCLOSURE_PATTERNS",
+        r'(r".",)',
+        "tests/test_voice_engine.py",
+        "If every script counts as disclosed, no script is.",
+    ),
+    Guard(
+        "app.voice_engine", "RECORDING_DISCLOSURE_PATTERNS",
+        r'(r".",)',
+        "tests/test_voice_engine.py",
+        "The all-party recording gate is only as good as this pattern.",
+    ),
+    Guard(
+        "app.voice_engine", "VERBAL_OPT_OUT_PATTERNS",
+        "()",
+        "tests/test_voice_engine.py",
+        "A spoken 'take me off your list' would stop being heard.",
+    ),
+    Guard(
+        # The channels the dispatcher actually runs the script gate for.
+        # Emptying it leaves validate_call_script defined, imported and never
+        # consulted -- which is the precise shape of every defect this tool
+        # exists to catch.
+        "app.outbound_gateway", "VOICE_CHANNELS",
+        "frozenset()",
+        "tests/test_outbound_gateway.py",
+        "An empty set means undisclosed AI calls dial real phones.",
+    ),
 )
 
 
