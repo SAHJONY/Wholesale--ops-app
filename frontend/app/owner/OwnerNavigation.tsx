@@ -19,6 +19,7 @@ const primary: NavItem[] = [
 ];
 
 const intelligence: NavItem[] = [
+  { href: '/owner/deal-intelligence', label: 'Deal intelligence', icon: '⌘' },
   { href: '/owner/markets', label: 'Market selection', icon: '⌖' },
   { href: '/owner/lead-verification', label: 'Lead verification', icon: '⛨' },
   { href: '/owner/live-data', label: 'Live data control plane', icon: '◉' },

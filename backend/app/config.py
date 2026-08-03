@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     bland_webhook_secret: str | None = None
     anthropic_api_key: str | None = None
     claude_model: str = "claude-opus-5"
+    claude_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
+    claude_server_side_fallback: bool = True
     google_maps_api_key: str | None = None
     app_url: str = "http://localhost:3000"
 

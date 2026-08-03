@@ -18,6 +18,7 @@ from app.crm import router as crm_router
 from app.data_intake import router as data_intake_router
 from app.database import Base, engine
 from app.deal_execution import router as deal_execution_router
+from app.deal_intelligence import router as deal_intelligence_router
 from app.deal_rehearsal import router as test_deal_router
 from app.deployment_diagnostics import router as deployment_diagnostics_router
 from app.disposition import router as disposition_router
@@ -113,6 +114,7 @@ app.include_router(closing_command_router)
 app.include_router(disposition_router)
 app.include_router(event_core_router)
 app.include_router(intelligence_platform_router)
+app.include_router(deal_intelligence_router)
 app.include_router(national_intelligence_router)
 app.include_router(docuseal_events_router)
 app.include_router(deployment_diagnostics_router)
