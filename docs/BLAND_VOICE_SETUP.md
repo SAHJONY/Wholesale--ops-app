@@ -14,7 +14,7 @@ calls `api.bland.ai`.
 | --- | --- | --- |
 | `BLAND_AI_API_KEY` | yes | Bland API key. Every dispatch returns 503 without it. |
 | `BLAND_DEFAULT_FROM_NUMBER` | yes for outbound | Outbound caller ID in E.164, e.g. `+18505551234`. `BLAND_DEFAULT_CALLER_ID` is an alias read only if this is unset — both name the number calls are placed *from*. |
-| `BLAND_INBOUND_NUMBER` | yes for inbound | The number sellers call in on. Not the same variable as the caller ID, and ideally the same number — see below. |
+| `BLAND_INBOUND_NUMBER` | yes for inbound | Every number an inbound agent answers on, comma-separated. Not the same variable as the caller ID, and it should *include* the caller ID — see below. |
 | `BLAND_AI_WEBHOOK_SECRET` | yes for inbound | Shared secret for the webhook signature. Unset means every delivery is rejected. |
 | `BLAND_AI_WEBHOOK_SIGNATURE_HEADER` | usually no | Only if Bland's signature does not arrive in a conventional header. See below. |
 | `BLAND_INBOUND_ORGANIZATION_ID` | yes for inbound | The workspace owning the receiving number. |
@@ -53,7 +53,17 @@ do-not-call request. A caller ID that rings nowhere does not satisfy that.
 It is a warning rather than a blocker because the carrier may forward the caller
 ID to the inbound line, which cannot be determined from inside the application.
 
-The simplest correct setup is one number for both.
+The cleanest fix when several numbers are provisioned is to give the caller ID
+an inbound agent as well, and list every answered line:
+
+```
+BLAND_DEFAULT_FROM_NUMBER=+13465214387
+BLAND_INBOUND_NUMBER=+13465214387,+12164804413
+```
+
+That keeps every number and satisfies the callback rule, because the check asks
+whether the caller ID is *among* the answered lines rather than equal to one
+particular one. A single number used for both works equally well.
 
 The voice number is **not** used for SMS. Texts require `TWILIO_FROM_NUMBER` or
 `TWILIO_MESSAGING_SERVICE_SID`; a Bland voice number is not registered for A2P
