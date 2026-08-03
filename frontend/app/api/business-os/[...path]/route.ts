@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
+// Falls back to the production host so deployed behaviour is unchanged, but
+// lets the app be pointed at a local or staging backend without editing source.
+const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
 const ALLOWED = new Set(['snapshot', 'plan', 'transactions', 'obligations', 'playbooks/defaults']);
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
