@@ -17,7 +17,8 @@ router = APIRouter(prefix="/go-live", tags=["production go-live command"])
 
 PROVIDER_GROUPS = {
     "property_data": ["ATTOM_API_KEY", "PROPSTREAM_API_KEY"],
-    "contact_data": ["BATCHDATA_API_KEY", "BATCHDATA_SKIPTRACE_URL"],
+    "property_intelligence_mcp": ["BATCHDATA_MCP_URL", "BATCHDATA_API_TOKEN"],
+    "contact_enrichment": ["BATCHDATA_SKIPTRACE_URL", "BATCHDATA_API_KEY"],
     "communications": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "BLAND_AI_API_KEY"],
     "contracts": ["DOCUSEAL_URL", "DOCUSEAL_API_KEY"],
     "email": ["SMTP_USER", "SMTP_PASS"],
@@ -87,7 +88,8 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
 
     providers = {
         "property_data": _configured(PROVIDER_GROUPS["property_data"], require_all=False),
-        "contact_data": _configured(PROVIDER_GROUPS["contact_data"]),
+        "property_intelligence_mcp": _configured(PROVIDER_GROUPS["property_intelligence_mcp"]),
+        "contact_enrichment": _configured(PROVIDER_GROUPS["contact_enrichment"]),
         "communications": _configured(PROVIDER_GROUPS["communications"], require_all=False),
         "contracts": _configured(PROVIDER_GROUPS["contracts"]),
         "email": _configured(PROVIDER_GROUPS["email"]),
@@ -99,7 +101,8 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         _check("Migration baseline", "infrastructure", bool(migration_version), "critical", f"Revision: {migration_version or 'not stamped'}", "Safely establish the Alembic production baseline."),
         _check("Critical API contract", "deployment", not missing_routes, "critical", f"{len(CRITICAL_ROUTES) - len(missing_routes)}/{len(CRITICAL_ROUTES)} routes registered.", "Deploy latest backend and resolve missing routes."),
         _check("Property data provider", "integrations", providers["property_data"], "critical", "ATTOM or PropStream credential readiness.", "Connect a licensed property-data provider."),
-        _check("Contact enrichment", "integrations", providers["contact_data"], "critical", "BatchData API and skip-trace endpoint readiness.", "Configure BatchData credentials."),
+        _check("Provider Intelligence MCP", "integrations", providers["property_intelligence_mcp"], "critical", "BatchData MCP transport URL and server-token readiness.", "Configure BATCHDATA_MCP_URL and BATCHDATA_API_TOKEN."),
+        _check("Contact enrichment", "integrations", providers["contact_enrichment"], "critical", "BatchData REST skip-trace endpoint and API-key readiness.", "Configure BATCHDATA_SKIPTRACE_URL and BATCHDATA_API_KEY."),
         _check("Seller communications", "integrations", providers["communications"], "critical", "Twilio or Bland AI credential readiness.", "Connect an approved communications provider."),
         _check("Contract execution", "integrations", providers["contracts"], "high", "DocuSeal URL and API credential readiness.", "Configure DocuSeal production credentials."),
         _check("Transactional email", "integrations", providers["email"], "high", "SMTP credential readiness.", "Configure production email delivery."),
