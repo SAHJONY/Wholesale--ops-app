@@ -12,11 +12,15 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .background_jobs import BackgroundJob
 from .database import get_db
 from .models import Buyer, Deal, Lead, Property
+from .property_data import property_data_configured
 
 router = APIRouter(prefix="/go-live", tags=["production go-live command"])
 
 PROVIDER_GROUPS = {
-    "property_data": ["ATTOM_API_KEY", "PROPSTREAM_API_KEY"],
+    # Property data is deliberately absent: it is not a flat any-of list, because
+    # Smarty needs two variables and listing them here would let a half
+    # configured provider pass. Its grouped definition lives beside the adapters
+    # in property_data.py, which is also what the lookups themselves use.
     "property_intelligence_mcp": ["BATCHDATA_MCP_URL", "BATCHDATA_API_TOKEN"],
     "contact_enrichment": ["BATCHDATA_SKIPTRACE_URL", "BATCHDATA_API_KEY"],
     "communications": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "BLAND_AI_API_KEY"],
@@ -87,7 +91,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         ).group_by(BackgroundJob.status)).all())
 
     providers = {
-        "property_data": _configured(PROVIDER_GROUPS["property_data"], require_all=False),
+        "property_data": property_data_configured(),
         "property_intelligence_mcp": _configured(PROVIDER_GROUPS["property_intelligence_mcp"]),
         "contact_enrichment": _configured(PROVIDER_GROUPS["contact_enrichment"]),
         "communications": _configured(PROVIDER_GROUPS["communications"], require_all=False),
@@ -100,7 +104,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         _check("Database connectivity", "infrastructure", database_ok, "critical", database_error or "Database responds to SELECT 1.", "Repair DATABASE_URL or database availability."),
         _check("Migration baseline", "infrastructure", bool(migration_version), "critical", f"Revision: {migration_version or 'not stamped'}", "Safely establish the Alembic production baseline."),
         _check("Critical API contract", "deployment", not missing_routes, "critical", f"{len(CRITICAL_ROUTES) - len(missing_routes)}/{len(CRITICAL_ROUTES)} routes registered.", "Deploy latest backend and resolve missing routes."),
-        _check("Property data provider", "integrations", providers["property_data"], "critical", "ATTOM or PropStream credential readiness.", "Connect a licensed property-data provider."),
+        _check("Property data provider", "integrations", providers["property_data"], "critical", "ATTOM or Smarty credential readiness.", "Configure ATTOM_API_KEY, or SMARTY_AUTH_ID and SMARTY_AUTH_TOKEN."),
         _check("Provider Intelligence MCP", "integrations", providers["property_intelligence_mcp"], "critical", "BatchData MCP transport URL and server-token readiness.", "Configure BATCHDATA_MCP_URL and BATCHDATA_API_TOKEN."),
         _check("Contact enrichment", "integrations", providers["contact_enrichment"], "critical", "BatchData REST skip-trace endpoint and API-key readiness.", "Configure BATCHDATA_SKIPTRACE_URL and BATCHDATA_API_KEY."),
         _check("Seller communications", "integrations", providers["communications"], "critical", "Twilio or Bland AI credential readiness.", "Connect an approved communications provider."),

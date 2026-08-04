@@ -12,6 +12,7 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .background_jobs import BackgroundJob
 from .database import get_db
 from .models import Buyer, Deal, Lead, Property
+from .property_data import property_data_configured
 
 router = APIRouter(prefix="/launch-validation", tags=["production launch validation"])
 
@@ -105,7 +106,7 @@ def run_validation(db: Session, principal: Principal) -> dict:
     ])
 
     provider_checks = {
-        "property_data": _provider_ready("ATTOM_API_KEY", "PROPSTREAM_API_KEY", any_of=True),
+        "property_data": property_data_configured(),
         "contact_data": _provider_ready("BATCHDATA_API_KEY", "BATCHDATA_SKIPTRACE_URL"),
         "communications": _provider_ready("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN") or _provider_ready("BLAND_AI_API_KEY"),
         "contracts": _provider_ready("DOCUSEAL_URL", "DOCUSEAL_API_KEY"),

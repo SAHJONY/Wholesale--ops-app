@@ -4,14 +4,18 @@ from typing import Any
 
 import httpx
 
+from .provider_errors import PropertyDataConfigurationError, PropertyDataLookupError
+
 ATTOM_BASE_URL = os.getenv("ATTOM_BASE_URL", "https://api.gateway.attomdata.com/propertyapi/v1.0.0")
 
 
-class AttomConfigurationError(RuntimeError):
+# Subclassing the shared errors lets callers match on the provider-neutral type
+# while every existing `except AttomConfigurationError` keeps working.
+class AttomConfigurationError(PropertyDataConfigurationError):
     pass
 
 
-class AttomLookupError(RuntimeError):
+class AttomLookupError(PropertyDataLookupError):
     pass
 
 

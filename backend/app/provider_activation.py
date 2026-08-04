@@ -25,6 +25,12 @@ PROVIDER_GUIDANCE = {
         "validation": "Credential and endpoint format checks; live verification occurs through preview-only skip tracing.",
         "priority": 100,
     },
+    "smarty": {
+        "purpose": "Alternative property, owner, deed, assessment, tax, and parcel intelligence with rooftop geocoding.",
+        "environment": "production",
+        "validation": "Secret key pair presence; embedded keys cannot be used because requests originate from a public cloud provider.",
+        "priority": 100,
+    },
     "county_records": {
         "purpose": "Authoritative assessor, recorder, tax, deed, parcel, and legal-owner verification.",
         "environment": "public_or_manual",
@@ -136,7 +142,13 @@ def snapshot(principal: Principal = Depends(get_principal)):
     ready = [item for item in required if item["activation_ready"]]
     score = round((len(ready) / len(required)) * 100) if required else 0
     workflows = {
-        "lead_acquisition": all(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["attom", "batchdata", "county_records"]),
+        # Property data is any-of because ATTOM and Smarty are alternatives; the
+        # rest are genuinely all required. Treating them alike would report lead
+        # acquisition as blocked on a deployment that runs entirely on Smarty.
+        "lead_acquisition": (
+            any(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["attom", "smarty"])
+            and all(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["batchdata", "county_records"])
+        ),
         "seller_outreach": any(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["twilio", "bland"]),
         "contract_execution": next((p["activation_ready"] for p in providers if p["id"] == ("docusign" if str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower() == "docusign" else "docuseal")), False),
         "document_retention": next((p["activation_ready"] for p in providers if p["id"] == "object_storage"), False),
