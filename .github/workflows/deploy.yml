@@ -135,7 +135,13 @@ jobs:
         run: |
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+          # Vercel populates VERCEL_GIT_COMMIT_SHA only for Git-integration
+          # builds, never for a CLI deploy, so the commit is passed in by hand.
+          # Without it the running service cannot name its own revision, and the
+          # check below has nothing to compare and can only ever fail.
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
+            --env GIT_COMMIT_SHA="$GITHUB_SHA" \
+            --build-env GIT_COMMIT_SHA="$GITHUB_SHA"
 
       - name: Confirm production is running this commit
         if: env.HAS_TOKEN == 'yes'
@@ -145,12 +151,18 @@ jobs:
           # is exactly the check whose absence hid the ten-day drift.
           #
           # The two failure signals are not equally diagnostic, so they are not
-          # treated alike. Reporting no commit at all is unambiguous: that code
-          # predates revision reporting, so the deploy did not take. Reporting a
-          # different commit is ambiguous, because a CLI deploy may not populate
-          # VERCEL_GIT_COMMIT_SHA the way a Git-integration build does. Failing
-          # the run on the ambiguous case would produce red builds that are not
-          # real, and a check that cries wolf gets switched off.
+          # treated alike. Reporting no commit at all means the deploy did not
+          # take, because the deploy step above stamps GIT_COMMIT_SHA and the
+          # service reads it -- so a silent service is running code that never
+          # received the stamp. Reporting a different commit is ambiguous and
+          # only warns; failing the run on the ambiguous case would produce red
+          # builds that are not real, and a check that cries wolf gets switched
+          # off.
+          #
+          # This check spent seven hours failing every deploy it was added to,
+          # because it demanded a commit nothing had stamped: the empty answer
+          # was read as stale code when it only ever meant the CLI does not set
+          # VERCEL_GIT_COMMIT_SHA. The stamp is what makes silence diagnostic.
           reported=""
           for attempt in 1 2 3 4 5 6; do
             reported=$(curl -sS --max-time 20 "$BACKEND_HEALTH_URL" \
@@ -199,4 +211,8 @@ jobs:
           # the project's own settings produce, root vercel.json included.
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+          # Stamped for the same reason as the backend, so /api/version can name
+          # this side of the comparison instead of reporting unknown.
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
+            --env GIT_COMMIT_SHA="$GITHUB_SHA" \
+            --build-env GIT_COMMIT_SHA="$GITHUB_SHA"
