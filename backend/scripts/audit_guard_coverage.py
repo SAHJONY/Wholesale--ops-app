@@ -137,6 +137,23 @@ GUARDS: tuple[Guard, ...] = (
         "An accept-everything verifier makes this a public write endpoint.",
     ),
     Guard(
+        # Counting a fact's existence rather than its assertion scores a
+        # source saying "not delinquent" as distress, inflating every
+        # property anyone has ever pulled records for.
+        "app.lead_stacking", "_is_asserted",
+        "lambda value: True",
+        "tests/test_lead_stacking.py",
+        "A source reporting absence must not count as a distress signal.",
+    ),
+    Guard(
+        # Emptying this stops every distress source from stacking, so the
+        # ranked list silently becomes empty rather than wrong.
+        "app.lead_stacking", "SIGNAL_FIELDS",
+        "{}",
+        "tests/test_lead_stacking.py",
+        "No signal fields means nothing ever stacks.",
+    ),
+    Guard(
         # Collapsing the refusal class into its parent makes a refusal
         # indistinguishable from an outage, so the chain would retry a
         # declined analysis on the second engine -- refusal shopping.

@@ -39,6 +39,7 @@ from app.integration_reliability import router as integration_reliability_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
+from app.lead_stacking import router as lead_stacking_router
 from app.lead_verification import router as lead_verification_router
 from app.live_public_enrichment import router as live_public_enrichment_router
 from app.main import app
@@ -91,6 +92,7 @@ app.include_router(foreclosure_procedure_router)
 app.include_router(distress_ingest_router)
 app.include_router(distress_discovery_router)
 app.include_router(lead_verification_router)
+app.include_router(lead_stacking_router)
 app.include_router(market_selection_router)
 app.include_router(getting_started_router)
 app.include_router(data_intake_router)
