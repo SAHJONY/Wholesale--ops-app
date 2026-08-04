@@ -135,3 +135,108 @@ class TestConfiguration:
         from app.config import Settings
 
         assert Settings(_env_file=None).claude_model == "claude-opus-5"
+
+
+class TestEngineChain:
+    """Claude first, OpenAI only on an outage, deterministic always beneath.
+
+    The distinction the chain turns on is refusal versus failure. A refusal is
+    a decision the engine made about the request; a failure is the engine not
+    being reachable. Only the second is worth asking someone else.
+    """
+
+    def _claude(self, monkeypatch, raises):
+        monkeypatch.setattr(di.settings, "anthropic_api_key", "sk-ant-test")
+
+        def _fail(kind, payload):
+            raise raises
+
+        monkeypatch.setattr(di, "_invoke", _fail)
+
+    def _openai(self, monkeypatch, calls, raises=None):
+        monkeypatch.setattr(di.settings, "openai_api_key", "sk-openai-test")
+
+        def _invoke(kind, payload):
+            calls.append(kind)
+            if raises:
+                raise raises
+            return {"source": "openai", "model": "test-model"}
+
+        monkeypatch.setattr(di, "_invoke_openai", _invoke)
+
+    def test_a_refusal_is_never_retried_on_the_second_engine(self, monkeypatch):
+        # The point of the whole design. Asking OpenAI what Claude declined
+        # would produce an answer no engine was willing to stand behind.
+        calls = []
+        self._claude(monkeypatch, di.DecisionRefused("declined"))
+        self._openai(monkeypatch, calls)
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert calls == [], "a refusal must not reach the second engine"
+        assert result["source"] == "deterministic"
+        assert result["fallback_reason"] == "model_refusal"
+
+    def test_an_outage_does_reach_the_second_engine(self, monkeypatch):
+        calls = []
+        self._claude(monkeypatch, ConnectionError("upstream down"))
+        self._openai(monkeypatch, calls)
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert calls == ["deal_review"]
+        assert result["source"] == "openai"
+
+    def test_the_second_engine_records_why_it_ran(self, monkeypatch):
+        # A run of these is a Claude outage, not a quirk of one deal — the
+        # operator can only see that if each analysis says so.
+        self._claude(monkeypatch, TimeoutError("timed out"))
+        self._openai(monkeypatch, [])
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert result["primary_engine_failure"] == "TimeoutError"
+
+    def test_both_engines_failing_still_returns_an_analysis(self, monkeypatch):
+        # The deterministic floor is what keeps underwriting available.
+        self._claude(monkeypatch, ConnectionError("down"))
+        self._openai(monkeypatch, [], raises=ConnectionError("also down"))
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert result["source"] == "deterministic"
+        assert "openai_failed" in result["fallback_reason"]
+
+    def test_a_refusal_from_the_second_engine_also_stops(self, monkeypatch):
+        self._claude(monkeypatch, ConnectionError("down"))
+        self._openai(monkeypatch, [], raises=di.DecisionRefused("declined"))
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert result["source"] == "deterministic"
+        assert result["fallback_reason"] == "model_refusal"
+
+    def test_openai_alone_is_a_valid_configuration(self, monkeypatch):
+        # Someone may hold only an OpenAI key. That should get a model, not
+        # rule-based output.
+        calls = []
+        monkeypatch.setattr(di.settings, "anthropic_api_key", None)
+        self._openai(monkeypatch, calls)
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert calls == ["deal_review"]
+        assert result["source"] == "openai"
+        assert result["primary_engine_failure"] == "no_anthropic_api_key"
+
+    def test_neither_key_configured_is_still_deterministic(self, monkeypatch):
+        monkeypatch.setattr(di.settings, "anthropic_api_key", None)
+        monkeypatch.setattr(di.settings, "openai_api_key", None)
+
+        result = di.analyze("deal_review", UNDERWRITING)
+        assert result["source"] == "deterministic"
+        assert result["fallback_reason"] == "no_api_key"
+
+    def test_both_engines_are_held_to_the_same_schema(self, monkeypatch):
+        # Downstream code must not be able to tell the engines apart
+        # structurally — only by reading `source`.
+        import inspect
+
+        source = inspect.getsource(di._invoke_openai)
+        assert "ANALYSIS_SCHEMAS[kind]" in source
+        assert '"strict": True' in source
+        assert "SYSTEM_PROMPT" in source

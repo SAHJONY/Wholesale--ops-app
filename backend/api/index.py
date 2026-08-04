@@ -39,6 +39,7 @@ from app.integration_reliability import router as integration_reliability_router
 from app.integrations import router as integrations_router
 from app.intelligence_platform import router as intelligence_platform_router
 from app.launch_validation import router as launch_validation_router
+from app.lead_stacking import router as lead_stacking_router
 from app.lead_verification import router as lead_verification_router
 from app.live_public_enrichment import router as live_public_enrichment_router
 from app.main import app
@@ -58,6 +59,7 @@ from app.real_estate_intelligence import router as real_estate_intelligence_rout
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
+from app.smarty_addresses import router as smarty_router
 from app.sms_engine import router as sms_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
@@ -91,6 +93,7 @@ app.include_router(foreclosure_procedure_router)
 app.include_router(distress_ingest_router)
 app.include_router(distress_discovery_router)
 app.include_router(lead_verification_router)
+app.include_router(lead_stacking_router)
 app.include_router(market_selection_router)
 app.include_router(getting_started_router)
 app.include_router(data_intake_router)
@@ -113,6 +116,7 @@ app.include_router(acquisition_intake_router)
 app.include_router(acquisition_worker_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
+app.include_router(smarty_router)
 app.include_router(county_verification_router)
 app.include_router(county_queue_router)
 app.include_router(compliance_router)

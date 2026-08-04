@@ -299,6 +299,62 @@ class DecisionRefused(DecisionUnavailable):
     """The model's safety classifiers declined the request."""
 
 
+# --- Second engine --------------------------------------------------------
+#
+# OpenAI is the fallback, not a peer. Claude is tried first on every analysis
+# and OpenAI only runs when Claude is *operationally* unreachable -- an outage,
+# a timeout, an auth failure. That distinction is the whole design: a refusal
+# is a decision, not a failure, and re-asking a second provider for something
+# the first declined is refusal shopping. Refusals go straight to the
+# deterministic path.
+
+
+def openai_is_configured() -> bool:
+    return bool(settings.openai_api_key)
+
+
+def _invoke_openai(kind: str, payload: dict) -> dict:
+    """Same schema, same system prompt, different provider.
+
+    The response has to satisfy the identical JSON schema Claude is held to, so
+    downstream code cannot tell the two apart structurally -- only by the
+    ``source`` field, which every caller can read.
+    """
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    response = client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_prompt(kind, payload)},
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": f"{kind}_analysis",
+                # Strict mode enforces the schema rather than requesting it,
+                # which is what makes the two engines interchangeable.
+                "strict": True,
+                "schema": ANALYSIS_SCHEMAS[kind],
+            },
+        },
+    )
+
+    choice = response.choices[0]
+    if getattr(choice.message, "refusal", None):
+        raise DecisionRefused(f"OpenAI declined this analysis: {choice.message.refusal}")
+
+    text = choice.message.content or ""
+    if not text.strip():
+        raise DecisionUnavailable("OpenAI returned no analysis content")
+
+    result = json.loads(text)
+    result["source"] = "openai"
+    result["model"] = getattr(response, "model", settings.openai_model)
+    return result
+
+
 def analyze(kind: str, payload: dict) -> dict:
     """Produce a structured analysis, falling back to deterministic rules.
 
@@ -309,17 +365,40 @@ def analyze(kind: str, payload: dict) -> dict:
     if kind not in ANALYSIS_SCHEMAS:
         raise ValueError(f"Unknown analysis kind {kind!r}")
 
-    if not is_configured():
+    if is_configured():
+        try:
+            return _invoke(kind, payload)
+        except DecisionRefused as exc:
+            # Deliberately does not try OpenAI. A refusal is a decision the
+            # first engine made about the request itself; asking a second
+            # provider the same question is refusal shopping, and the answer it
+            # returned would be one no engine was willing to stand behind.
+            logger.warning("Claude declined %s analysis: %s", kind, exc)
+            return _deterministic(kind, payload, reason="model_refusal")
+        except Exception as exc:  # noqa: BLE001 - degrade rather than fail the request
+            logger.exception("Claude %s analysis failed", kind)
+            claude_failure = type(exc).__name__
+    elif openai_is_configured():
+        claude_failure = "no_anthropic_api_key"
+    else:
         return _deterministic(kind, payload, reason="no_api_key")
 
+    if not openai_is_configured():
+        return _deterministic(kind, payload, reason=claude_failure)
+
     try:
-        return _invoke(kind, payload)
+        result = _invoke_openai(kind, payload)
+        # Recorded so an operator reading the analysis knows it came from the
+        # second engine and why -- a run of these is a Claude outage, not a
+        # quirk of one deal.
+        result["primary_engine_failure"] = claude_failure
+        return result
     except DecisionRefused as exc:
-        logger.warning("Claude declined %s analysis: %s", kind, exc)
+        logger.warning("OpenAI declined %s analysis: %s", kind, exc)
         return _deterministic(kind, payload, reason="model_refusal")
-    except Exception as exc:  # noqa: BLE001 - degrade rather than fail the request
-        logger.exception("Claude %s analysis failed", kind)
-        return _deterministic(kind, payload, reason=f"{type(exc).__name__}")
+    except Exception:  # noqa: BLE001 - the deterministic floor always holds
+        logger.exception("OpenAI %s analysis failed after Claude %s", kind, claude_failure)
+        return _deterministic(kind, payload, reason=f"{claude_failure}+openai_failed")
 
 
 # --- Deterministic fallbacks ---------------------------------------------
