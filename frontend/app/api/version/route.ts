@@ -18,7 +18,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.verce
  * invisible.
  */
 export async function GET() {
-  const frontend = process.env.VERCEL_GIT_COMMIT_SHA || null;
+  // VERCEL_GIT_COMMIT_SHA is set only by Git-integration builds. Both projects
+  // deploy from the workflow by CLI, which stamps GIT_COMMIT_SHA instead, so
+  // without the fallback this side of the comparison is always unknown.
+  const frontend = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null;
 
   let backend: string | null = null;
   let reachable = false;
@@ -37,9 +40,10 @@ export async function GET() {
       try {
         backend = JSON.parse(text)?.deployed?.commit ?? null;
         if (backend === null) {
-          // A backend predating the /health revision field cannot report a
-          // commit, which is itself evidence it is running older code.
-          detail = 'Backend did not report a commit. It predates revision reporting, so it is stale.';
+          // Silence means the running code never received the deploy-time
+          // stamp: either it predates revision reporting, or it was shipped
+          // outside the workflow. Both mean it is not the commit just deployed.
+          detail = 'Backend did not report a commit, so it is running code that was not stamped by the deploy workflow.';
         }
       } catch {
         detail = `Backend /health was not JSON: ${text.slice(0, 120)}`;
