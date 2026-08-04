@@ -4,24 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
 const API='/api/launch-validation';
-const SESSION='sahjony_owner_session';
 
 type Result={name:string;passed:boolean;severity:string;detail:string;remediation:string};
 type Report={status:string;score:number;summary:{passed:number;failed:number;critical_failures:number;high_failures:number};results:Result[];workspace:Record<string,number>;safety:Record<string,boolean>};
 type Snapshot={latest_report:Report|null;latest_run_at:string|null;status?:string};
 
 export default function LaunchValidationPage(){
-  const [token,setToken]=useState('');const [data,setData]=useState<Snapshot>({latest_report:null,latest_run_at:null});
+  const [data,setData]=useState<Snapshot>({latest_report:null,latest_run_at:null});
   const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [notice,setNotice]=useState('');
-  const request=useCallback(async(path:string,options:RequestInit={},override?:string)=>{
-    const active=override||token;if(!active){location.replace('/owner-access');throw new Error('Owner session required');}
-    const response=await fetch(`${API}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});
+  const request=useCallback(async(path:string,options:RequestInit={})=>{
+    const response=await fetch(`${API}${path}`,{...options,cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})}});
     const text=await response.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
     if(response.status===401||response.status===403){location.replace('/owner-access');throw new Error('Owner session expired');}
     if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);return body;
-  },[token]);
-  const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{setData(await request('/snapshot',{},override));}catch(e){setError(e instanceof Error?e.message:'Unable to load validation report');}finally{setLoading(false);}},[request]);
-  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  },[]);
+  const load=useCallback(async()=>{setLoading(true);setError('');try{setData(await request('/snapshot'));}catch(e){setError(e instanceof Error?e.message:'Unable to load validation report');}finally{setLoading(false);}},[request]);
+  useEffect(()=>{void load();},[load]);
   async function run(){setLoading(true);setError('');setNotice('');try{const report=await request('/run',{method:'POST',body:'{}'});setData({latest_report:report,latest_run_at:new Date().toISOString()});setNotice(`Validation completed: ${report.status.toUpperCase()} · ${report.score}%`);}catch(e){setError(e instanceof Error?e.message:'Unable to run validation');}finally{setLoading(false);}}
   const r=data.latest_report;
   return <main className={styles.page}>

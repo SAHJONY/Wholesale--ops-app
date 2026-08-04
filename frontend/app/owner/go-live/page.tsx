@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../owner.module.css';
 
 const API = '/api/go-live';
-const SESSION = 'sahjony_owner_session';
 
 type Check = { name:string; category:string; ready:boolean; severity:string; detail:string; action:string };
 type Snapshot = {
@@ -17,26 +16,23 @@ const empty:Snapshot={status:'setup',score:0,blocker_count:0,checks:[],missing_r
 const remediation:Record<string,string>={infrastructure:'/owner/system-health',deployment:'/owner/system-health',integrations:'/owner/integrations',continuity:'/owner/continuity',automation:'/owner/jobs',business:'/owner'};
 
 export default function GoLivePage(){
-  const [token,setToken]=useState('');
   const [data,setData]=useState<Snapshot>(empty);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
 
-  const load=useCallback(async(override?:string)=>{
-    const active=override||token;
-    if(!active){location.replace('/owner-access');return;}
+  const load=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const response=await fetch(API,{cache:'no-store',headers:{Authorization:`Bearer ${active}`}});
+      const response=await fetch(API,{cache:'no-store',credentials:'same-origin'});
       const text=await response.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
       if(response.status===401||response.status===403){location.replace('/owner-access');return;}
       if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);
       setData(body);
     }catch(e){setError(e instanceof Error?e.message:'Unable to load launch readiness');}
     finally{setLoading(false);}
-  },[token]);
+  },[]);
 
-  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  useEffect(()=>{void load();},[load]);
 
   const blockers=useMemo(()=>data.checks.filter(item=>!item.ready),[data.checks]);
   const ready=useMemo(()=>data.checks.filter(item=>item.ready),[data.checks]);
