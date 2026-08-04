@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const SESSION_COOKIE = 'sahjony_owner_session';
 
 export async function GET(request: NextRequest) {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.toLowerCase().startsWith('bearer ')) {
+  const explicit = request.headers.get('authorization');
+  const cookieToken = request.cookies.get(SESSION_COOKIE)?.value || '';
+  const authorization = explicit?.toLowerCase().startsWith('bearer ')
+    ? explicit
+    : cookieToken
+      ? `Bearer ${cookieToken}`
+      : '';
+  if (!authorization) {
     return NextResponse.json({ detail: 'Owner session required' }, { status: 401 });
   }
 
@@ -24,10 +31,17 @@ export async function GET(request: NextRequest) {
     }
 
     const text = await response.text();
-    return new NextResponse(text || null, {
+    const outgoing = new NextResponse(text || null, {
       status: response.status,
-      headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' },
+      headers: {
+        'Content-Type': response.headers.get('content-type') || 'application/json',
+        'Cache-Control': 'no-store',
+      },
     });
+    if (response.status === 401 || response.status === 403) {
+      outgoing.cookies.set(SESSION_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 0 });
+    }
+    return outgoing;
   } catch (error) {
     return NextResponse.json({ detail: `Go-live backend unavailable: ${error instanceof Error ? error.message : 'request failed'}` }, { status: 502 });
   }

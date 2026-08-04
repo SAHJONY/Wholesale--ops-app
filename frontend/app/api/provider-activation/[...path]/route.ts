@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const SESSION_COOKIE = 'sahjony_owner_session';
 
 function allowed(path: string[]) {
   const joined = path.join('/');
@@ -11,8 +12,14 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const { path } = await context.params;
   const joined = path.join('/');
   if (!allowed(path)) return NextResponse.json({ detail: 'Unsupported provider activation route' }, { status: 404 });
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.toLowerCase().startsWith('bearer ')) return NextResponse.json({ detail: 'Owner session required' }, { status: 401 });
+  const explicit = request.headers.get('authorization');
+  const cookieToken = request.cookies.get(SESSION_COOKIE)?.value || '';
+  const authorization = explicit?.toLowerCase().startsWith('bearer ')
+    ? explicit
+    : cookieToken
+      ? `Bearer ${cookieToken}`
+      : '';
+  if (!authorization) return NextResponse.json({ detail: 'Owner session required' }, { status: 401 });
   const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text();
   try {
     const response = await fetch(`${BACKEND_URL}/provider-activation/${joined}`, {
@@ -30,7 +37,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       });
     }
     const text = await response.text();
-    return new NextResponse(text || null, { status: response.status, headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' } });
+    const outgoing = new NextResponse(text || null, { status: response.status, headers: { 'Content-Type': response.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store' } });
+    if (response.status === 401 || response.status === 403) outgoing.cookies.set(SESSION_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 0 });
+    return outgoing;
   } catch (error) {
     return NextResponse.json({ detail: `Provider activation backend unavailable: ${error instanceof Error ? error.message : 'request failed'}` }, { status: 502 });
   }

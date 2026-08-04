@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
 const API = '/api/provider-activation';
-const SESSION = 'sahjony_owner_session';
 
 type Provider = {
   id:string; name:string; category:string; tier:string; state:string; required_now:boolean; activation_ready:boolean;
@@ -19,17 +18,16 @@ type Snapshot = {
 const empty:Snapshot={generated_at:new Date().toISOString(),score:0,status:'setup',required_count:0,ready_count:0,blocker_count:0,selected_signature_provider:'docuseal',workflows:{},providers:[]};
 
 export default function ProviderActivationPage(){
-  const [token,setToken]=useState(''); const [data,setData]=useState<Snapshot>(empty);
+  const [data,setData]=useState<Snapshot>(empty);
   const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [notice,setNotice]=useState('');
-  const request=useCallback(async(path:string,options:RequestInit={},override?:string)=>{
-    const active=override||token;if(!active){location.replace('/owner-access');throw new Error('Owner session required');}
-    const response=await fetch(`${API}${path}`,{...options,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${active}`,...(options.headers||{})}});
+  const request=useCallback(async(path:string,options:RequestInit={})=>{
+    const response=await fetch(`${API}${path}`,{...options,cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})}});
     const text=await response.text();let body:any={};if(text){try{body=JSON.parse(text)}catch{body={detail:text}}}
     if(response.status===401||response.status===403){location.replace('/owner-access');throw new Error('Owner session expired');}
     if(!response.ok)throw new Error(body.detail||`Request failed (${response.status})`);return body;
-  },[token]);
-  const load=useCallback(async(override?:string)=>{setLoading(true);setError('');try{setData(await request('/snapshot',{},override));}catch(e){setError(e instanceof Error?e.message:'Unable to load provider activation');}finally{setLoading(false);}},[request]);
-  useEffect(()=>{const stored='cookie-session';if(!stored){location.replace('/owner-access');return;}setToken(stored);void load(stored);},[load]);
+  },[]);
+  const load=useCallback(async()=>{setLoading(true);setError('');try{setData(await request('/snapshot'));}catch(e){setError(e instanceof Error?e.message:'Unable to load provider activation');}finally{setLoading(false);}},[request]);
+  useEffect(()=>{void load();},[load]);
   async function verify(id?:string){setLoading(true);setError('');setNotice('');try{await request('/verify',{method:'POST',body:JSON.stringify(id?{provider_id:id}:{})});setNotice(id?`${id} verification completed safely.`:'All provider checks completed safely.');await load();}catch(e){setError(e instanceof Error?e.message:'Unable to verify provider');}finally{setLoading(false);}}
   return <main className={styles.page}>
     <header className={styles.header}><div><span className={styles.eyebrow}>PRODUCTION DATA ACTIVATION</span><h1>Provider Activation Center</h1><p>Activate the licensed property, contact, communications, contract, and document systems that power the wholesale business.</p></div><div className={styles.actions}><button onClick={()=>void verify()} disabled={loading}>Verify all safely</button><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/go-live">Go-Live Center</a><a className={styles.linkButton} href="/owner/integrations">Integration Hub</a><a className={styles.linkButton} href="/owner">Control Plane</a></div></header>
