@@ -187,19 +187,27 @@ def property_buyer_appetite(property_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/webhooks/bland")
-def bland_webhook(payload: dict, x_webhook_secret: str | None = Header(default=None), db: Session = Depends(get_db)):
-    if not settings.bland_webhook_secret:
-        raise HTTPException(503, "Bland webhook is not configured")
-    if x_webhook_secret != settings.bland_webhook_secret:
-        raise HTTPException(401, "Invalid webhook secret")
-    call_id = str(payload.get("call_id") or payload.get("id") or "")
-    if not call_id: raise HTTPException(422, "Missing call_id")
-    call = db.scalar(select(Call).where(Call.external_call_id == call_id)) or Call(
-        external_call_id=call_id, direction=payload.get("direction", "inbound"))
-    call.status = payload.get("status", call.status); call.transcript = payload.get("transcript")
-    call.summary = payload.get("summary"); call.metadata_json = payload
-    db.add(call); db.commit()
-    return {"accepted": True, "call_id": call_id}
+def bland_webhook():
+    """Retired in favour of the signed webhook at /voice/webhooks/bland.
+
+    Superseded on three counts, and left as a 410 rather than deleted so a
+    provider still pointed here gets an error naming the replacement instead of
+    a 404 that looks like an outage.
+
+    It compared the shared secret with `!=` on a public endpoint, rather than a
+    constant-time compare over a signature of the raw body. It read
+    BLAND_WEBHOOK_SECRET, a name no call site in this codebase uses and which is
+    absent from the deployment environment, so it answers 503 there -- failing
+    closed, but by accident rather than by design, and one stray environment
+    variable away from being a live weakly-authenticated write endpoint. And it
+    wrote the Call row itself instead of going through
+    record_call(), so a seller who said "take me off your list" on this path had
+    it stored in the transcript and acted on nowhere. record_call() is shared
+    between the authenticated route and the signed webhook precisely so an
+    opt-out cannot be honoured on one path and dropped on another; this was a
+    third path that honoured it on neither.
+    """
+    raise HTTPException(410, "Retired; Bland deliveries go to POST /voice/webhooks/bland, which verifies a signature over the raw request body")
 
 
 @app.post("/driving-for-dollars", dependencies=[Depends(_retired_legacy_endpoint)])

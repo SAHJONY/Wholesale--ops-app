@@ -10,8 +10,13 @@ class Settings(BaseSettings):
     schema_mode: Literal["strict"] = "strict"
     upstash_redis_rest_url: str | None = None
     upstash_redis_rest_token: str | None = None
-    bland_api_key: str | None = None
-    bland_webhook_secret: str | None = None
+    # No bland_* fields here on purpose. Declaring them would bind the env names
+    # BLAND_API_KEY and BLAND_WEBHOOK_SECRET, which nothing reads -- every call
+    # site uses BLAND_AI_*. A field here is an invitation to set the short name,
+    # and a short name that is set but unread is a configuration that looks
+    # complete and does nothing. That already happened once: the retired
+    # /webhooks/bland gated itself on bland_webhook_secret and answered 503 for
+    # its whole life.
     anthropic_api_key: str | None = None
     claude_model: str = "claude-opus-5"
     claude_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"

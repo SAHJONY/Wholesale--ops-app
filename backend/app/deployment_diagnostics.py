@@ -43,6 +43,12 @@ CRITICAL_ROUTES = [
     "/deal-execution/snapshot",
     "/closing-command/snapshot",
     "/disposition/snapshot",
+    # The one public write endpoint in the app, and the only way a call result
+    # or a spoken opt-out gets back in. If the voice router ever fails to mount,
+    # the entrypoint still boots and every delivery 404s, so nothing surfaces
+    # the loss -- the calls simply stop being recorded and "stop calling me"
+    # stops being heard.
+    "/voice/webhooks/bland",
 ]
 
 

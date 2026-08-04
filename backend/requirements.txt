@@ -14,12 +14,12 @@ pytest==8.3.4
 # declared because that degradation is silent from the operator's side: with
 # ANTHROPIC_API_KEY set and the SDK missing, analyses would quietly come back
 # labelled source="deterministic" instead of using the model.
-anthropic==0.120.0
+anthropic==0.120.2
 
 # The second engine, for the same reason: with OPENAI_API_KEY set and the SDK
 # missing, a Claude outage would fall through to deterministic analysis while
 # the configuration says a fallback model is available.
-openai==2.15.0
+openai==2.53.0
 
 # upstash-redis stays removed: still imported nowhere. On a serverless deploy
 # an unused dependency is pure cold-start, bundle-size and CVE surface.
