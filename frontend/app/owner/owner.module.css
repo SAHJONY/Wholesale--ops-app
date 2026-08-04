@@ -1,1 +1,887 @@
-.page,.setup{min-height:100vh;background:radial-gradient(circle at 88% -10%,rgba(47,111,87,.12),transparent 28%),#070a0e;color:#f7f8fa;padding:36px clamp(20px,3vw,48px);font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}.setup{display:grid;place-items:center}.setupCard,.card,.cardWide,.metrics article{background:linear-gradient(145deg,rgba(16,22,30,.98),rgba(12,17,24,.98));border:1px solid #212a35;border-radius:14px;box-shadow:0 10px 35px rgba(0,0,0,.12)}.setupCard{width:min(520px,100%);padding:36px}.setupCard h1,.header h1{margin:8px 0 7px;letter-spacing:-.04em}.setupCard p,.header p,.card p,.cardWide p{color:#8b97a5;line-height:1.55}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.18em;color:#5ce1a5;text-transform:uppercase}.form,.miniForm{display:grid;gap:13px;margin-top:22px}.form input,.miniForm input,.miniForm select{width:100%;box-sizing:border-box;border:1px solid #2a3542;background:#090d12;color:#fff;border-radius:9px;padding:12px 13px;font:inherit;outline:none;transition:border-color .15s,box-shadow .15s}.form input:focus,.miniForm input:focus,.miniForm select:focus{border-color:#5ce1a5;box-shadow:0 0 0 3px rgba(92,225,165,.1)}.form label{font-size:13px;color:#d9e1ea}.form button,.miniForm button,.actions button,.secondaryButton,.decisionButtons button,.activationForm button{border:1px solid transparent;border-radius:9px;padding:11px 15px;font-weight:750;cursor:pointer;background:#5ce1a5;color:#07110c;min-height:42px;transition:transform .15s,background .15s,border-color .15s}.form button:hover,.miniForm button:hover,.actions button:hover,.decisionButtons button:hover,.activationForm button:hover,.linkButton:hover{transform:translateY(-1px)}.secondaryButton{width:100%;margin-top:5px;background:#18202a;color:#d9e1ea;border-color:#2b3643}.form button:disabled,.miniForm button:disabled,.actions button:disabled,.decisionButtons button:disabled,.activationForm button:disabled{opacity:.48;cursor:not-allowed;transform:none}.header{display:flex;justify-content:space-between;gap:28px;align-items:flex-end;max-width:1500px;margin:0 auto 28px;padding-bottom:24px;border-bottom:1px solid #1c242e}.header>div:first-child{max-width:800px}.header h1{font-size:clamp(30px,3vw,43px);line-height:1.05}.header p{margin:9px 0 0;font-size:14px}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}.actions button{background:#171f29;color:#e8edf2;border-color:#293440}.actions .runButton{background:#5ce1a5;color:#07110c;border-color:#5ce1a5}.actions button:nth-child(3){background:#172a41;border-color:#24466b;color:#cbe3ff}.actions button:last-child{background:#241b20;border-color:#3a282f;color:#e9c5ce}.notice,.error,.cycleSummary{max-width:1500px;margin:16px auto;padding:13px 15px;border-radius:9px;border:1px solid}.notice{background:#0f2b20;border-color:#1d4938;color:#86edbd}.error{background:#301719;border-color:#59272b;color:#ffaaa9}.cycleSummary{background:#101c29;border-color:#23384f;color:#b9d4f7}.metrics,.grid,.cardWide{max-width:1500px;margin-left:auto;margin-right:auto}.metrics,.grid{display:grid;gap:13px}.metrics{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px}.metrics article{position:relative;overflow:hidden;padding:18px 19px;min-height:102px}.metrics article:after{content:"";position:absolute;left:19px;right:19px;bottom:0;height:2px;background:linear-gradient(90deg,#5ce1a5,transparent);opacity:.35}.metrics span{display:block;color:#7d8997;font-size:12px}.metrics strong{display:block;font-size:clamp(23px,2.2vw,30px);letter-spacing:-.035em;margin-top:12px}.grid{grid-template-columns:1.2fr 1fr;margin-bottom:16px}.card,.cardWide{padding:22px}.cardWide{margin-bottom:16px}.card h2,.cardWide h2{margin:3px 0 0;font-size:20px;letter-spacing:-.02em}.cardHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}.cardHeader small{color:#778493;text-align:right}.cardHeader select{border:1px solid #2a3542;background:#090d12;color:#fff;border-radius:9px;padding:10px;outline:none}.pipeline{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.pipeline div,.list>div{background:#090d12;border:1px solid #202a34;border-radius:9px;padding:13px}.pipeline span{text-transform:capitalize;color:#93a0ad;font-size:12px}.pipeline strong{display:block;font-size:24px;margin-top:7px}.list{display:grid;gap:8px}.list>div{display:flex;justify-content:space-between;align-items:center;gap:20px;transition:border-color .15s,background .15s}.list>div:hover{border-color:#303e4d;background:#0c1118}.list span{display:grid;gap:4px}.list b{font-size:13px;color:#e5eaf0}.list small{color:#788594;line-height:1.45}.list strong{text-transform:capitalize;font-size:11px;letter-spacing:.04em;color:#5ce1a5}.score,.risk{display:inline-flex!important;white-space:nowrap;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:800}.score{background:#143124;color:#79edb8}.risk{background:#392019;color:#ffae8f}.agentGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.agentCard{background:#090d12;border:1px solid #202a34;border-radius:10px;padding:15px}.agentCard>div{display:flex;justify-content:space-between;gap:12px;align-items:center}.agentCard b{text-transform:capitalize;font-size:13px}.agentCard p{font-size:12px;line-height:1.45;min-height:35px}.agentCard small{color:#697586}.health{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:800;text-transform:uppercase}.healthy{background:#143124;color:#79edb8}.idle{background:#252d37;color:#b7c0cc}.stale{background:#372c17;color:#ffd27a}.decisionButtons{display:flex!important;grid-auto-flow:column;gap:7px}.decisionButtons button{min-height:34px;padding:7px 10px}.decisionButtons button:last-child{background:#351b21;color:#ffadb7}.miniForm{grid-template-columns:1fr 1fr 1fr auto;margin-top:16px}.activationForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:18px}.activationForm input,.activationForm select,.activationForm textarea{width:100%;box-sizing:border-box;border:1px solid #2a3542;background:#090d12;color:#fff;border-radius:9px;padding:12px 13px;font:inherit;outline:none;transition:border-color .15s,box-shadow .15s}.activationForm input:focus,.activationForm select:focus,.activationForm textarea:focus{border-color:#5ce1a5;box-shadow:0 0 0 3px rgba(92,225,165,.1)}.activationForm label{display:grid;gap:7px;color:#aeb7c4;font-size:12px}.activationForm textarea{resize:vertical;line-height:1.5}.activationForm textarea,.activationForm button,.activationForm .calculation,.checkLabel{grid-column:1/-1}.calculation{background:#101c29;border:1px solid #23384f;border-radius:9px;padding:12px;color:#b9d4f7}.checkLabel{display:flex!important;align-items:center;gap:10px}.checkLabel input{width:auto}.linkButton{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border-radius:9px;padding:11px 15px;font-weight:750;font-size:13px;background:#192d46;border:1px solid #25496f;color:#cbe3ff;min-height:42px;transition:transform .15s,background .15s}.form button:focus-visible,.miniForm button:focus-visible,.actions button:focus-visible,.decisionButtons button:focus-visible,.activationForm button:focus-visible,.linkButton:focus-visible{outline:3px solid rgba(92,225,165,.35);outline-offset:2px}@media(max-width:1200px){.metrics{grid-template-columns:repeat(3,1fr)}}@media(max-width:1050px){.metrics{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.agentGrid{grid-template-columns:repeat(2,1fr)}.miniForm{grid-template-columns:1fr 1fr}.header{align-items:flex-start;flex-direction:column}.actions{justify-content:flex-start}}@media(max-width:680px){.page,.setup{padding:22px 14px}.setupCard{padding:22px}.metrics,.pipeline,.miniForm,.agentGrid,.activationForm{grid-template-columns:1fr}.metrics article{min-height:88px}.header{padding-bottom:18px;margin-bottom:20px}.header h1{font-size:30px}.actions{width:100%}.actions button,.actions .linkButton{flex:1 1 46%;padding-inline:10px}.form button,.secondaryButton{width:100%;font-size:15px}.card,.cardWide{padding:17px}.list>div,.cardHeader{align-items:flex-start;flex-direction:column}.cardHeader small{text-align:left}.decisionButtons{width:100%;display:grid!important;grid-template-columns:1fr 1fr}.decisionButtons button{width:100%}.activationForm textarea,.activationForm button,.activationForm .calculation,.checkLabel{grid-column:auto}}@media(prefers-reduced-motion:reduce){.form button,.miniForm button,.actions button,.decisionButtons button,.activationForm button,.linkButton,.list>div{transition:none}}
+/* ============================================================================
+   Owner control-plane surfaces.
+
+   Shares the token layer defined in app/globals.css. CSS Modules scopes class
+   names, not custom properties, so the var() references below resolve to the
+   same values the public dashboard uses.
+   ========================================================================= */
+
+.page,
+.setup {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  padding: var(--space-7);
+  font-family: var(--font-sans);
+}
+
+.setup {
+  display: grid;
+  place-items: center;
+}
+
+.setupCard,
+.card,
+.cardWide,
+.metrics article {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.setupCard {
+  width: min(560px, 100%);
+  padding: var(--space-7);
+}
+
+.setupCard h1,
+.header h1 {
+  margin: var(--space-2) 0 var(--space-1);
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+
+.setupCard p,
+.header p,
+.card p,
+.cardWide p {
+  color: var(--text-muted);
+}
+
+.eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------- forms --- */
+
+.form,
+.miniForm {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+/* Referenced by the nationwide-data route. It had no rule at all, so that
+   form rendered as an unstyled stack. */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.form input,
+.miniForm input,
+.miniForm select,
+.formGrid input,
+.formGrid select {
+  width: 100%;
+  min-height: var(--control-height);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font: inherit;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.form input::placeholder,
+.miniForm input::placeholder,
+.formGrid input::placeholder {
+  color: var(--text-subtle);
+}
+
+.form input:hover,
+.miniForm input:hover,
+.miniForm select:hover,
+.formGrid input:hover,
+.formGrid select:hover {
+  border-color: var(--border-hover);
+}
+
+.form input:focus-visible,
+.miniForm input:focus-visible,
+.miniForm select:focus-visible,
+.formGrid input:focus-visible,
+.formGrid select:focus-visible {
+  border-color: var(--accent);
+}
+
+.form label {
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* -------------------------------------------------------------- buttons --- */
+
+/* Shared geometry for every button, independent of emphasis. */
+.form button,
+.miniForm button,
+.formGrid button,
+.actions button,
+.secondaryButton,
+.decisionButtons button,
+.activationForm button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-4);
+  font-weight: 700;
+  cursor: pointer;
+  min-height: var(--control-height);
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+/* Accent fill marks the submit action. `.secondaryButton` is excluded here
+   rather than overridden afterwards: a bare `.secondaryButton` rule loses to
+   `.form button` on specificity, which is why secondary actions such as
+   "Forgot password?" used to outshout the primary submit next to them. */
+.form button:not(.secondaryButton),
+.miniForm button:not(.secondaryButton),
+.formGrid button:not(.secondaryButton),
+.decisionButtons button:not(.secondaryButton),
+.activationForm button:not(.secondaryButton) {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.form button:not(.secondaryButton):hover:not(:disabled),
+.miniForm button:not(.secondaryButton):hover:not(:disabled),
+.formGrid button:not(.secondaryButton):hover:not(:disabled),
+.activationForm button:not(.secondaryButton):hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.form button:active:not(:disabled),
+.miniForm button:active:not(:disabled),
+.actions button:active:not(:disabled),
+.secondaryButton:active:not(:disabled),
+.decisionButtons button:active:not(:disabled),
+.activationForm button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.secondaryButton {
+  width: 100%;
+  margin-top: var(--space-1);
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+}
+
+.form button:disabled,
+.miniForm button:disabled,
+.formGrid button:disabled,
+.actions button:disabled,
+.secondaryButton:disabled,
+.decisionButtons button:disabled,
+.activationForm button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------- header --- */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+  align-items: center;
+  max-width: 1500px;
+  margin: 0 auto var(--space-6);
+}
+
+.header h1 {
+  font-size: clamp(28px, 3vw, 38px);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Toolbar actions read as secondary by default. Previously the accent colour
+   was assigned by child position, so inserting a button re-coloured unrelated
+   controls; emphasis now comes from an explicit class. */
+.actions button {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.actions button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+}
+
+.actions .runButton {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.actions .runButton:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  border: 1px solid var(--info-edge);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-4);
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--info-wash);
+  color: var(--info);
+  min-height: var(--control-height);
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.linkButton:hover {
+  background: rgba(106, 168, 255, 0.2);
+  border-color: var(--info);
+}
+
+/* -------------------------------------------------------------- notices --- */
+
+.notice,
+.error,
+.cycleSummary {
+  max-width: 1500px;
+  margin: var(--space-5) auto;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 14px;
+}
+
+.notice {
+  background: var(--accent-wash);
+  border-color: var(--accent-edge);
+  color: var(--accent-strong);
+}
+
+.error {
+  background: var(--danger-wash);
+  border-color: var(--danger-edge);
+  color: var(--danger);
+}
+
+.cycleSummary {
+  background: var(--info-wash);
+  border-color: var(--info-edge);
+  color: #b9d4f7;
+}
+
+/* ------------------------------------------------------ metrics and grid --- */
+
+.metrics,
+.grid,
+.cardWide {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.metrics,
+.grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.metrics {
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: var(--space-4);
+}
+
+.metrics article {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-5);
+}
+
+.metrics article::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-wash), transparent);
+}
+
+.metrics span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.metrics strong {
+  display: block;
+  font-size: 28px;
+  margin-top: var(--space-2);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  grid-template-columns: 1.2fr 1fr;
+  margin-bottom: var(--space-4);
+}
+
+.card,
+.cardWide {
+  padding: var(--space-6);
+}
+
+.cardWide {
+  margin-bottom: var(--space-4);
+}
+
+.card h2,
+.cardWide h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.cardHeader small {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.cardHeader select {
+  min-height: var(--control-height);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.cardHeader select:hover {
+  border-color: var(--border-hover);
+}
+
+/* ------------------------------------------------------ pipeline / list --- */
+
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.pipeline div,
+.list > div {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.pipeline span {
+  text-transform: capitalize;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.pipeline strong {
+  display: block;
+  font-size: 24px;
+  margin-top: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-5);
+  transition: border-color var(--duration) var(--ease);
+}
+
+.list > div:hover {
+  border-color: var(--border-strong);
+}
+
+.list span {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.list small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.list strong {
+  text-transform: capitalize;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------------- badges --- */
+
+/* .healthy/.idle/.stale carry colour only. They are listed here too so they
+   work standalone: used as a bare status pill they would otherwise render as
+   an unpadded rectangle, which is how the blocked badge read before. */
+.score,
+.risk,
+.health,
+.healthy,
+.idle,
+.stale {
+  display: inline-flex !important;
+  align-items: center;
+  white-space: nowrap;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.score {
+  background: var(--accent-wash);
+  border-color: var(--accent-edge);
+  color: var(--accent-strong);
+}
+
+.risk {
+  background: var(--warn-wash);
+  border-color: rgba(255, 201, 120, 0.28);
+  color: var(--warn);
+}
+
+.health {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.healthy {
+  background: var(--accent-wash);
+  border-color: var(--accent-edge);
+  color: var(--accent-strong);
+}
+
+.idle {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.stale {
+  background: var(--warn-wash);
+  border-color: rgba(255, 201, 120, 0.28);
+  color: var(--warn);
+}
+
+/* --------------------------------------------------------------- agents --- */
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.agentCard {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: border-color var(--duration) var(--ease);
+}
+
+.agentCard:hover {
+  border-color: var(--border-strong);
+}
+
+.agentCard > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.agentCard b {
+  text-transform: capitalize;
+}
+
+.agentCard p {
+  font-size: 13px;
+  line-height: 1.45;
+  min-height: 38px;
+}
+
+.agentCard small {
+  color: var(--text-subtle);
+}
+
+.decisionButtons {
+  display: flex !important;
+  grid-auto-flow: column;
+  gap: var(--space-2);
+}
+
+.decisionButtons button {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  font-size: 13px;
+}
+
+/* The reject action reads as destructive rather than as another accent
+   button, so an approval and a rejection are not one misclick apart. */
+.decisionButtons button:last-child {
+  background: var(--danger-wash);
+  border-color: var(--danger-edge);
+  color: var(--danger);
+}
+
+.decisionButtons button:last-child:hover:not(:disabled) {
+  background: rgba(255, 143, 143, 0.2);
+  border-color: var(--danger);
+}
+
+.miniForm {
+  grid-template-columns: 1fr 1fr 1fr auto;
+  margin-top: var(--space-4);
+}
+
+/* ------------------------------------------------------- activation form --- */
+
+.activationForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.activationForm input,
+.activationForm select,
+.activationForm textarea {
+  width: 100%;
+  min-height: var(--control-height);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font: inherit;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.activationForm textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.activationForm input:hover,
+.activationForm select:hover,
+.activationForm textarea:hover {
+  border-color: var(--border-hover);
+}
+
+.activationForm input:focus-visible,
+.activationForm select:focus-visible,
+.activationForm textarea:focus-visible {
+  border-color: var(--accent);
+}
+
+.activationForm label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.activationForm textarea,
+.activationForm button,
+.activationForm .calculation,
+.checkLabel {
+  grid-column: 1 / -1;
+}
+
+.calculation {
+  background: var(--info-wash);
+  border: 1px solid var(--info-edge);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  color: #b9d4f7;
+  font-variant-numeric: tabular-nums;
+}
+
+.checkLabel {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+}
+
+.checkLabel input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+/* ----------------------------------------------------------- responsive --- */
+
+@media (max-width: 1100px) {
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .agentGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .miniForm,
+  .formGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 680px) {
+  .page,
+  .setup {
+    padding: var(--space-4);
+  }
+
+  .setupCard {
+    padding: var(--space-5);
+  }
+
+  .pipeline,
+  .miniForm,
+  .formGrid,
+  .agentGrid,
+  .activationForm {
+    grid-template-columns: 1fr;
+  }
+
+  /* Same reasoning as the public dashboard: counters stay two-up on phones. */
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .metrics article {
+    padding: var(--space-4);
+  }
+
+  .metrics strong {
+    font-size: 24px;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions button,
+  .actions .linkButton {
+    flex: 1 1 46%;
+  }
+
+  .form button,
+  .secondaryButton {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .list > div,
+  .cardHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cardHeader small {
+    text-align: left;
+  }
+
+  .decisionButtons {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .decisionButtons button {
+    width: 100%;
+  }
+
+  .activationForm textarea,
+  .activationForm button,
+  .activationForm .calculation,
+  .checkLabel {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentCard,
+  .list > div,
+  .actions button,
+  .form button {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------- owner page nav --- */
+
+/* The console has 29 routes; before this, nine had no inbound link anywhere
+   and /owner linked to none of its sub-pages. */
+.ownerNav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.ownerNavBar {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-7);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.ownerNavToggle {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-4);
+  min-height: 38px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.ownerNavToggle:hover {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+}
+
+.ownerNavCurrent {
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ownerNavPanel {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-7) var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.ownerNavGroup h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.ownerNavGroup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ownerNavGroup a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.ownerNavGroup a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.ownerNavActive {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+@media (max-width: 680px) {
+  .ownerNavBar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .ownerNavPanel {
+    padding: var(--space-2) var(--space-4) var(--space-5);
+    grid-template-columns: 1fr;
+  }
+}

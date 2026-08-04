@@ -129,6 +129,20 @@ PUBLIC_DATA_PROVIDERS: tuple[dict[str, Any], ...] = (
         "license_required": False,
     },
     {
+        "id": "usgs_3dep",
+        "name": "USGS 3D Elevation Program",
+        "category": "terrain_context",
+        "tier": "authoritative_public",
+        "access": "free",
+        "feature_flag": "ENABLE_USGS_3DEP",
+        "endpoint_env": "USGS_ELEVATION_URL",
+        "capabilities": ["ground_elevation", "terrain_context", "source_resolution"],
+        "confidence": "high_for_interpolated_terrain",
+        "retention": "federal_open_data_terms",
+        "license_required": False,
+        "default_enabled": True,
+    },
+    {
         "id": "census",
         "name": "US Census and TIGER/Line",
         "category": "market_enrichment",
@@ -140,6 +154,7 @@ PUBLIC_DATA_PROVIDERS: tuple[dict[str, Any], ...] = (
         "confidence": "high",
         "retention": "federal_open_data_terms",
         "license_required": False,
+        "default_enabled": True,
     },
     {
         "id": "epa",
@@ -201,7 +216,8 @@ def _truthy(value: str | None) -> bool:
 
 
 def provider_status(provider: dict[str, Any]) -> dict[str, Any]:
-    enabled = _truthy(os.getenv(provider["feature_flag"]))
+    configured_flag = os.getenv(provider["feature_flag"])
+    enabled = _truthy(configured_flag) if configured_flag is not None else bool(provider.get("default_enabled", False))
     endpoint_configured = bool(os.getenv(provider["endpoint_env"]))
     if provider["access"] in {"free", "free_open_data"} and enabled and not endpoint_configured:
         state = "enabled_default_endpoint"

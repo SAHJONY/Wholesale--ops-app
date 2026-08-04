@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .autonomy import AUTONOMY_AGENTS, create_task, execute_next_tasks, run_agent
+from .auth import Principal, require_role
 from .config import settings
 from .database import get_db
 from .models import AgentRun, Approval, Buyer, Call, Campaign, ClosingItem, Deal, Lead, Offer, OpsTask, Property
@@ -13,6 +14,7 @@ from .operating_system import (buyer_appetite, build_seller_offer, create_or_upd
                                executive_brief, initialize_closing, schedule_acquisition_runs)
 from .schemas import BuyerCreate, LeadCreate, MatchResult, UnderwriteRequest
 from .services import calculate_mao, distress_score, lead_score, match_buyer
+from .valuation import simulate_deal
 
 app = FastAPI(title="SAHJONY Wholesale Ops API", version="0.3.0")
 app.add_middleware(
@@ -25,9 +27,30 @@ app.add_middleware(
 )
 
 
+def deployed_revision() -> dict[str, str | None]:
+    """Which commit this instance is actually running.
+
+    Production drifted five merges behind ``main`` for ten days and nothing
+    could see it: ``/health`` reported a hardcoded version string that had not
+    changed in months, so a stale deployment and a current one were
+    indistinguishable from outside. Vercel injects these at build time; running
+    anywhere else they are absent and reported as null rather than guessed.
+    """
+    return {
+        "commit": os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("GIT_COMMIT_SHA"),
+        "branch": os.getenv("VERCEL_GIT_COMMIT_REF"),
+        "environment": os.getenv("VERCEL_ENV"),
+    }
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "wholesale-ops-api", "version": "0.3.0"}
+    return {
+        "status": "ok",
+        "service": "wholesale-ops-api",
+        "version": "0.3.0",
+        "deployed": deployed_revision(),
+    }
 
 
 def _retired_legacy_endpoint():
@@ -36,7 +59,7 @@ def _retired_legacy_endpoint():
 
 @app.get("/dashboard", dependencies=[Depends(_retired_legacy_endpoint)])
 def dashboard(db: Session = Depends(get_db)):
-    leads = db.scalars(select(Lead)).all(); buyers = db.scalars(select(Buyer)).all()
+    leads = db.scalars(select(Lead).where(Lead.status != "deleted")).all(); buyers = db.scalars(select(Buyer)).all()
     calls = db.scalars(select(Call)).all(); tasks = db.scalars(select(OpsTask)).all()
     approvals = db.scalars(select(Approval).where(Approval.status == "pending")).all()
     campaigns = db.scalars(select(Campaign)).all(); deals = db.scalars(select(Deal)).all()
@@ -67,13 +90,50 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
 
 @app.get("/leads", dependencies=[Depends(_retired_legacy_endpoint)])
 def list_leads(db: Session = Depends(get_db)):
-    leads = db.scalars(select(Lead).order_by(Lead.created_at.desc())).all()
+    leads = db.scalars(select(Lead).where(Lead.status != "deleted").order_by(Lead.created_at.desc())).all()
     return [{"id": x.id, "property_id": x.property.id if x.property else None,
              "seller_name": x.seller_name, "phone": x.phone, "status": x.status,
              "distress_score": x.distress_score, "motivation_score": x.motivation_score,
              "address": x.property.address if x.property else None,
              "zip_code": x.property.zip_code if x.property else None,
              "mao": x.property.mao if x.property else None} for x in leads]
+
+
+@app.delete("/leads/{lead_id}")
+def delete_lead(
+    lead_id: int,
+    payload: dict | None = None,
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    lead = db.get(Lead, lead_id)
+    if not lead or lead.status == "deleted":
+        raise HTTPException(404, "Lead not found")
+    active_deal = db.scalar(select(Deal).join(Property, Deal.property_id == Property.id).where(
+        Property.lead_id == lead_id,
+        Deal.stage.not_in(["closed", "dead"]),
+    ))
+    if active_deal:
+        raise HTTPException(409, f"Lead has active deal #{active_deal.id}; close or mark it dead before deletion")
+    reason = str((payload or {}).get("reason") or "Removed from Command Center").strip()[:500]
+    lead.status = "deleted"
+    lead.seller_name = "Deleted lead"
+    lead.phone = "deleted"
+    lead.email = None
+    lead.notes = f"Soft deleted at {datetime.now(timezone.utc).isoformat()}. Reason: {reason}"
+    for task in db.scalars(select(OpsTask).where(
+        OpsTask.lead_id == lead_id,
+        OpsTask.status.in_(["queued", "pending"]),
+    )).all():
+        task.status = "cancelled"
+    db.commit()
+    return {
+        "lead_id": lead_id,
+        "status": "deleted",
+        "contact_data_removed": True,
+        "reason": reason,
+        "deleted_by_user_id": principal.user_id,
+    }
 
 
 @app.post("/buyers", dependencies=[Depends(_retired_legacy_endpoint)])
@@ -85,9 +145,28 @@ def create_buyer(payload: BuyerCreate, db: Session = Depends(get_db)):
 @app.post("/underwrite", dependencies=[Depends(_retired_legacy_endpoint)])
 def underwrite(payload: UnderwriteRequest):
     mao = calculate_mao(payload.arv, payload.repairs, payload.assignment_fee, payload.mao_factor)
+    # The fixed-factor MAO above is retained for continuity, but a single point
+    # estimate says nothing about how likely the deal is to clear. The
+    # simulation prices the same deal against ARV, repair, and buyer-demand
+    # uncertainty; see /deal-intelligence/underwrite for the full comps-driven
+    # chain that derives ARV rather than taking it as an input.
+    simulation = simulate_deal(
+        arv=payload.arv,
+        repairs=payload.repairs,
+        contract_price=mao,
+        target_fee=payload.assignment_fee,
+    )
     return {"arv": payload.arv, "repairs": payload.repairs, "assignment_fee": payload.assignment_fee,
             "mao": mao, "gross_opportunity_spread": max(0, payload.arv - payload.repairs - mao),
-            "flip_roi_on_cost": round(((payload.arv - payload.repairs - mao) / max(1, mao + payload.repairs)) * 100, 2)}
+            "flip_roi_on_cost": round(((payload.arv - payload.repairs - mao) / max(1, mao + payload.repairs)) * 100, 2),
+            "risk_adjusted": {
+                "probability_of_target_fee": simulation.probability_of_target,
+                "expected_spread": round(simulation.expected_spread, 2),
+                "downside_spread_p10": round(simulation.downside_spread, 2),
+                "recommended_max_offer": round(simulation.recommended_max_offer, 2),
+                "spread_percentiles": {k: round(v, 2) for k, v in simulation.percentiles.items()},
+                "iterations": simulation.iterations,
+            }}
 
 
 @app.get("/properties/{property_id}/matches", response_model=list[MatchResult], dependencies=[Depends(_retired_legacy_endpoint)])

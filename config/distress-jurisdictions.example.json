@@ -1,0 +1,112 @@
+{
+  "_comment": [
+    "Template for DISTRESS_JURISDICTIONS_FILE. Copy, replace every endpoint with a real one",
+    "from the county's open-data portal, then run POST /distress-ingest/validate for each entry",
+    "before committing. Entries below use example.gov placeholders on purpose: a dataset id that",
+    "looks plausible but does not resolve would sit in the registry writing nothing while appearing",
+    "healthy, so nothing here is presented as a working endpoint.",
+    "",
+    "Socrata endpoints look like  https://{domain}/resource/{dataset_id}.json",
+    "ArcGIS endpoints look like   {service}/FeatureServer/{layer}/query",
+    "",
+    "field_map maps a canonical fact field -> the upstream column carrying it. A jurisdiction may",
+    "only map fields its category is allowed to write; anything else is rejected at load time.",
+    "Texas is excluded and will be rejected."
+  ],
+  "jurisdictions": [
+    {
+      "id": "REPLACE-county-tax-delinquency",
+      "state": "FL",
+      "county": "REPLACE County",
+      "category": "tax_delinquency",
+      "transport": "socrata",
+      "endpoint": "https://data.example-county.gov/resource/REPLACE.json",
+      "address_field": "situs_address",
+      "zip_field": "situs_zip",
+      "where": "delinquent_flag = 'Y'",
+      "field_map": {
+        "tax_delinquent": "delinquent_flag",
+        "tax_delinquent_years": "years_delinquent",
+        "tax_amount_due": "total_due"
+      }
+    },
+    {
+      "id": "REPLACE-city-code-violations",
+      "state": "FL",
+      "county": "REPLACE County",
+      "category": "code_violation",
+      "transport": "arcgis",
+      "endpoint": "https://gis.example-city.gov/arcgis/rest/services/CodeEnforcement/FeatureServer/0/query",
+      "address_field": "SITE_ADDRESS",
+      "zip_field": "SITE_ZIP",
+      "where": "STATUS = 'OPEN'",
+      "field_map": {
+        "code_violation_open": "STATUS",
+        "code_violation_count": "CASE_COUNT",
+        "code_violation_last_case": "CASE_NUMBER",
+        "unsafe_structure": "UNSAFE_FLAG"
+      }
+    },
+    {
+      "id": "REPLACE-county-lis-pendens",
+      "state": "FL",
+      "county": "REPLACE County",
+      "category": "lis_pendens",
+      "transport": "socrata",
+      "endpoint": "https://records.example-county.gov/resource/REPLACE.json",
+      "address_field": "property_address",
+      "zip_field": "property_zip",
+      "field_map": {
+        "lis_pendens_filed": "doc_type",
+        "lis_pendens_filed_at": "record_date",
+        "lis_pendens_instrument": "instrument_number"
+      }
+    },
+    {
+      "id": "REPLACE-county-foreclosure-sales",
+      "state": "FL",
+      "county": "REPLACE County",
+      "category": "foreclosure_sale",
+      "transport": "socrata",
+      "endpoint": "https://sales.example-county.gov/resource/REPLACE.json",
+      "address_field": "property_address",
+      "zip_field": "property_zip",
+      "field_map": {
+        "foreclosure_sale_scheduled": "sale_status",
+        "foreclosure_sale_date": "sale_date",
+        "foreclosure_case_number": "case_number"
+      }
+    },
+    {
+      "id": "REPLACE-city-demolition-permits",
+      "state": "FL",
+      "county": "REPLACE County",
+      "category": "demolition_permit",
+      "transport": "arcgis",
+      "endpoint": "https://gis.example-city.gov/arcgis/rest/services/Permits/FeatureServer/0/query",
+      "address_field": "ADDRESS",
+      "zip_field": "ZIP",
+      "where": "PERMIT_TYPE LIKE '%DEMO%'",
+      "field_map": {
+        "demolition_permit_open": "STATUS",
+        "permit_last_issued_at": "ISSUE_DATE",
+        "permit_type": "PERMIT_TYPE"
+      }
+    },
+    {
+      "id": "REPLACE-county-probate",
+      "state": "FL",
+      "county": "REPLACE County",
+      "category": "probate",
+      "transport": "socrata",
+      "endpoint": "https://courts.example-county.gov/resource/REPLACE.json",
+      "address_field": "decedent_property_address",
+      "zip_field": "decedent_property_zip",
+      "field_map": {
+        "probate_case_open": "case_status",
+        "probate_case_number": "case_number",
+        "probate_filed_at": "filing_date"
+      }
+    }
+  ]
+}

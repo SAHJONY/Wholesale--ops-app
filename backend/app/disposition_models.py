@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from .database import Base, UtcDateTime
 
 
 class DispositionCampaign(Base):
@@ -20,11 +20,11 @@ class DispositionCampaign(Base):
     sent_count: Mapped[int] = mapped_column(Integer, default=0)
     response_count: Mapped[int] = mapped_column(Integer, default=0)
     requires_approval: Mapped[bool] = mapped_column(Boolean, default=True)
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    launched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    launched_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class DealBuyerMatch(Base):
@@ -37,10 +37,10 @@ class DealBuyerMatch(Base):
     score: Mapped[float] = mapped_column(Float, default=0)
     reasons: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(30), default="matched", index=True)
-    contacted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    contacted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    responded_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class BuyerOffer(Base):
@@ -60,8 +60,8 @@ class BuyerOffer(Base):
     status: Mapped[str] = mapped_column(String(30), default="submitted", index=True)
     ranking_score: Mapped[float] = mapped_column(Float, default=0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    selected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    submitted_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    selected_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class AssignmentSelection(Base):
@@ -78,5 +78,5 @@ class AssignmentSelection(Base):
     approval_id: Mapped[int | None] = mapped_column(ForeignKey("approvals.id"), nullable=True)
     selected_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

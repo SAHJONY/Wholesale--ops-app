@@ -1,0 +1,134 @@
+{
+  "_README": [
+    "Escambia County, Florida (Pensacola). Partially configured.",
+    "",
+    "Filled in below: state, county, category, procedure, and the where-clause",
+    "shape. Left as ENDPOINT_REQUIRED and COLUMN_REQUIRED: the dataset URL and",
+    "its column names, which cannot be known without reading the live endpoint.",
+    "A Socrata dataset is addressed by an opaque four-by-four id and its columns",
+    "are named by whoever published it, so writing either from memory is a guess,",
+    "and a guessed id returns 404 -- which this pipeline reads as 'no records in",
+    "this county' rather than as a broken entry.",
+    "",
+    "To complete it, from a machine with outbound HTTPS:",
+    "    python scripts/build_jurisdiction_registry.py --states FL --out fl.json",
+    "That reads one real row per candidate and writes the columns it observed.",
+    "Then prove each entry:  POST /distress-ingest/validate {\"jurisdiction_id\": ...}",
+    "",
+    "FLORIDA IS A JUDICIAL FORECLOSURE STATE.",
+    "Verified against /foreclosure-procedure/states/FL, which returns:",
+    "    procedure : judicial",
+    "    offices   : district_or_circuit_court, county_recorder, county_sheriff",
+    "    documents : lis_pendens, foreclosure_complaint, judgment, sheriff_sale_notice",
+    "",
+    "So there is no Notice of Default and no Notice of Trustee Sale to collect",
+    "here; those are non-judicial artefacts. Configuring them for FL is rejected",
+    "with a warning by design. In Florida the Clerk of the Circuit Court is both",
+    "the court clerk and the county recorder, so the court case and the recorded",
+    "lis pendens are held by the same office.",
+    "",
+    "UNVERIFIED: whether Escambia County publishes any of this as a machine-",
+    "readable dataset at all. Many Florida clerks expose only a web search page.",
+    "If that is the case here, the correct outcome is that this county is",
+    "reported unavailable, not scraped -- see the note at the top of",
+    "app/distress_providers.py."
+  ],
+
+  "jurisdictions": [
+    {
+      "_purpose": "Judicial pre-foreclosure. The primary distress signal in Florida.",
+      "id": "escambia-fl-lis-pendens",
+      "state": "FL",
+      "county": "Escambia",
+      "category": "lis_pendens",
+      "procedure": "judicial",
+      "transport": "socrata",
+      "endpoint": "ENDPOINT_REQUIRED",
+      "address_field": "COLUMN_REQUIRED_property_address",
+      "zip_field": "COLUMN_REQUIRED_zip",
+      "field_map": {
+        "lis_pendens_filed": "COLUMN_REQUIRED_status_or_flag",
+        "lis_pendens_filed_at": "COLUMN_REQUIRED_filing_date",
+        "lis_pendens_instrument": "COLUMN_REQUIRED_case_or_instrument_number"
+      },
+      "where": "OPTIONAL date filter, e.g. filing_date > '2025-08-01'"
+    },
+
+    {
+      "_purpose": "Sheriff sale calendar. In a judicial state the sale follows judgment.",
+      "id": "escambia-fl-foreclosure-sale",
+      "state": "FL",
+      "county": "Escambia",
+      "category": "foreclosure_sale",
+      "procedure": "judicial",
+      "transport": "socrata",
+      "endpoint": "ENDPOINT_REQUIRED",
+      "address_field": "COLUMN_REQUIRED_property_address",
+      "zip_field": "COLUMN_REQUIRED_zip",
+      "field_map": {
+        "foreclosure_sale_scheduled": "COLUMN_REQUIRED_status",
+        "foreclosure_sale_date": "COLUMN_REQUIRED_sale_date",
+        "foreclosure_case_number": "COLUMN_REQUIRED_case_number"
+      }
+    },
+
+    {
+      "_purpose": "Recorded transfers. Feeds cash-buyer discovery: POST /cash-buyers/sync/escambia-fl-deeds",
+      "id": "escambia-fl-deeds",
+      "state": "FL",
+      "county": "Escambia",
+      "category": "cash_purchase_deed",
+      "transport": "socrata",
+      "endpoint": "ENDPOINT_REQUIRED",
+      "address_field": "COLUMN_REQUIRED_property_address",
+      "zip_field": "COLUMN_REQUIRED_zip",
+      "field_map": {
+        "last_grantee": "COLUMN_REQUIRED_grantee_name",
+        "last_sale_price": "COLUMN_REQUIRED_consideration",
+        "last_sale_date": "COLUMN_REQUIRED_recording_date",
+        "last_sale_instrument": "COLUMN_REQUIRED_instrument_number"
+      },
+      "where": "OPTIONAL date filter; 12-24 months keeps candidates to currently active buyers"
+    },
+
+    {
+      "_purpose": [
+        "Mortgages and deeds of trust. Optional, and the only route to a cash",
+        "purchase being reported as confirmed rather than unconfirmed.",
+        "",
+        "Scope this with the same date window as the deed feed. /cash-buyers/sync",
+        "abandons the cross-reference if this index comes back at the row cap,",
+        "because an address missing from a truncated read is not an address with",
+        "no mortgage."
+      ],
+      "id": "escambia-fl-mortgages",
+      "state": "FL",
+      "county": "Escambia",
+      "category": "cash_purchase_deed",
+      "transport": "socrata",
+      "endpoint": "ENDPOINT_REQUIRED",
+      "address_field": "COLUMN_REQUIRED_property_address",
+      "field_map": {
+        "last_sale_instrument": "COLUMN_REQUIRED_instrument_number"
+      },
+      "where": "OPTIONAL filter matching the deed feed's window"
+    },
+
+    {
+      "_purpose": "Tax delinquency. Independent of foreclosure procedure; Florida sells tax certificates.",
+      "id": "escambia-fl-tax-delinquency",
+      "state": "FL",
+      "county": "Escambia",
+      "category": "tax_delinquency",
+      "transport": "socrata",
+      "endpoint": "ENDPOINT_REQUIRED",
+      "address_field": "COLUMN_REQUIRED_property_address",
+      "zip_field": "COLUMN_REQUIRED_zip",
+      "field_map": {
+        "tax_delinquent": "COLUMN_REQUIRED_status",
+        "tax_delinquent_years": "COLUMN_REQUIRED_years_or_tax_year",
+        "tax_amount_due": "COLUMN_REQUIRED_amount_due"
+      }
+    }
+  ]
+}

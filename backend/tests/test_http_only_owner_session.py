@@ -80,6 +80,12 @@ def test_generic_backend_proxy_uses_stable_backend_alias():
     assert "wholesale-ops-2kqe2x2q1" not in source
 
 
+def test_ceo_command_center_displays_canonical_close_percentage_once():
+    source = read("frontend/app/owner/ceo-command/page.tsx")
+    assert "Math.round(deal.probability_to_close || 0)" in source
+    assert "(deal.probability_to_close || 0) * 100" not in source
+
+
 def test_owner_navigation_exposes_every_distinct_workspace():
     navigation = read("frontend/app/owner/OwnerNavigation.tsx")
     pages = sorted((ROOT / "frontend/app/owner").glob("*/page.tsx"))

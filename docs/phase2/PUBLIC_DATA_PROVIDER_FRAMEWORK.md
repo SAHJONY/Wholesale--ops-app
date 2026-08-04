@@ -30,7 +30,7 @@ No licensed or restricted source is enabled by default.
 
 ## Nationwide live foundation
 
-The first active nationwide connector uses U.S. Census Bureau Geocoding Services, MAF/TIGER geography, and 2024 ACS 5-year county statistics.
+The active nationwide connectors use U.S. Census Bureau Geocoding Services, MAF/TIGER geography, 2024 ACS 5-year county statistics, and the U.S. Geological Survey 3D Elevation Program.
 
 Routes:
 
@@ -41,7 +41,7 @@ Owner console:
 
 - `/owner/nationwide-data`
 
-The nationwide service is read-only. It can normalize a U.S. address, return approximate latitude/longitude, state and county FIPS, census tract/block geography, and aggregate county housing context. It does not prove legal ownership, liens, probate, tax delinquency, property value, structure existence, or seller contact information.
+The nationwide service is read-only. It can normalize a U.S. address, return approximate latitude/longitude, state and county FIPS, census tract/block geography, aggregate county housing context, and interpolated USGS ground elevation. It does not prove legal ownership, liens, probate, tax delinquency, property value, structure existence, flood status, surveyed elevation, or seller contact information.
 
 Every live enrichment also returns a Property Truth Report. The report separates verified provider claims from unavailable fields and blocking unknowns, provides field-level source and confidence metadata, and keeps underwriting, outreach, and contract readiness blocked until ownership, title, condition, valuation, and contact consent have appropriate evidence.
 

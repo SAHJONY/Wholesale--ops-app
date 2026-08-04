@@ -9,6 +9,7 @@ from .auth import Principal, get_principal
 from .auth_models import CrmActivity, FollowUpTask, WorkspaceEntity
 from .database import get_db
 from .models import Approval, Buyer, ClosingItem, Deal, Lead, Offer, Property
+from .percentages import INITIAL_CLOSE_PROBABILITY
 
 router = APIRouter(prefix="/property-workspace", tags=["property workspace"])
 
@@ -198,7 +199,8 @@ def create_governed_deal(property_id: int, payload: CreateDealInput, principal: 
     deal = Deal(
         property_id=property_id, stage="qualified", strategy=payload.strategy,
         target_contract_price=item.mao, target_buyer_price=item.mao + assignment_fee,
-        projected_assignment_fee=assignment_fee, probability_to_close=0.10,
+        projected_assignment_fee=assignment_fee,
+        probability_to_close=INITIAL_CLOSE_PROBABILITY,
         risk_score=max(0, round(100 - payload.confidence * 100, 2)),
         next_action="Owner review and approval required before seller outreach",
         metadata_json={"underwriting_confidence": payload.confidence, "owner_confirmed": True},

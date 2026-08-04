@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from .database import Base, UtcDateTime
 
 
 class ContactSuppression(Base):
@@ -19,8 +19,8 @@ class ContactSuppression(Base):
     source: Mapped[str] = mapped_column(String(80), default="entity_specific_request")
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class ContactConsent(Base):
@@ -33,11 +33,11 @@ class ContactConsent(Base):
     contact: Mapped[str] = mapped_column(String(255), index=True)
     consent_type: Mapped[str] = mapped_column(String(60), index=True)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
-    captured_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     source: Mapped[str] = mapped_column(String(120))
     evidence: Mapped[dict] = mapped_column(JSON, default=dict)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class DncCheck(Base):
@@ -50,7 +50,7 @@ class DncCheck(Base):
     national_dnc: Mapped[bool] = mapped_column(Boolean, default=False)
     state_dnc: Mapped[bool] = mapped_column(Boolean, default=False)
     provider: Mapped[str] = mapped_column(String(80))
-    checked_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    checked_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
     raw_reference: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
@@ -66,4 +66,4 @@ class ComplianceDecision(Base):
     reasons: Mapped[list] = mapped_column(JSON, default=list)
     evidence: Mapped[dict] = mapped_column(JSON, default=dict)
     requested_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)

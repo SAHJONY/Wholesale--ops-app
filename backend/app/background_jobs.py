@@ -5,12 +5,12 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import DateTime, Integer, JSON, String, Text, func, select
+from sqlalchemy import Integer, JSON, String, Text, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .auth import Principal, get_principal, require_role
 from .auth_models import AppUser, CrmActivity, Membership, Organization, WorkspaceEntity
-from .database import Base, get_db
+from .database import Base, UtcDateTime, get_db
 from .event_bus import process_events
 from .models import Lead
 
@@ -27,19 +27,19 @@ class BackgroundJob(Base):
     result_json: Mapped[dict] = mapped_column(JSON, default=dict)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, default=5)
-    available_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    failed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    available_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    locked_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 router = APIRouter(prefix="/jobs", tags=["durable background jobs"])
-SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead"}
+SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead", "autonomous_property_acquisition"}
 STALE_LOCK_MINUTES = 20
 SCHEDULE = "*/15 * * * *"
 
@@ -121,6 +121,9 @@ async def _execute_job(db: Session, principal: Principal, job: BackgroundJob) ->
         except Exception as exc:
             raise RuntimeError(f"Acquisition worker unavailable: {type(exc).__name__}: {exc}") from exc
         return await _process_one(db, principal, lead, force=bool(job.payload_json.get("force")))
+    if job.job_type == "autonomous_property_acquisition":
+        from .autonomous_property_acquisition import run_autonomous_property_acquisition
+        return await run_autonomous_property_acquisition(db, principal)
     raise RuntimeError(f"Unsupported job type: {job.job_type}")
 
 
@@ -264,6 +267,23 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
             results.append({"organization_id": organization.id, "status": "skipped", "reason": "active owner not found"})
             continue
         try:
+            from .autonomous_property_acquisition import acquisition_feed_status
+            feed = acquisition_feed_status()
+            pending_feed_job = db.scalar(select(BackgroundJob.id).where(
+                BackgroundJob.organization_id == organization.id,
+                BackgroundJob.job_type == "autonomous_property_acquisition",
+                BackgroundJob.status.in_(["queued", "retry", "running"]),
+            ))
+            if feed["enabled"] and feed["configured"] and feed["secure"] and not pending_feed_job:
+                db.add(BackgroundJob(
+                    organization_id=organization.id,
+                    job_type="autonomous_property_acquisition",
+                    status="queued",
+                    priority=70,
+                    payload_json={"review_only": True},
+                    created_by_user_id=principal.user_id,
+                ))
+                db.commit()
             results.append(await _run_available(db, principal, 20, "vercel_cron"))
         except Exception as exc:
             db.rollback()

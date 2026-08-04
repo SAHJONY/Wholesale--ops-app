@@ -1,7 +1,1261 @@
-*{box-sizing:border-box}html{background:#070a0e}body{margin:0;background:#070a0e;color:#f7f8fa;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}button,input,textarea,select{font:inherit}button,a{-webkit-tap-highlight-color:transparent}.srOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* ============================================================================
+   SAHJONY Wholesale Ops — operations console design system
 
-.ownerAppShell{min-height:100vh}.ownerAppContent{min-width:0;margin-left:248px}.ownerSignedOut .ownerAppContent{margin-left:0}.ownerNav{position:fixed;inset:0 auto 0 0;z-index:50;width:248px;display:flex;flex-direction:column;padding:24px 14px 18px;background:linear-gradient(180deg,#0d1219 0%,#0a0e14 100%);border-right:1px solid #202832}.ownerBrand,.ownerMobileBrand{display:flex;align-items:center;gap:11px;color:#f7f8fa;text-decoration:none}.ownerBrand{padding:0 9px 22px}.ownerBrand>span,.ownerMobileBrand>span{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#5ce1a5,#2eae7a);color:#06110c;font-weight:950;box-shadow:0 8px 28px rgba(92,225,165,.16)}.ownerBrand div{display:grid}.ownerBrand b{font-size:14px;letter-spacing:.15em}.ownerBrand small{color:#778391;font-size:11px;margin-top:2px}.ownerNav nav{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#28313d transparent;padding-right:2px}.ownerNavGroup{display:grid;gap:3px;margin-bottom:20px}.ownerNavGroup>span{padding:0 11px 7px;color:#66727f;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.ownerNavGroup a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;color:#96a1ae;text-decoration:none;font-size:13px;font-weight:650;transition:background .16s,color .16s,transform .16s}.ownerNavGroup a i{display:grid;place-items:center;width:21px;height:21px;font-style:normal;color:#6f7b89;font-size:14px}.ownerNavGroup a:hover{background:#151c25;color:#eef2f6;transform:translateX(2px)}.ownerNavGroup a.active{background:linear-gradient(90deg,rgba(92,225,165,.15),rgba(92,225,165,.05));color:#79edb8;box-shadow:inset 2px 0 #5ce1a5}.ownerNavGroup a.active i{color:#5ce1a5}.ownerNav footer{display:flex;gap:10px;align-items:center;margin-top:auto;padding:14px 10px 0;border-top:1px solid #202832}.ownerNav footer div{display:grid}.ownerNav footer b{font-size:11px;color:#c7d0d9}.ownerNav footer small{font-size:10px;color:#66727f;margin-top:2px}.ownerLiveDot{width:8px;height:8px;border-radius:50%;background:#5ce1a5;box-shadow:0 0 0 4px rgba(92,225,165,.1),0 0 16px rgba(92,225,165,.4)}.ownerMobileBar,.ownerNavScrim{display:none}
+   One token layer drives both this stylesheet and owner.module.css. Custom
+   properties are not scoped by CSS Modules, and this file is imported by the
+   root layout, so the owner routes read the same values.
+   ========================================================================= */
 
-.shell{display:grid;grid-template-columns:260px 1fr;min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;border-right:1px solid #202630;padding:28px 18px;background:#0d1118}.brand{font-weight:900;letter-spacing:.18em;font-size:20px}.sidebar>p{color:#7d8796;font-size:12px;margin:6px 0 30px}.sidebar nav{display:grid;gap:7px}.sidebar nav button{border:0;text-align:left;color:#9ba5b3;padding:11px 12px;border-radius:8px;font-size:14px;background:transparent;cursor:pointer}.sidebar nav button:hover,.sidebar nav button.active{background:#1a2330;color:#fff}.apiBadge{position:absolute;bottom:24px;left:20px;padding:8px 11px;border-radius:999px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;background:#151a22;color:#8791a0}.apiBadge.connected{color:#5ce1a5}.apiBadge.offline{color:#ff7a7a}.workspace{padding:38px;max-width:1600px;width:100%;margin:auto}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}.topbar h1{font-size:38px;margin:5px 0 8px;letter-spacing:-.04em}.topbar p,.module p,.card p{color:#8e98a6}.eyebrow{font-size:11px;letter-spacing:.2em;color:#5ce1a5}.toolbar{display:flex;gap:10px;align-items:center}.primary,.secondary{border:0;border-radius:8px;padding:12px 18px;font-weight:800;cursor:pointer}.primary{background:#5ce1a5;color:#07110c}.secondary{background:#1a2330;color:#f7f8fa}.primary:disabled,.secondary:disabled{opacity:.5;cursor:wait}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.autonomyStats{grid-template-columns:repeat(4,1fr)}.stats article,.card,.module{border:1px solid #202630;background:#0d1118;border-radius:14px;padding:20px}.stats span{display:block;color:#7d8796;font-size:13px}.stats strong{display:block;font-size:30px;margin-top:12px}.sectionTitle{display:flex;justify-content:space-between;align-items:center;margin:36px 0 14px}.sectionTitle h2{margin:0}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.modules{margin-top:28px}.module{text-align:left;color:inherit;cursor:pointer}.module:hover{border-color:#354153;transform:translateY(-1px)}.number{font-size:11px;color:#5ce1a5}.module h3{margin:22px 0 8px}.module p{min-height:48px;line-height:1.5}.module span{font-size:13px}.tableWrap{overflow:auto;border:1px solid #202630;border-radius:12px;background:#0d1118}.tableWrap table{width:100%;border-collapse:collapse}.tableWrap th,.tableWrap td{padding:14px 16px;text-align:left;border-bottom:1px solid #202630;font-size:14px}.tableWrap th{color:#7d8796;font-weight:600}.tableWrap tr:last-child td{border-bottom:0}.compact table td{padding:13px 10px}.compact small{display:block;color:#7d8796;margin-top:4px}.twoCol{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:18px}.card h2{margin-top:0}.form{display:grid;gap:16px}.form.narrow{max-width:900px}.formGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.form label{display:grid;gap:7px;color:#9ba5b3;font-size:12px}.form input,.form textarea,.matchControls input{width:100%;border:1px solid #2a3340;background:#080b10;color:#fff;border-radius:8px;padding:11px 12px;outline:none}.form input:focus,.form textarea:focus,.matchControls input:focus{border-color:#5ce1a5}.form textarea{min-height:88px;resize:vertical}.check{display:flex!important;align-items:center;gap:10px!important}.check input{width:auto}.result{display:flex;flex-direction:column;justify-content:center}.result>span{color:#7d8796}.result strong{font-size:46px;margin:14px 0}.inline{display:flex;justify-content:space-between;gap:20px;align-items:center}.matchControls{display:flex;gap:10px;align-items:center}.matchControls input{width:90px}.matchList{display:grid;gap:10px;margin-top:20px}.matchList article{display:flex;justify-content:space-between;gap:20px;align-items:center;border:1px solid #202630;border-radius:10px;padding:16px;background:#080b10}.matchList h3{margin:0 0 6px}.matchList p{margin:0}.matchList strong{font-size:24px;color:#5ce1a5}.notice{margin:0 0 18px;padding:12px 14px;border-radius:8px;font-size:14px}.notice.success{background:#123325;color:#7cf0bc}.notice.error{background:#381919;color:#ff9b9b}.autonomyLayout{display:grid;gap:18px}.agentGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.agentGrid article{display:flex;gap:10px;border:1px solid #202630;background:#080b10;border-radius:10px;padding:14px}.agentGrid strong{text-transform:capitalize}.agentGrid p{margin:5px 0 0;font-size:12px}.statusDot{width:9px;height:9px;border-radius:50%;background:#5ce1a5;margin-top:5px;box-shadow:0 0 12px #5ce1a5}.approvalList{display:grid;gap:12px}.approvalList article{display:flex;justify-content:space-between;gap:16px;align-items:center;border:1px solid #202630;background:#080b10;padding:16px;border-radius:10px}.approvalList p{margin:5px 0 0}.campaignRow{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #202630}.campaignRow:last-child{border-bottom:0}.campaignRow strong{color:#5ce1a5;text-transform:capitalize}
+:root {
+  color-scheme: dark;
 
-@media(max-width:1100px){.agentGrid{grid-template-columns:1fr 1fr}.autonomyStats{grid-template-columns:1fr 1fr}}@media(max-width:900px){.ownerAppContent{margin-left:0;padding-top:62px}.ownerMobileBar{position:fixed;z-index:60;inset:0 0 auto 0;height:62px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,14,20,.92);border-bottom:1px solid #202832;backdrop-filter:blur(16px)}.ownerMobileBrand>span{width:30px;height:30px;border-radius:9px}.ownerMobileBrand b{font-size:13px;letter-spacing:.14em}.ownerMobileBar button{display:grid;gap:4px;width:42px;height:42px;padding:11px;border:0;border-radius:9px;background:#151c25}.ownerMobileBar button i{display:block;height:2px;background:#cbd4dd;border-radius:2px}.ownerNav{transform:translateX(-105%);transition:transform .22s ease;box-shadow:20px 0 70px rgba(0,0,0,.35)}.ownerNav.open{transform:translateX(0)}.ownerNavScrim{display:block;position:fixed;z-index:40;inset:0;border:0;background:rgba(0,0,0,.58);backdrop-filter:blur(2px)}.shell{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid #202630}.sidebar nav{display:flex;overflow:auto}.sidebar nav button{white-space:nowrap}.apiBadge{position:static;display:inline-block;margin-top:14px}.workspace{padding:24px}.stats,.grid{grid-template-columns:1fr 1fr}.twoCol{grid-template-columns:1fr}}@media(max-width:620px){.stats,.grid,.formGrid,.agentGrid,.autonomyStats{grid-template-columns:1fr}.topbar,.inline,.approvalList article{align-items:flex-start;flex-direction:column}.topbar h1{font-size:30px}.workspace{padding:18px}.matchControls{width:100%}.matchControls input{flex:1}.toolbar{flex-wrap:wrap}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+  /* Surfaces, from furthest back to closest to the reader. */
+  --bg: #07090d;
+  --surface-1: #0e131b;
+  --surface-2: #141a24;
+  --surface-3: #1b2230;
+  --border: #1f2733;
+  --border-strong: #2b3542;
+  --border-hover: #3a4553;
+
+  /* Text. --text-muted holds roughly 7:1 against --surface-1. */
+  --text: #f2f5f9;
+  --text-muted: #9aa5b4;
+  --text-subtle: #74808f;
+
+  /* Accent and status. */
+  --accent: #5ce1a5;
+  --accent-strong: #86f0c1;
+  --accent-ink: #04130b;
+  --accent-wash: rgba(92, 225, 165, 0.12);
+  --accent-edge: rgba(92, 225, 165, 0.28);
+  --info: #6aa8ff;
+  --info-wash: rgba(106, 168, 255, 0.12);
+  --info-edge: rgba(106, 168, 255, 0.28);
+  --warn: #ffc978;
+  --warn-wash: rgba(255, 201, 120, 0.12);
+  --danger: #ff8f8f;
+  --danger-wash: rgba(255, 143, 143, 0.12);
+  --danger-edge: rgba(255, 143, 143, 0.28);
+
+  /* Spacing scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration: 160ms;
+
+  /* Every interactive control clears the 44px pointer-target guidance. */
+  --control-height: 44px;
+
+  /* Owner shell geometry. The sidebar is fixed, so its width is also the
+     content gutter; keeping both on one token stops the two drifting apart. */
+  --owner-nav-width: 248px;
+  --owner-mobile-bar-height: 62px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-wash);
+  color: var(--accent-strong);
+}
+
+/* A single visible focus treatment for every control. The previous rules set
+   outline:none on inputs and gave the sidebar links no focus style at all,
+   which left the console unusable by keyboard. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+:where(button, a, input, textarea, select):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Scrollbars, so overflow regions read as part of the console. */
+* {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-pill);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+  background-clip: content-box;
+}
+
+/* ---------------------------------------------------------------- shell --- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  padding: var(--space-7) var(--space-5);
+  background: linear-gradient(180deg, var(--surface-1), var(--bg));
+}
+
+.brand {
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  font-size: 20px;
+  background: linear-gradient(120deg, var(--text), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sidebar > p {
+  color: var(--text-subtle);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  margin: var(--space-2) 0 var(--space-7);
+}
+
+.sidebar nav {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sidebar nav button {
+  position: relative;
+  border: 0;
+  text-align: left;
+  color: var(--text-muted);
+  padding: var(--space-3);
+  min-height: var(--control-height);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.sidebar nav button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.sidebar nav button.active {
+  background: var(--surface-3);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* The active item carries a marker as well as a colour change, so the state
+   does not depend on colour perception alone. */
+.sidebar nav button.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  translate: 0 -50%;
+  width: 3px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.apiBadge {
+  margin-top: auto;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--surface-1);
+  color: var(--text-subtle);
+}
+
+.apiBadge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.apiBadge.connected {
+  color: var(--accent);
+  border-color: var(--accent-edge);
+}
+
+.apiBadge.offline {
+  color: var(--danger);
+  border-color: var(--danger-edge);
+}
+
+.workspace {
+  padding: var(--space-8);
+  max-width: 1600px;
+  width: 100%;
+  margin: auto;
+}
+
+/* --------------------------------------------------------------- topbar --- */
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+  margin-bottom: var(--space-7);
+}
+
+.topbar h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  margin: var(--space-1) 0 var(--space-2);
+  letter-spacing: -0.035em;
+}
+
+.topbar p,
+.module p,
+.card p {
+  color: var(--text-muted);
+}
+
+.eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* -------------------------------------------------------------- buttons --- */
+
+.primary,
+.secondary {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-5);
+  min-height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+}
+
+.primary:active:not(:disabled),
+.secondary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------- cards and metrics --- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+}
+
+.autonomyStats {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.stats article,
+.card,
+.module {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.stats article {
+  position: relative;
+  overflow: hidden;
+}
+
+.stats article::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-wash), transparent);
+}
+
+.stats span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.stats strong {
+  display: block;
+  font-size: 30px;
+  margin-top: var(--space-3);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-8) 0 var(--space-4);
+}
+
+.sectionTitle h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.modules {
+  margin-top: var(--space-7);
+}
+
+.module {
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease), transform var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.module:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.number {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.module h3 {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: 17px;
+}
+
+.module p {
+  min-height: 48px;
+  line-height: 1.5;
+}
+
+.module span {
+  font-size: 13px;
+}
+
+/* --------------------------------------------------------------- tables --- */
+
+.tableWrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+/* Headers stay put while a long result set scrolls. */
+.tableWrap th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tableWrap td {
+  font-variant-numeric: tabular-nums;
+}
+
+.tableWrap tbody tr {
+  transition: background var(--duration) var(--ease);
+}
+
+.tableWrap tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.tableWrap tr:last-child td {
+  border-bottom: 0;
+}
+
+.compact table td {
+  padding: var(--space-3);
+}
+
+.compact small {
+  display: block;
+  color: var(--text-subtle);
+  margin-top: var(--space-1);
+}
+
+/* --------------------------------------------------------------- layout --- */
+
+.twoCol {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: var(--space-5);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+/* A heading that is itself a grid item already gets separation from the
+   container's gap; its default margin stacks on top and opens a hole between
+   the title and the first field. */
+.form h2,
+.form h3 {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- forms --- */
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.form.narrow {
+  max-width: 900px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.form label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.form input,
+.form textarea,
+.matchControls input {
+  width: 100%;
+  min-height: var(--control-height);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  transition: border-color var(--duration) var(--ease);
+}
+
+.form input::placeholder,
+.form textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.form input:hover,
+.form textarea:hover {
+  border-color: var(--border-hover);
+}
+
+/* Focus is carried by the shared :focus-visible ring; the border tint is an
+   extra cue rather than the only one. */
+.form input:focus-visible,
+.form textarea:focus-visible,
+.matchControls input:focus-visible {
+  border-color: var(--accent);
+}
+
+.form textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.check {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-3) !important;
+  min-height: var(--control-height);
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.result > span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.result strong {
+  font-size: clamp(34px, 4vw, 46px);
+  margin: var(--space-4) 0;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.inline {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.matchControls {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.matchControls input {
+  width: 90px;
+}
+
+.matchList {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.matchList article {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--bg);
+  transition: border-color var(--duration) var(--ease);
+}
+
+.matchList article:hover {
+  border-color: var(--border-strong);
+}
+
+.matchList h3 {
+  margin: 0 0 var(--space-1);
+  font-size: 16px;
+}
+
+.matchList p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.matchList strong {
+  font-size: 24px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------- notices --- */
+
+.notice {
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  border: 1px solid transparent;
+}
+
+.notice.success {
+  background: var(--accent-wash);
+  border-color: var(--accent-edge);
+  color: var(--accent-strong);
+}
+
+.notice.error {
+  background: var(--danger-wash);
+  border-color: var(--danger-edge);
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------- autonomy --- */
+
+.autonomyLayout {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.agentGrid article {
+  display: flex;
+  gap: var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.agentGrid strong {
+  text-transform: capitalize;
+}
+
+.agentGrid p {
+  margin: var(--space-1) 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.statusDot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 6px;
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.approvalList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.approvalList article {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.approvalList p {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.campaignRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.campaignRow:last-child {
+  border-bottom: 0;
+}
+
+.campaignRow strong {
+  color: var(--accent);
+  text-transform: capitalize;
+}
+
+/* ----------------------------------------------------------- responsive --- */
+
+@media (max-width: 1100px) {
+  .agentGrid,
+  .autonomyStats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1000px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-5);
+  }
+
+  .sidebar > p {
+    margin-bottom: var(--space-4);
+  }
+
+  .sidebar nav {
+    display: flex;
+    overflow: auto;
+    gap: var(--space-2);
+    padding-bottom: var(--space-1);
+  }
+
+  .sidebar nav button {
+    white-space: nowrap;
+  }
+
+  .sidebar nav button.active::before {
+    inset: auto var(--space-3) var(--space-1) var(--space-3);
+    width: auto;
+    height: 2px;
+    translate: none;
+  }
+
+  .apiBadge {
+    margin-top: var(--space-4);
+  }
+
+  .workspace {
+    padding: var(--space-6);
+  }
+
+  .stats,
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .twoCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .grid,
+  .formGrid,
+  .agentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Metric tiles are a label and a number, so they stay two-up rather than
+     turning eight counters into eight full-width rows of scrolling. */
+  .stats,
+  .autonomyStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .stats article {
+    padding: var(--space-4);
+  }
+
+  .stats strong {
+    font-size: 26px;
+    margin-top: var(--space-2);
+  }
+
+  .topbar,
+  .inline,
+  .approvalList article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace {
+    padding: var(--space-4);
+  }
+
+  .matchControls {
+    width: 100%;
+  }
+
+  .matchControls input {
+    flex: 1;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .toolbar .primary,
+  .toolbar .secondary {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .module:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   Owner application shell
+
+   The persistent sidebar introduced on main. These rules are global rather
+   than module-scoped because OwnerNavigation and OwnerShell address them by
+   plain class name, so CSS Modules hashing would break the binding. Values are
+   mapped onto the token layer above; main's palette already matched it.
+   ========================================================================= */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ownerAppShell {
+  min-height: 100vh;
+}
+
+.ownerAppContent {
+  min-width: 0;
+  margin-left: var(--owner-nav-width);
+}
+
+/* The sign-in card renders outside the shell, so it must reclaim the gutter. */
+.ownerSignedOut .ownerAppContent {
+  margin-left: 0;
+}
+
+.ownerNav {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 50;
+  width: var(--owner-nav-width);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6) 14px var(--space-5);
+  background: linear-gradient(180deg, var(--surface-1) 0%, var(--bg) 100%);
+  border-right: 1px solid var(--border);
+}
+
+.ownerBrand,
+.ownerMobileBrand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.ownerBrand {
+  padding: 0 9px var(--space-6);
+}
+
+.ownerBrand > span,
+.ownerMobileBrand > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  color: var(--accent-ink);
+  font-weight: 900;
+}
+
+.ownerBrand div {
+  display: grid;
+}
+
+.ownerBrand b {
+  font-size: 14px;
+  letter-spacing: 0.15em;
+}
+
+.ownerBrand small {
+  color: var(--text-subtle);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.ownerNav nav {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  padding-right: 2px;
+}
+
+.ownerNavGroup {
+  display: grid;
+  gap: 3px;
+  margin-bottom: var(--space-5);
+}
+
+.ownerNavGroup > span {
+  padding: 0 11px 7px;
+  color: var(--text-subtle);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ownerNavGroup a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 650;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.ownerNavGroup a i {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  font-style: normal;
+  color: var(--text-subtle);
+  font-size: 14px;
+}
+
+.ownerNavGroup a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  transform: translateX(2px);
+}
+
+.ownerNavGroup a.active {
+  background: linear-gradient(90deg, var(--accent-wash), transparent);
+  color: var(--accent-strong);
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+.ownerNavGroup a.active i {
+  color: var(--accent);
+}
+
+.ownerNav footer {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: auto;
+  padding: 14px 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.ownerNav footer div {
+  display: grid;
+}
+
+.ownerNav footer b {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ownerNav footer small {
+  font-size: 10px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+
+.ownerLiveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-wash), 0 0 16px var(--accent-edge);
+}
+
+.ownerMobileBar,
+.ownerNavScrim {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .ownerAppContent {
+    margin-left: 0;
+    padding-top: var(--owner-mobile-bar-height);
+  }
+
+  .ownerMobileBar {
+    position: fixed;
+    z-index: 60;
+    inset: 0 0 auto 0;
+    height: var(--owner-mobile-bar-height);
+    padding: 0 var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(10, 14, 20, 0.92);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(16px);
+  }
+
+  .ownerMobileBrand > span {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .ownerMobileBrand b {
+    font-size: 13px;
+    letter-spacing: 0.14em;
+  }
+
+  .ownerMobileBar button {
+    display: grid;
+    gap: 4px;
+    width: 42px;
+    height: 42px;
+    padding: 11px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--surface-2);
+    cursor: pointer;
+  }
+
+  .ownerMobileBar button i {
+    display: block;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--text-muted);
+  }
+
+  /* Scrim sits below the drawer (z-index 50) so the panel stays interactive. */
+  .ownerNavScrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: 0;
+    background: rgba(0, 0, 0, 0.58);
+    backdrop-filter: blur(2px);
+  }
+
+  .ownerNav {
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+    box-shadow: 20px 0 70px rgba(0, 0, 0, 0.35);
+  }
+
+  .ownerNav.open {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ownerNavGroup a:hover {
+    transform: none;
+  }
+
+  .ownerNav {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------- data provenance flags --- */
+
+/* Marks a row whose origin is demo or duplicate data. The upstream version of
+   these rules used light-theme fills (#fff, #fee2e2), which glare against this
+   console; they are mapped onto the status tokens instead. */
+.dataBadge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.dataBadge.demo {
+  color: var(--warn);
+  background: var(--warn-wash);
+  border-color: rgba(255, 201, 120, 0.28);
+}
+
+.dataBadge.duplicate {
+  color: var(--danger);
+  background: var(--danger-wash);
+  border-color: var(--danger-edge);
+}
+
+/* Destructive actions read as destructive before they are clicked. */
+.dangerButton {
+  border: 1px solid var(--danger-edge);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+  min-height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--danger);
+  background: var(--danger-wash);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: rgba(255, 143, 143, 0.2);
+  border-color: var(--danger);
+}
+
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
