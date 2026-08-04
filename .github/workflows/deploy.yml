@@ -132,16 +132,41 @@ jobs:
           VERCEL_ORG_ID: ${{ env.BACKEND_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ env.BACKEND_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SMARTY_AUTH_ID: ${{ secrets.SMARTY_AUTH_ID }}
+          SMARTY_AUTH_TOKEN: ${{ secrets.SMARTY_AUTH_TOKEN }}
         run: |
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+          # Actions secrets are visible only inside a workflow run; they are not
+          # runtime variables for the deployed service. Smarty's pair was added
+          # to Actions and to the frontend Vercel project, neither of which the
+          # Python backend can read, so property data stayed unconfigured while
+          # the credentials looked present in two places. Passing them at deploy
+          # time is what puts them in front of the code that reads them.
+          #
+          # Both halves or neither. A lone auth-id cannot authenticate, and
+          # shipping one would turn a missing secret into what looks like a
+          # provider outage at the first lookup.
+          provider_env=()
+          if [ -n "$SMARTY_AUTH_ID" ] && [ -n "$SMARTY_AUTH_TOKEN" ]; then
+            provider_env+=(--env "SMARTY_AUTH_ID=$SMARTY_AUTH_ID")
+            provider_env+=(--env "SMARTY_AUTH_TOKEN=$SMARTY_AUTH_TOKEN")
+            echo "Passing the Smarty secret key pair to this deployment."
+          elif [ -n "$SMARTY_AUTH_ID" ] || [ -n "$SMARTY_AUTH_TOKEN" ]; then
+            echo "::warning::Only one half of the Smarty pair is set, so it is being withheld and property data stays unconfigured. Set both SMARTY_AUTH_ID and SMARTY_AUTH_TOKEN."
+          else
+            echo "::notice::No Smarty credentials in Actions secrets; property data stays unconfigured unless ATTOM_API_KEY is set on the project."
+          fi
+
           # Vercel populates VERCEL_GIT_COMMIT_SHA only for Git-integration
           # builds, never for a CLI deploy, so the commit is passed in by hand.
           # Without it the running service cannot name its own revision, and the
           # check below has nothing to compare and can only ever fail.
           vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
             --env GIT_COMMIT_SHA="$GITHUB_SHA" \
-            --build-env GIT_COMMIT_SHA="$GITHUB_SHA"
+            --build-env GIT_COMMIT_SHA="$GITHUB_SHA" \
+            "${provider_env[@]}"
 
       - name: Confirm production is running this commit
         if: env.HAS_TOKEN == 'yes'
