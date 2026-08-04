@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .acquisition_worker_models import AcquisitionAutomationRun
-from .attom_adapter import AttomConfigurationError, AttomLookupError, lookup_attom_property
+from .property_data import PropertyDataConfigurationError, PropertyDataLookupError, lookup_property
 from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity, FollowUpTask, WorkspaceEntity
 from .batchdata_adapter import BatchDataConfigurationError, BatchDataLookupError, lookup_batchdata_contacts
@@ -152,9 +152,12 @@ async def _process_one(db: Session, principal: Principal, lead: Lead, force: boo
 
     run.current_step = "attom_enrichment"
     try:
-        evidence = await lookup_attom_property(address1, address2)
+        evidence = await lookup_property(address1, address2)
         ingestion = ingest_provider_facts(
-            db, principal.organization_id, "property", lead.property.id, "attom", _attom_facts(evidence),
+            # Record the provider that actually answered, so provenance survives
+            # a switch between property-data providers.
+            db, principal.organization_id, "property", lead.property.id,
+            str(evidence.get("provider") or "attom"), _attom_facts(evidence),
             confidence=float(evidence.get("confidence") or 0),
             source_reference=str(evidence.get("raw_reference") or "") or None,
             verification_status="partially_verified",
@@ -162,9 +165,9 @@ async def _process_one(db: Session, principal: Principal, lead: Lead, force: boo
         )
         result["attom"] = {"status": "completed", **ingestion}
         result["county_case_id"] = _ensure_county_case(db, principal.organization_id, lead, evidence)
-    except AttomConfigurationError as exc:
+    except PropertyDataConfigurationError as exc:
         result["attom"] = {"status": "waiting_configuration", "error": str(exc)}
-    except AttomLookupError as exc:
+    except PropertyDataLookupError as exc:
         result["attom"] = {"status": "provider_error", "error": str(exc)}
 
     run.current_step = "batchdata_enrichment"

@@ -14,6 +14,7 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .database import get_db
 from .models import Buyer, Lead
 from .national_intelligence import _refresh as refresh_national_intelligence
+from .property_data import property_data_configured
 from .national_intelligence_models import PropertyIntelligenceScore
 
 router = APIRouter(prefix="/real-estate-intelligence", tags=["integrated real estate intelligence platform"])
@@ -28,7 +29,7 @@ def _linked_ids(db: Session, organization_id: int, entity_type: str) -> list[int
 
 def _provider_readiness() -> dict:
     return {
-        "property_data": bool(os.getenv("ATTOM_API_KEY") or os.getenv("PROPSTREAM_API_KEY")),
+        "property_data": property_data_configured(),
         "contact_data": bool(os.getenv("BATCHDATA_API_KEY") and os.getenv("BATCHDATA_SKIPTRACE_URL")),
         "county_verification": True,
         "maps": bool(os.getenv("GOOGLE_MAPS_API_KEY")),

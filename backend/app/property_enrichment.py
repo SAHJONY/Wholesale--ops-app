@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .attom_adapter import AttomConfigurationError, AttomLookupError, lookup_attom_property
+from .property_data import PropertyDataConfigurationError, PropertyDataLookupError, lookup_property
 from .auth import Principal, require_role
 from .auth_models import CrmActivity
 from .crm import _assert_linked
@@ -63,10 +63,10 @@ async def _lookup_for_lead(lead: Lead) -> dict:
     if not address1 or not address2:
         raise HTTPException(422, "Complete property address is required")
     try:
-        return await lookup_attom_property(address1, address2)
-    except AttomConfigurationError as exc:
+        return await lookup_property(address1, address2)
+    except PropertyDataConfigurationError as exc:
         raise HTTPException(503, str(exc)) from exc
-    except AttomLookupError as exc:
+    except PropertyDataLookupError as exc:
         raise HTTPException(502, str(exc)) from exc
 
 

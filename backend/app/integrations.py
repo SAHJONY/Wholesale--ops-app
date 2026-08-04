@@ -17,6 +17,17 @@ PROVIDERS = [
         "verification": "county_record_for_contract_critical_facts",
     },
     {
+        # An alternative to ATTOM, not an addition to it. The tier is optional so
+        # a deployment that runs on Smarty is not reported as missing a required
+        # provider; whether property data is satisfied at all is decided by
+        # property_data.property_data_configured(), which accepts either.
+        "id": "smarty", "name": "Smarty US Property Data", "category": "property_intelligence", "tier": "optional",
+        "env": ["SMARTY_AUTH_ID", "SMARTY_AUTH_TOKEN"], "optional_env": ["SMARTY_LICENSE", "SMARTY_ENRICHMENT_BASE_URL"],
+        "capabilities": ["property", "owner", "deeds", "sales", "assessment", "tax", "parcel", "geocode"],
+        "authority": "assessor_and_recorder_aggregation",
+        "verification": "county_record_for_contract_critical_facts",
+    },
+    {
         "id": "batchdata", "name": "BatchData Contact Enrichment API", "category": "contact_and_monitoring", "tier": "primary",
         "env": ["BATCHDATA_API_KEY", "BATCHDATA_SKIPTRACE_URL"],
         "optional_env": ["BATCHDATA_AUTH_HEADER", "BATCHDATA_AUTH_SCHEME"],
