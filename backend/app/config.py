@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Override with OPENAI_MODEL to whatever the account actually has access to;
     # this default was not verifiable from the build environment.
     openai_model: str = "gpt-5.1"
+    # Smarty US address verification. Server-side key pair -- the "Embedded
+    # key" from the same dashboard is browser-scoped and will not authenticate
+    # these calls.
+    smarty_auth_id: str | None = None
+    smarty_auth_token: str | None = None
     google_maps_api_key: str | None = None
     app_url: str = "http://localhost:3000"
 

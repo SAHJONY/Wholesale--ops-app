@@ -59,6 +59,7 @@ from app.real_estate_intelligence import router as real_estate_intelligence_rout
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
+from app.smarty_addresses import router as smarty_router
 from app.sms_engine import router as sms_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
@@ -115,6 +116,7 @@ app.include_router(acquisition_intake_router)
 app.include_router(acquisition_worker_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
+app.include_router(smarty_router)
 app.include_router(county_verification_router)
 app.include_router(county_queue_router)
 app.include_router(compliance_router)

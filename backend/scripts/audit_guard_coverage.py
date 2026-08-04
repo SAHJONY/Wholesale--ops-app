@@ -137,6 +137,14 @@ GUARDS: tuple[Guard, ...] = (
         "An accept-everything verifier makes this a public write endpoint.",
     ),
     Guard(
+        # Widening this lets an address USPS does not recognise pass as
+        # verified, which is exactly the claim the real-property rule rests on.
+        "app.smarty_addresses", "DPV_CONFIRMED",
+        'frozenset({"Y", "S", "D", "N", "", "X"})',
+        "tests/test_smarty_addresses.py",
+        "An unconfirmed delivery point must not read as a verified address.",
+    ),
+    Guard(
         # Counting a fact's existence rather than its assertion scores a
         # source saying "not delinquent" as distress, inflating every
         # property anyone has ever pulled records for.

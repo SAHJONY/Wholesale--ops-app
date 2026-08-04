@@ -55,6 +55,9 @@ SIGNAL_FIELDS: dict[str, str] = {
     "notice_of_trustee_sale": "trustee_sale_scheduled",
     "foreclosure_sale": "foreclosure_sale_scheduled",
     "demolition_permit": "demolition_permit_open",
+    # USPS-derived, via Smarty. Not a county office like the others, but the
+    # same kind of claim: a named authority recorded a condition on the parcel.
+    "usps_vacancy": "usps_reported_vacant",
 }
 
 # Only distress sources stack. A listing or a cash-purchase deed says something
