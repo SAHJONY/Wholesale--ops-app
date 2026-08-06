@@ -408,6 +408,22 @@ def list_outbound_requests(
     items = db.scalars(select(OutboundRequest).where(
         OutboundRequest.organization_id == principal.organization_id,
     ).order_by(OutboundRequest.created_at.desc()).limit(100)).all()
+
+    # The pending approval that gates each request, resolved here so the review
+    # queue is derivable from this one call. It used to be assembled by reading
+    # every pending approval from the executive command centre and filtering for
+    # outbound_request -- a dashboard round trip to learn something this table
+    # already knows. Without the id, an operator can see a request is waiting
+    # and has nothing to POST a decision against.
+    pending: dict[int, int] = {}
+    if items:
+        rows = db.execute(select(Approval.entity_id, Approval.id).where(
+            Approval.entity_type == "outbound_request",
+            Approval.status == "pending",
+            Approval.entity_id.in_([item.id for item in items]),
+        )).all()
+        pending = {entity_id: approval_id for entity_id, approval_id in rows}
+
     return [{
         "id": item.id,
         "lead_id": item.lead_id,
@@ -420,4 +436,5 @@ def list_outbound_requests(
         "error": item.error,
         "created_at": item.created_at,
         "dispatched_at": item.dispatched_at,
+        "pending_approval_id": pending.get(item.id),
     } for item in items]

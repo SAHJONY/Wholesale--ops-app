@@ -37,6 +37,10 @@ type Outbound = {
   error?: string;
   created_at: string;
   dispatched_at?: string;
+  // Set while the request is waiting on owner review. Its presence is what
+  // puts the row in the approval queue, and its value is what a decision is
+  // posted against.
+  pending_approval_id?: number | null;
 };
 
 type PendingApproval = {
@@ -90,15 +94,29 @@ export default function CommunicationCenter() {
   const load = useCallback(async (tokenOverride?: string) => {
     setLoading(true); setError('');
     try {
-      const [snapshot, requests, command] = await Promise.all([
-        request('/activation/snapshot', {}, tokenOverride),
+      // Two calls, not three. The lead list came from the activation snapshot
+      // and the approval queue from the executive command centre; both of those
+      // dashboards are gone, and both were indirections over data these two
+      // endpoints already hold.
+      const [leadList, requests] = await Promise.all([
+        request('/crm/leads', {}, tokenOverride),
         request('/outbound/requests', {}, tokenOverride),
-        request('/executive/command-center', {}, tokenOverride),
       ]);
-      setLeads(snapshot.leads || []);
-      setOutbound(requests || []);
-      setApprovals((command.approvals || []).filter((item: PendingApproval) => item.entity_type === 'outbound_request'));
-      if (!selectedLeadId && snapshot.leads?.length) setSelectedLeadId(snapshot.leads[0].id);
+      const outboundRequests = requests || [];
+      setLeads(leadList || []);
+      setOutbound(outboundRequests);
+      setApprovals(
+        outboundRequests
+          .filter((item: Outbound) => item.pending_approval_id)
+          .map((item: Outbound) => ({
+            id: item.pending_approval_id as number,
+            action_type: `dispatch_${item.channel}`,
+            entity_type: 'outbound_request',
+            entity_id: item.id,
+            summary: `${item.channel} to ${item.contact}`,
+          })),
+      );
+      if (!selectedLeadId && leadList?.length) setSelectedLeadId(leadList[0].id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load communications');
     } finally { setLoading(false); }
@@ -250,7 +268,7 @@ export default function CommunicationCenter() {
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>CONTROLLED COMMUNICATIONS</span><h1>Communication Center</h1><p>Record compliance evidence, request owner approval, and dispatch through Bland AI or Twilio.</p></div>
-      <div className={styles.actions}><button onClick={() => void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/attention">Attention Center</a><a className={styles.linkButton} href="/owner">Control Plane</a></div>
+      <div className={styles.actions}><button onClick={() => void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner">Control Plane</a></div>
     </header>
 
     {notice && <div className={styles.notice}>{notice}</div>}{error && <div className={styles.error}>{error}</div>}

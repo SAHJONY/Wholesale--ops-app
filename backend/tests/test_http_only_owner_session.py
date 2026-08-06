@@ -32,18 +32,29 @@ def test_owner_middleware_injects_cookie_only_into_same_origin_api_requests():
     assert "'/api/:path*'" in source
 
 
-def test_provider_gateway_accepts_cookie_and_fails_closed():
-    source = read("frontend/app/api/provider-intelligence/[...path]/route.ts")
-    assert "request.cookies.get(SESSION_COOKIE)" in source
-    assert "`Bearer ${cookieToken}`" in source
-    assert "Owner session required" in source
-    assert "maxAge: 0" in source
+def test_every_cookie_reading_gateway_fails_closed():
+    """Swept rather than named, so deleting one route cannot retire the check.
 
-
-def test_provider_ui_does_not_read_owner_token_from_browser_storage():
-    source = read("frontend/app/owner/live-data/page.tsx")
-    assert "localStorage.getItem" not in source
-    assert "credentials:'same-origin'" in source
+    This asserted these four properties of a single gateway
+    (api/provider-intelligence), which was removed with the provider
+    intelligence dashboard -- taking the only test of the fail-closed pattern
+    with it. Any route that reads the session cookie directly is now held to
+    the same contract: present the token as a Bearer header, refuse without
+    one, and clear a cookie the backend rejects.
+    """
+    gateways = sorted((ROOT / "frontend/app/api").glob("**/route.ts"))
+    checked = []
+    for gateway in gateways:
+        source = gateway.read_text()
+        if "SESSION_COOKIE" not in source or "owner-access" in str(gateway):
+            continue
+        name = str(gateway.relative_to(ROOT))
+        checked.append(name)
+        assert "request.cookies.get(SESSION_COOKIE)" in source, name
+        assert "`Bearer ${cookieToken}`" in source, name
+        assert "Owner session required" in source, name
+        assert "maxAge: 0" in source, name
+    assert checked, "no cookie-reading gateway found; the pattern was not merely moved"
 
 
 def test_login_uses_cookie_session_and_cannot_loop_on_stale_local_storage():

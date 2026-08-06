@@ -24,6 +24,7 @@ from app.distress_ingest import router as distress_ingest_router
 from app.distress_providers import router as distress_providers_router
 from app.docuseal_events import router as docuseal_events_router
 from app.foreclosure_procedure import router as foreclosure_procedure_router
+from app.executive_ops import router as executive_ops_router
 from app.getting_started import router as getting_started_router
 from app.go_live import router as go_live_router
 from app.human_auth import router as human_auth_router
@@ -64,6 +65,7 @@ app.include_router(human_auth_router)
 app.include_router(session_router)
 app.include_router(audit_router)
 app.include_router(background_jobs_router)
+app.include_router(executive_ops_router)
 app.include_router(go_live_router)
 app.include_router(launch_validation_router)
 app.include_router(public_data_router)

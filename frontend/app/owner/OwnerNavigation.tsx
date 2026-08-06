@@ -9,9 +9,7 @@ type NavItem = { href: string; label: string; icon: string };
 const primary: NavItem[] = [
   { href: '/owner/start', label: 'Start here', icon: '➤' },
   { href: '/owner', label: 'CEO command center', icon: '⌂' },
-  { href: '/owner/attention', label: 'Attention', icon: '!' },
   { href: '/owner/nationwide-acquisition', label: 'Nationwide acquisition', icon: '★' },
-  { href: '/owner/properties', label: 'Property workspaces', icon: '▣' },
   { href: '/owner/acquisition', label: 'Acquisition pipeline', icon: '↗' },
   { href: '/owner/deals', label: 'Deals', icon: '◇' },
   { href: '/owner/communications', label: 'Seller communications', icon: '◌' },
@@ -22,45 +20,35 @@ const intelligence: NavItem[] = [
   { href: '/owner/deal-intelligence', label: 'Deal intelligence', icon: '⌘' },
   { href: '/owner/markets', label: 'Market selection', icon: '⌖' },
   { href: '/owner/lead-verification', label: 'Lead verification', icon: '⛨' },
-  { href: '/owner/live-data', label: 'Live data control plane', icon: '◉' },
-  { href: '/owner/real-estate-intelligence', label: 'Property intelligence', icon: '◆' },
   { href: '/owner/nationwide-data', label: 'Nationwide data', icon: '✓' },
-  { href: '/owner/national-intelligence', label: 'Market intelligence', icon: '◫' },
   { href: '/owner/buyer-intake', label: 'Buyer network', icon: '♢' },
 ];
 
 const operations: NavItem[] = [
-  { href: '/owner/business', label: 'Business OS', icon: '▦' },
   { href: '/owner/operations', label: 'Business operations', icon: '⚙' },
   { href: '/owner/closing', label: 'Closings', icon: '□' },
   { href: '/owner/jobs', label: 'AI workforce', icon: '↻' },
-  { href: '/owner/integrations', label: 'Integrations', icon: '+' },
   { href: '/owner/system-health', label: 'System health', icon: '●' },
   { href: '/owner/security', label: 'Administration & security', icon: '⌾' },
 ];
 
 const advanced: NavItem[] = [
   { href: '/owner/acquisition-automation', label: 'Acquisition automation', icon: '↯' },
-  { href: '/owner/activate', label: 'Activation console', icon: '△' },
   { href: '/owner/audit', label: 'Audit trail', icon: '≡' },
-  { href: '/owner/continuity', label: 'Business continuity', icon: '∞' },
   { href: '/owner/county', label: 'County verification', icon: '▤' },
   { href: '/owner/data-intake', label: 'Data intake', icon: '⇩' },
-  { href: '/owner/events', label: 'Event core', icon: '⌁' },
   { href: '/owner/go-live', label: 'Go-live readiness', icon: '▷' },
   { href: '/owner/intelligence', label: 'Canonical intelligence', icon: '◈' },
   { href: '/owner/launch-validation', label: 'Launch validation', icon: '✓' },
-  { href: '/owner/provider-activation', label: 'Provider activation', icon: '⊕' },
   { href: '/owner/public-data', label: 'Public data providers', icon: '◎' },
   { href: '/owner/sessions', label: 'Active sessions', icon: '⌁' },
-  { href: '/owner/test-deal', label: 'Deal rehearsal', icon: '◇' },
 ];
 
 function LinkGroup({ label, items, pathname, onNavigate }: { label: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
   return <section className="ownerNavGroup">
     <span>{label}</span>
     {items.map(item => {
-      const active = item.href === '/owner' ? pathname === '/owner' || pathname === '/owner/ceo-command' : pathname === item.href || pathname.startsWith(`${item.href}/`);
+      const active = item.href === '/owner' ? pathname === '/owner' : pathname === item.href || pathname.startsWith(`${item.href}/`);
       return <Link key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate}>
         <i aria-hidden="true">{item.icon}</i><span>{item.label}</span>
       </Link>;

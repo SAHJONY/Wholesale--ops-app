@@ -45,8 +45,12 @@ def test_every_api_operation_is_published_in_openapi():
 
 
 def test_all_owner_pages_are_present_and_nonempty():
+    # Floor lowered from 30 to 27 when thirteen reporting dashboards were
+    # retired and the ceo-command page restored. The number is a tripwire for
+    # pages disappearing by accident, so it tracks the deliberate count rather
+    # than staying at a value no tree can satisfy.
     pages = sorted((ROOT / "frontend/app/owner").glob("**/page.tsx"))
-    assert len(pages) >= 30
+    assert len(pages) >= 27
     assert all(
     (
         "export default" in page.read_text()

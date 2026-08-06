@@ -142,7 +142,7 @@ export default function CEOCommandCenter() {
       </div>
       <div className={styles.actions}>
         <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh intelligence'}</button>
-        <a href="/owner/attention">Review approvals</a>
+        <a href="/owner/communications">Review approvals</a>
       </div>
     </header>
 

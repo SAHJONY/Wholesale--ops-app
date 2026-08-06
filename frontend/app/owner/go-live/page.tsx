@@ -13,7 +13,7 @@ type Snapshot = {
 };
 
 const empty:Snapshot={status:'setup',score:0,blocker_count:0,checks:[],missing_routes:[],providers:{},workspace:{leads:0,properties:0,buyers:0,deals:0},jobs:{},owner_pages:[],launch_policy:{automatic_production_launch:false,owner_approval_required:true,message:'Deploy the backend to activate readiness checks.'}};
-const remediation:Record<string,string>={infrastructure:'/owner/system-health',deployment:'/owner/system-health',integrations:'/owner/integrations',continuity:'/owner/continuity',automation:'/owner/jobs',business:'/owner'};
+const remediation:Record<string,string>={infrastructure:'/owner/system-health',deployment:'/owner/system-health',integrations:'/owner/public-data',automation:'/owner/jobs',business:'/owner'};
 
 export default function GoLivePage(){
   const [data,setData]=useState<Snapshot>(empty);
@@ -40,7 +40,7 @@ export default function GoLivePage(){
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>PRODUCTION LAUNCH</span><h1>Go-Live Command Center</h1><p>Measure real launch readiness across infrastructure, integrations, automation, continuity, and the complete wholesale workflow.</p></div>
-      <div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Run readiness check</button><a className={styles.linkButton} href="/owner/integrations">Integrations</a><a className={styles.linkButton} href="/owner/system-health">System Health</a><a className={styles.linkButton} href="/owner">Control Plane</a></div>
+      <div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Run readiness check</button><a className={styles.linkButton} href="/owner/system-health">System Health</a><a className={styles.linkButton} href="/owner">Control Plane</a></div>
     </header>
 
     {error&&<div className={styles.error}>{error}</div>}

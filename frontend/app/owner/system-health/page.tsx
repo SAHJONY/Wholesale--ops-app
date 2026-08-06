@@ -47,7 +47,7 @@ export default function SystemHealthPage(){
   useEffect(()=>{void load();},[load]);
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>SYSTEM RELIABILITY</span><h1>System Health</h1><p>Inspect deployment identity, database reachability, request latency, slow endpoints, and server errors.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>{loading?'Checking…':'Refresh'}</button><a className={styles.linkButton} href="/owner/integrations">Integrations</a><a className={styles.linkButton} href="/owner/attention">Attention Center</a><a className={styles.linkButton} href="/owner">Control Plane</a></div></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>SYSTEM RELIABILITY</span><h1>System Health</h1><p>Inspect deployment identity, database reachability, request latency, slow endpoints, and server errors.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>{loading?'Checking…':'Refresh'}</button><a className={styles.linkButton} href="/owner">Control Plane</a></div></header>
     {version?.status==='drifted'&&<div className={styles.error}>
       Frontend and backend are running different commits. One of them did not ship, so a merged fix
       may not be live. Frontend {version.frontend_commit?.slice(0,7)} · backend {version.backend_commit?.slice(0,7)}.
