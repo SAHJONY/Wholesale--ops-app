@@ -34,6 +34,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import listing_language
 from .auth import Principal, get_principal
 from .database import get_db
 from .distress_providers import PROVIDERS
@@ -223,9 +224,15 @@ def property_stack(
             IntelligenceFact.entity_id == property_id,
         )
     ).all()
+    now = datetime.now(timezone.utc)
+    facts = list(facts)
     return {
         "property_id": property_id,
-        **stack_for_facts(list(facts), datetime.now(timezone.utc)),
+        **stack_for_facts(facts, now),
+        # Reported beside the stack, never folded into it. Agent-authored
+        # marketing copy and a county filing are different kinds of evidence,
+        # and a single number covering both would mean neither.
+        "listing_language": listing_language.scan_facts(facts, now),
     }
 
 

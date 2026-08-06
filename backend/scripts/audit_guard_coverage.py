@@ -171,6 +171,24 @@ GUARDS: tuple[Guard, ...] = (
         "A refusal must not be retried on a different provider.",
     ),
     Guard(
+        # Without negation handling, "not a fixer upper" and "no work needed"
+        # score as distress, which puts renovated homes at the top of the list
+        # and calls owners who said in writing that nothing is wrong.
+        "app.listing_language", "_is_negated",
+        "lambda text, start: False",
+        "tests/test_listing_language.py",
+        "A denial in the remarks must not be read as an admission.",
+    ),
+    Guard(
+        # Folding marketing copy into REMARK_SOURCES-adjacent stacking would let
+        # an agent's word count as an independent authority recording a
+        # condition, which is the one distinction this module exists to hold.
+        "app.listing_language", "REMARK_SOURCES",
+        'frozenset({"mls_idx", "fsbo_listing", "zillow_search"})',
+        "tests/test_listing_language.py",
+        "Only licensed listing feeds may supply remarks.",
+    ),
+    Guard(
         # The channels the dispatcher actually runs the script gate for.
         # Emptying it leaves validate_call_script defined, imported and never
         # consulted -- which is the precise shape of every defect this tool
