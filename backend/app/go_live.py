@@ -12,33 +12,24 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .background_jobs import BackgroundJob
 from .database import get_db
 from .models import Buyer, Deal, Lead, Property
+from . import provider_requirements
 from .property_data import property_data_configured
 
 router = APIRouter(prefix="/go-live", tags=["production go-live command"])
 
-PROVIDER_GROUPS = {
-    # Property data is deliberately absent: it is not a flat any-of list, because
-    # Smarty needs two variables and listing them here would let a half
-    # configured provider pass. Its grouped definition lives beside the adapters
-    # in property_data.py, which is also what the lookups themselves use.
-    "property_intelligence_mcp": ["BATCHDATA_MCP_URL", "BATCHDATA_API_TOKEN"],
-    "contact_enrichment": ["BATCHDATA_SKIPTRACE_URL", "BATCHDATA_API_KEY"],
-    "communications": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "BLAND_AI_API_KEY"],
-    "contracts": ["DOCUSEAL_URL", "DOCUSEAL_API_KEY"],
-    "email": ["SMTP_USER", "SMTP_PASS"],
-    "storage": ["S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"],
-}
+# Provider requirements moved to provider_requirements.py, which launch
+# validation reads too. This file kept its own copy and the two drifted: this
+# one accepted any single Twilio variable as working communications, and knew
+# nothing about RESEND_API_KEY, so it reported a live email setup as missing.
+#
+# Property data stays outside that registry: it is not a flat variable list,
+# and its grouped definition lives beside the adapters in property_data.py,
+# which is also what the lookups themselves use.
 
 OWNER_PAGES = [
-    "/owner", "/owner/attention", "/owner/integrations", "/owner/system-health",
-    "/owner/security", "/owner/sessions", "/owner/continuity", "/owner/jobs",
-    "/owner/audit", "/owner/national-intelligence", "/owner/contracts",
+    "/owner", "/owner/system-health", "/owner/security", "/owner/sessions",
+    "/owner/jobs", "/owner/audit", "/owner/closing",
 ]
-
-
-def _configured(names: list[str], require_all: bool = True) -> bool:
-    states = [bool((os.getenv(name) or "").strip()) for name in names]
-    return all(states) if require_all else any(states)
 
 
 def _workspace_count(db: Session, organization_id: int, entity_type: str) -> int:
@@ -90,15 +81,10 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             BackgroundJob.organization_id == principal.organization_id,
         ).group_by(BackgroundJob.status)).all())
 
-    providers = {
-        "property_data": property_data_configured(),
-        "property_intelligence_mcp": _configured(PROVIDER_GROUPS["property_intelligence_mcp"]),
-        "contact_enrichment": _configured(PROVIDER_GROUPS["contact_enrichment"]),
-        "communications": _configured(PROVIDER_GROUPS["communications"], require_all=False),
-        "contracts": _configured(PROVIDER_GROUPS["contracts"]),
-        "email": _configured(PROVIDER_GROUPS["email"]),
-        "storage": _configured(PROVIDER_GROUPS["storage"]),
-    }
+    providers = {"property_data": property_data_configured()}
+    providers.update({
+        item["id"]: item["ready"] for item in provider_requirements.evaluate_all()
+    })
 
     checks = [
         _check("Database connectivity", "infrastructure", database_ok, "critical", database_error or "Database responds to SELECT 1.", "Repair DATABASE_URL or database availability."),

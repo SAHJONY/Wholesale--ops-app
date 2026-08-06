@@ -12,6 +12,7 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .background_jobs import BackgroundJob
 from .database import get_db
 from .models import Buyer, Deal, Lead, Property
+from . import provider_requirements
 from .property_data import property_data_configured
 
 router = APIRouter(prefix="/launch-validation", tags=["production launch validation"])
@@ -105,15 +106,24 @@ def run_validation(db: Session, principal: Principal) -> dict:
         _result("Buyer proof of funds", bool(verified_buyers), "high", f"POF-verified buyers: {len(verified_buyers)}.", "Verify proof of funds before disposition."),
     ])
 
-    provider_checks = {
-        "property_data": property_data_configured(),
-        "contact_data": _provider_ready("BATCHDATA_API_KEY", "BATCHDATA_SKIPTRACE_URL"),
-        "communications": _provider_ready("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN") or _provider_ready("BLAND_AI_API_KEY"),
-        "contracts": _provider_ready("DOCUSEAL_URL", "DOCUSEAL_API_KEY"),
-        "email": _provider_ready("SMTP_USER", "SMTP_PASS") or _provider_ready("RESEND_API_KEY"),
-    }
-    for key, ready in provider_checks.items():
-        results.append(_result(f"Provider: {key.replace('_', ' ')}", ready, "high" if key in {"contracts", "email"} else "critical", "Configured." if ready else "Credentials missing or incomplete.", "Configure and health-check the production provider."))
+    # Same registry go-live reads, so the two screens cannot answer this
+    # question differently. They used to: this file required both Twilio
+    # variables together while go-live took any one of them.
+    results.append(_result(
+        "Provider: property data",
+        property_data_configured(),
+        "critical",
+        "ATTOM or Smarty credentials present." if property_data_configured() else "Neither ATTOM nor a complete Smarty pair is configured.",
+        "Configure ATTOM_API_KEY, or SMARTY_AUTH_ID and SMARTY_AUTH_TOKEN together.",
+    ))
+    for item in provider_requirements.evaluate_all():
+        results.append(_result(
+            f"Provider: {item['label'].lower()}",
+            item["ready"],
+            item["severity"],
+            "Configured." if item["ready"] else f"Missing: {', '.join(item['missing'])}.",
+            item["remediation"] or "Configure and health-check the production provider.",
+        ))
 
     dead_letters = 0
     stale_running = 0

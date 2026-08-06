@@ -8,8 +8,11 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./wholesale_ops.db"
     schema_mode: Literal["strict"] = "strict"
-    upstash_redis_rest_url: str | None = None
-    upstash_redis_rest_token: str | None = None
+    # No upstash_* fields either, for the same reason as bland_* below: nothing
+    # reads them. The dependency was removed as unused; the settings outlived
+    # it and kept binding UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN,
+    # so those could be filled in and have no effect at all.
+    #
     # No bland_* fields here on purpose. Declaring them would bind the env names
     # BLAND_API_KEY and BLAND_WEBHOOK_SECRET, which nothing reads -- every call
     # site uses BLAND_AI_*. A field here is an invitation to set the short name,
