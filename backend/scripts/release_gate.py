@@ -20,20 +20,18 @@ REQUIRED_ROUTES = {
     "/health",
     "/human-auth/login",
     "/deployment/status",
-    "/national-intelligence/snapshot",
-    "/real-estate-intelligence/snapshot",
     "/data-intake/snapshot",
     "/buyer-intake/snapshot",
-    "/test-deal/snapshot",
     "/jobs/snapshot",
     "/audit/snapshot",
     "/security/snapshot",
-    "/continuity/snapshot",
 }
 
+# The tables whose absence means the deploy is not usable. The two national
+# intelligence tables left this set when that dashboard was retired and
+# revision 20260806_0009 dropped them -- a gate demanding a table nothing
+# creates fails every deploy for a reason that is not a problem.
 REQUIRED_MODELS = {
-    "property_intelligence_scores",
-    "national_intelligence_runs",
     "background_jobs",
 }
 

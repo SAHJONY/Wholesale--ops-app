@@ -28,8 +28,6 @@ MODEL_MODULES = (
     "app.auth_models",
     "app.event_models",
     "app.intelligence_models",
-    "app.integration_hub_models",
-    "app.integration_reliability_models",
     "app.acquisition_intake_models",
     "app.acquisition_worker_models",
     "app.county_queue_models",
@@ -40,6 +38,13 @@ MODEL_MODULES = (
     "app.disposition_models",
 )
 
+# Four integration_* tables and their two model modules were removed from this
+# list when the integration hub and reliability dashboards were retired. This
+# migration builds DDL from live model metadata, so a deleted model breaks its
+# replay -- editing the list is what keeps a fresh database migratable. Existing
+# databases already ran this revision and still hold those tables; the drop is a
+# later revision, so both paths converge on the same schema.
+
 TABLES = frozenset(
     """acquisition_automation_runs acquisition_import_batches acquisition_runs
     agent_runs api_credentials app_users approvals assignment_selections
@@ -48,9 +53,8 @@ TABLES = frozenset(
     contact_consents contact_suppressions contract_packets
     county_verification_cases crm_activities deal_buyer_matches deal_documents
     deals disposition_campaigns dnc_checks earnest_money_records event_deliveries
-    event_subscriptions follow_up_tasks funding_records integration_health_checks
-    integration_operation_runs integration_reliability_alerts
-    integration_reliability_runs intelligence_conflicts intelligence_facts leads
+    event_subscriptions follow_up_tasks funding_records
+    intelligence_conflicts intelligence_facts leads
     memberships offers ops_tasks organizations outbound_requests
     password_reset_codes properties title_orders user_passwords
     workspace_entities""".split()
