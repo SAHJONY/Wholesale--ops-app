@@ -62,6 +62,7 @@ from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.smarty_addresses import router as smarty_router
 from app.sms_agentic import router as sms_agentic_router
+from app.sms_campaigns import router as sms_campaigns_router
 from app.sms_engine import router as sms_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
@@ -125,6 +126,7 @@ app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(sms_router)
 app.include_router(sms_agentic_router)
+app.include_router(sms_campaigns_router)
 app.include_router(bland_messaging_router)
 app.include_router(voice_router)
 app.include_router(deal_execution_router)
