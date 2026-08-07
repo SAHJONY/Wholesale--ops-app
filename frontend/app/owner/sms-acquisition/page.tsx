@@ -55,11 +55,11 @@ type WorkflowStep = {
 
 const workflow: WorkflowStep[] = [
   { title: 'Lead enters', subtitle: 'Distress / off-market intake', state: 'live' },
-  { title: 'Compliance gate', subtitle: 'DNC + consent + channel authorization', state: 'live' },
-  { title: 'SMS outreach', subtitle: 'Twilio outbound request', state: 'live' },
-  { title: 'Seller replies', subtitle: 'Stop sequence and classify intent', state: 'planned' },
-  { title: 'AI qualification', subtitle: 'Motivation · condition · timeline · price', state: 'planned' },
-  { title: 'Hot-lead routing', subtitle: 'Acquisitions alert + appointment', state: 'planned' },
+  { title: 'Compliance gate', subtitle: 'DNC + consent + channel authorization', state: 'guarded' },
+  { title: 'SMS outreach', subtitle: 'Bland Messaging outbound request', state: 'guarded' },
+  { title: 'Seller replies', subtitle: 'Signed Bland webhook + STOP interception', state: 'live' },
+  { title: 'AI qualification', subtitle: 'Dual-model motivation · condition · timeline · price', state: 'live' },
+  { title: 'Hot-lead routing', subtitle: 'Autonomous acquisitions handoff task', state: 'live' },
   { title: 'Underwriting', subtitle: 'ARV · repairs · MAO · assignment range', state: 'live' },
   { title: 'Follow-up', subtitle: 'Behavior-based nurture and exact callbacks', state: 'planned' },
 ];
@@ -165,21 +165,21 @@ export default function SmsAcquisitionWorkspace() {
     ].filter(Boolean).join(' ').toLowerCase().includes(needle));
   }, [query, ranked]);
 
-  const sms = outbound.filter(item => item.channel === 'sms');
-  const delivered = sms.filter(item => ['delivered', 'sent', 'accepted'].includes(String(item.provider_status || item.status).toLowerCase())).length;
+  const sms = outbound.filter(item => item.channel === 'sms' && item.provider === 'bland');
+  const delivered = sms.filter(item => ['delivered', 'sent', 'accepted', 'queued'].includes(String(item.provider_status || item.status).toLowerCase())).length;
   const hot = ranked.filter(item => item.aiScore >= 70).length;
   const pending = approvals.length;
 
   return <main className={styles.page}>
     <header className={styles.hero}>
       <div>
-        <span>SAHJONY WHOLESALE OS · SELLER ACQUISITION</span>
-        <h1>AI SMS Wholesale Acquisition</h1>
-        <p>Turn qualified off-market leads into compliant conversations, appointments, offers, and acquisition handoffs without bypassing owner approval.</p>
+        <span>SAHJONY WHOLESALE OS · BLAND AI SELLER ACQUISITION</span>
+        <h1>Agentic SMS Wholesale Acquisition</h1>
+        <p>Bland Messaging handles SMS and voice while SAHJONY agents classify, qualify, score, route, and prepare the next action behind deterministic compliance and owner approval.</p>
       </div>
       <div className={styles.heroActions}>
         <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
-        <a href="/owner/communications">Open communication center</a>
+        <a href="/owner/communications">Open Bland communications</a>
       </div>
     </header>
 
@@ -188,14 +188,14 @@ export default function SmsAcquisitionWorkspace() {
     <section className={styles.metrics}>
       <article><span>Seller leads</span><strong>{leads.length}</strong><small>Current acquisition workspace</small></article>
       <article><span>Hot opportunities</span><strong>{hot}</strong><small>Score 70+</small></article>
-      <article><span>SMS requests</span><strong>{sms.length}</strong><small>{delivered} accepted / sent / delivered</small></article>
+      <article><span>Bland SMS requests</span><strong>{sms.length}</strong><small>{delivered} queued / accepted / sent / delivered</small></article>
       <article><span>Owner approvals</span><strong>{pending}</strong><small>External messaging remains gated</small></article>
     </section>
 
     <section className={styles.panel}>
       <div className={styles.panelHeader}>
-        <div><span>WORKFLOW</span><h2>Seller acquisition automation</h2></div>
-        <div className={styles.legend}><i className={styles.liveDot}/>Live <i className={styles.guardDot}/>Guarded <i className={styles.planDot}/>Next phase</div>
+        <div><span>WORKFLOW</span><h2>Autonomous seller acquisition engine</h2></div>
+        <div className={styles.legend}><i className={styles.liveDot}/>Live <i className={styles.guardDot}/>Approval-gated <i className={styles.planDot}/>Next phase</div>
       </div>
       <div className={styles.workflow}>
         {workflow.map((step, index) => <div className={styles.workflowItem} key={step.title}>
@@ -208,28 +208,28 @@ export default function SmsAcquisitionWorkspace() {
         </div>)}
       </div>
       <div className={styles.guardrail}>
-        <b>Hard guardrail:</b> STOP / opt-out, DNC, missing consent, expired authorization, quiet-hours failures, or owner rejection must terminate outbound execution. The AI layer cannot override compliance.
+        <b>Hard guardrail:</b> STOP / opt-out, DNC, missing consent, expired authorization, quiet-hours failures, or owner rejection terminate outbound execution. Bland is the transport; the AI layer cannot override compliance.
       </div>
     </section>
 
     <section className={styles.twoCol}>
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><span>AI QUALIFICATION</span><h2>Conversation data contract</h2></div></div>
+        <div className={styles.panelHeader}><div><span>AI QUALIFICATION</span><h2>Conversation memory</h2></div></div>
         <div className={styles.qualGrid}>
           {['Owner confirmed', 'Seller intent', 'Motivation', 'Occupancy', 'Property condition', 'Major repairs', 'Selling timeline', 'Asking price', 'Mortgage / liens', 'Decision makers', 'Best callback time', 'Appointment intent'].map(item => <div key={item}><i/> {item}</div>)}
         </div>
-        <p className={styles.muted}>The conversation agent should collect these fields naturally across the thread instead of sending a questionnaire.</p>
+        <p className={styles.muted}>Claude is primary, OpenAI is the operational fallback, and deterministic routing remains available when neither model can answer. Seller-stated facts stay separate from verified property facts.</p>
       </article>
 
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><span>FOLLOW-UP ENGINE</span><h2>Behavior-based routing</h2></div></div>
+        <div className={styles.panelHeader}><div><span>AGENTIC ROUTING</span><h2>Behavior-based decisions</h2></div></div>
         <div className={styles.rules}>
-          <div><b>Seller replies</b><span>Stop drip → classify → AI qualification</span></div>
-          <div><b>STOP / unsubscribe</b><span>Permanent suppression → no AI override</span></div>
-          <div><b>Call me</b><span>Route to acquisitions → create immediate task</span></div>
-          <div><b>Not now</b><span>Capture requested date → exact follow-up</span></div>
-          <div><b>No response</b><span>Day 1 → 3 → 7 → 14 → 30 nurture</span></div>
-          <div><b>Score ≥ 70</b><span>Hot lead alert → appointment → underwriting</span></div>
+          <div><b>Seller replies</b><span>Bland webhook → classify → persistent AI qualification</span></div>
+          <div><b>STOP / unsubscribe</b><span>Immediate suppression + consent revocation</span></div>
+          <div><b>Call me</b><span>HOT classification → acquisitions handoff task</span></div>
+          <div><b>Negotiating</b><span>Preserve asking price and seller evidence → next-action draft</span></div>
+          <div><b>Ambiguous / risky</b><span>Human-review route instead of autonomous reply</span></div>
+          <div><b>HOT score</b><span>Priority task → underwriting and acquisitions workflow</span></div>
         </div>
       </article>
     </section>
@@ -252,7 +252,7 @@ export default function SmsAcquisitionWorkspace() {
               <td>{money(lead.property?.arv)}</td>
               <td>{money(lead.property?.repairs)}</td>
               <td>{money(lead.property?.mao)}</td>
-              <td><a className={styles.rowAction} href="/owner/communications">Start compliant SMS</a></td>
+              <td><a className={styles.rowAction} href="/owner/communications">Start Bland SMS</a></td>
             </tr>)}
             {!visible.length && <tr><td colSpan={9} className={styles.empty}>No seller leads match the current filter.</td></tr>}
           </tbody>
@@ -261,10 +261,10 @@ export default function SmsAcquisitionWorkspace() {
     </section>
 
     <section className={styles.readiness}>
-      <article><span>LIVE NOW</span><b>Compliance authorization</b><p>DNC, consent, exact contact/channel evaluation, owner approval, Twilio dispatch.</p></article>
-      <article><span>LIVE NOW</span><b>Property economics</b><p>Existing ARV, repair and MAO intelligence is surfaced beside seller priority.</p></article>
-      <article><span>NEXT PHASE</span><b>Inbound AI reply brain</b><p>Intent classification, structured qualification, STOP interception and conversation memory.</p></article>
-      <article><span>NEXT PHASE</span><b>AI booking bot</b><p>Calendar-aware appointment scheduling after qualification and seller request.</p></article>
+      <article><span>LIVE</span><b>Bland outbound transport</b><p>SMS uses Bland /v1/sms/send; voice remains on Bland calls. No SAHJONY Twilio account is required.</p></article>
+      <article><span>LIVE</span><b>Signed inbound ingestion</b><p>Bland HMAC webhooks route seller-authored messages into STOP handling and the agentic SMS brain.</p></article>
+      <article><span>LIVE</span><b>Agentic reply brain</b><p>Intent classification, structured qualification, HOT routing, conversation memory, and draft generation.</p></article>
+      <article><span>NEXT</span><b>Autonomous scheduling</b><p>Calendar-aware appointment scheduling and exact follow-up execution remain the next controlled integration.</p></article>
     </section>
   </main>;
 }
