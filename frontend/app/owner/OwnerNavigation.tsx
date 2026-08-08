@@ -15,6 +15,7 @@ const primary: NavItem[] = [
   { href: '/owner/acquisition', label: 'Acquisition pipeline', icon: '↗' },
   { href: '/owner/deals', label: 'Deals', icon: '◇' },
   { href: '/owner/communications', label: 'Seller communications', icon: '◌' },
+  { href: '/owner/sms-acquisition', label: 'AI SMS acquisition', icon: '✦' },
   { href: '/owner/disposition', label: 'Buyer disposition', icon: '◎' },
 ];
 

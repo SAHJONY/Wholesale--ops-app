@@ -39,7 +39,7 @@ class BackgroundJob(Base):
 
 
 router = APIRouter(prefix="/jobs", tags=["durable background jobs"])
-SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead", "autonomous_property_acquisition"}
+SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead", "autonomous_property_acquisition", "sms_due_followups"}
 STALE_LOCK_MINUTES = 20
 SCHEDULE = "*/15 * * * *"
 
@@ -124,6 +124,15 @@ async def _execute_job(db: Session, principal: Principal, job: BackgroundJob) ->
     if job.job_type == "autonomous_property_acquisition":
         from .autonomous_property_acquisition import run_autonomous_property_acquisition
         return await run_autonomous_property_acquisition(db, principal)
+    if job.job_type == "sms_due_followups":
+        from .sms_scheduling import prepare_due_followups
+        limit = max(1, min(25, int(job.payload_json.get("limit") or 25)))
+        result = prepare_due_followups({"limit": limit}, principal, db)
+        return {
+            **result,
+            "execution_boundary": "approval_only_no_sms_dispatch",
+            "automated_by": "durable_background_job",
+        }
     raise RuntimeError(f"Unsupported job type: {job.job_type}")
 
 
@@ -261,6 +270,7 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
     _authorized_cron(authorization)
     organizations = db.scalars(select(Organization).where(Organization.is_active.is_(True))).all()
     results = []
+    now = datetime.now(timezone.utc)
     for organization in organizations:
         principal = _owner_principal(db, organization)
         if not principal:
@@ -284,6 +294,32 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
                     created_by_user_id=principal.user_id,
                 ))
                 db.commit()
+
+            # Due seller follow-ups are autonomously converted only into fresh
+            # compliance decisions + owner approvals. This job has no dispatch
+            # authority and therefore cannot send Bland messages by itself.
+            from .sms_scheduling_models import SmsFollowUpJob
+            due_followup = db.scalar(select(SmsFollowUpJob.id).where(
+                SmsFollowUpJob.organization_id == organization.id,
+                SmsFollowUpJob.status == "scheduled",
+                SmsFollowUpJob.due_at <= now,
+            ))
+            pending_followup_job = db.scalar(select(BackgroundJob.id).where(
+                BackgroundJob.organization_id == organization.id,
+                BackgroundJob.job_type == "sms_due_followups",
+                BackgroundJob.status.in_(["queued", "retry", "running"]),
+            ))
+            if due_followup and not pending_followup_job:
+                db.add(BackgroundJob(
+                    organization_id=organization.id,
+                    job_type="sms_due_followups",
+                    status="queued",
+                    priority=85,
+                    payload_json={"limit": 25, "approval_only": True},
+                    created_by_user_id=principal.user_id,
+                ))
+                db.commit()
+
             results.append(await _run_available(db, principal, 20, "vercel_cron"))
         except Exception as exc:
             db.rollback()

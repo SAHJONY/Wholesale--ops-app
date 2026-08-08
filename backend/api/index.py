@@ -6,6 +6,7 @@ from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
 from app.audit_center import router as audit_router
 from app.auth import router as auth_router
+from app.bland_messaging import router as bland_messaging_router
 from app.buyer_intake import router as buyer_intake_router
 from app.cash_buyer_discovery import router as cash_buyer_router
 from app.business_os import router as business_os_router
@@ -33,6 +34,7 @@ from app.executive_ops import router as executive_ops_router
 from app.foreclosure_procedure import router as foreclosure_procedure_router
 from app.getting_started import router as getting_started_router
 from app.go_live import router as go_live_router
+from app.google_calendar_sms import router as google_calendar_sms_router
 from app.human_auth import router as human_auth_router
 from app.integration_hub import router as integration_hub_router
 from app.integration_reliability import router as integration_reliability_router
@@ -60,7 +62,13 @@ from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.smarty_addresses import router as smarty_router
+from app.sms_agentic import router as sms_agentic_router
+from app.sms_attribution import router as sms_attribution_router
+from app.sms_campaign_dispatch import router as sms_campaign_dispatch_router
+from app.sms_campaign_execution import router as sms_campaign_execution_router
+from app.sms_campaigns import router as sms_campaigns_router
 from app.sms_engine import router as sms_router
+from app.sms_scheduling import router as sms_scheduling_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
@@ -122,6 +130,14 @@ app.include_router(county_queue_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(sms_router)
+app.include_router(sms_agentic_router)
+app.include_router(sms_attribution_router)
+app.include_router(sms_campaigns_router)
+app.include_router(sms_campaign_execution_router)
+app.include_router(sms_campaign_dispatch_router)
+app.include_router(sms_scheduling_router)
+app.include_router(google_calendar_sms_router)
+app.include_router(bland_messaging_router)
 app.include_router(voice_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)

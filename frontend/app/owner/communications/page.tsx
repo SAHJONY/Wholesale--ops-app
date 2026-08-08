@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../owner.module.css';
 
 const API_URL = '/api/backend';
-const SESSION_STORAGE = 'sahjony_owner_session';
 
 type Lead = {
   id: number;
@@ -79,7 +78,6 @@ export default function CommunicationCenter() {
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
-
       setToken('');
       throw new Error('Owner session expired. Sign in again.');
     }
@@ -191,7 +189,12 @@ export default function CommunicationCenter() {
     setLoading(true); setError(''); setNotice('');
     try {
       const content = channel === 'sms'
-        ? { body: form.get('body') }
+        ? {
+            body: form.get('body'),
+            pathway_id: form.get('pathway_id') || undefined,
+            persona_id: form.get('persona_id') || undefined,
+            new_conversation: true,
+          }
         : {
             task: form.get('task'),
             first_sentence: form.get('first_sentence'),
@@ -204,14 +207,14 @@ export default function CommunicationCenter() {
         body: JSON.stringify({
           lead_id: selectedLead.id,
           channel,
-          provider: channel === 'sms' ? 'twilio' : 'bland',
+          provider: 'bland',
           contact: selectedLead.phone,
           compliance_decision_id: decision.decision_id,
           content,
         }),
       });
       setLatestRequest({ request_id: result.request_id, approval_id: result.approval_id });
-      setNotice(`Outbound request #${result.request_id} created. Owner approval is required.`);
+      setNotice(`Bland ${channel === 'sms' ? 'SMS' : 'call'} request #${result.request_id} created. Owner approval is required.`);
       await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to create outbound request'); }
     finally { setLoading(false); }
@@ -233,7 +236,7 @@ export default function CommunicationCenter() {
     setLoading(true); setError(''); setNotice('');
     try {
       const result = await request(`/outbound/requests/${requestId}/dispatch`, { method: 'POST', body: '{}' });
-      setNotice(`${result.provider} accepted request #${requestId}. Provider status: ${result.provider_status || result.status}.`);
+      setNotice(`Bland accepted request #${requestId}. Provider status: ${result.provider_status || result.status}.`);
       setDecision(null); setLatestRequest(null);
       await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Dispatch failed'); }
@@ -249,7 +252,7 @@ export default function CommunicationCenter() {
 
   return <main className={styles.page}>
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>CONTROLLED COMMUNICATIONS</span><h1>Communication Center</h1><p>Record compliance evidence, request owner approval, and dispatch through Bland AI or Twilio.</p></div>
+      <div><span className={styles.eyebrow}>BLAND AI COMMUNICATIONS</span><h1>Communication Center</h1><p>One provider for seller SMS and AI voice. Compliance evidence and owner approval remain mandatory before dispatch.</p></div>
       <div className={styles.actions}><button onClick={() => void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/attention">Attention Center</a><a className={styles.linkButton} href="/owner">Control Plane</a></div>
     </header>
 
@@ -283,7 +286,7 @@ export default function CommunicationCenter() {
         </form>
         <form onSubmit={recordConsent} className={styles.activationForm}>
           <select value={channel} onChange={event => { setChannel(event.target.value as 'sms' | 'automated_call'); resetAuthorization(); }}>
-            <option value="sms">SMS through Twilio</option><option value="automated_call">Automated call through Bland AI</option>
+            <option value="sms">SMS through Bland AI</option><option value="automated_call">Automated call through Bland AI</option>
           </select>
           <input name="source" placeholder="Consent source, e.g. signed web form" required />
           <textarea name="evidence" placeholder="Describe where and when consent was captured" rows={3} required />
@@ -303,7 +306,11 @@ export default function CommunicationCenter() {
         </div>}
 
         <form onSubmit={createRequest} className={styles.activationForm}>
-          {channel === 'sms' ? <textarea name="body" rows={5} placeholder="Approved SMS content" required /> : <>
+          {channel === 'sms' ? <>
+            <textarea name="body" rows={5} placeholder="Approved Bland SMS content" required />
+            <input name="pathway_id" placeholder="Bland pathway ID (optional)" />
+            <input name="persona_id" placeholder="Bland persona ID (optional)" />
+          </> : <>
             <textarea name="task" rows={5} placeholder="Bland call objective and constraints" required />
             <input name="first_sentence" placeholder="First sentence" />
             <input name="timezone" placeholder="Bland timezone" />
@@ -315,13 +322,13 @@ export default function CommunicationCenter() {
         {latestRequest && <div className={styles.actions}>
           <button onClick={() => void decideApproval(latestRequest.approval_id, 'approved')} disabled={loading}>Approve</button>
           <button onClick={() => void decideApproval(latestRequest.approval_id, 'rejected')} disabled={loading}>Reject</button>
-          <button onClick={() => void dispatch(latestRequest.request_id)} disabled={loading}>Dispatch after approval</button>
+          <button onClick={() => void dispatch(latestRequest.request_id)} disabled={loading}>Dispatch through Bland</button>
         </div>}
       </article>
     </section>}
 
     <section className={styles.cardWide}>
-      <div className={styles.cardHeader}><div><span className={styles.eyebrow}>OUTBOUND HISTORY</span><h2>Requests and provider status</h2></div><small>{outbound.length} records</small></div>
+      <div className={styles.cardHeader}><div><span className={styles.eyebrow}>OUTBOUND HISTORY</span><h2>Bland requests and provider status</h2></div><small>{outbound.length} records</small></div>
       <div className={styles.list}>{outbound.length ? outbound.map(item => {
         const pending = pendingByRequest.get(item.id);
         return <div key={item.id}><span><b>#{item.id} · {item.channel.replace('_', ' ')} via {item.provider}</b><small>{item.contact} · {new Date(item.created_at).toLocaleString()}</small><small>{item.error || item.provider_reference || 'Awaiting provider dispatch'}</small></span><span className={styles.score}>{item.status}{item.provider_status ? ` · ${item.provider_status}` : ''}{pending ? ` · approval #${pending.id} pending` : ''}</span></div>;
