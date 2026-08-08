@@ -54,6 +54,7 @@ export default function CampaignManager() {
   const [lists, setLists] = useState<SmartList[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [recipientTimezone, setRecipientTimezone] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -178,6 +179,36 @@ export default function CampaignManager() {
     finally { setLoading(false); }
   }
 
+  async function buildApprovals(id: number) {
+    if (!recipientTimezone.trim()) {
+      setError('Enter the recipient timezone for this campaign batch before building compliance decisions.');
+      return;
+    }
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const result = await request(`/sms-campaign-execution/${id}/build-approvals`, {
+        method: 'POST',
+        body: JSON.stringify({ recipient_timezone: recipientTimezone.trim(), limit: 50 }),
+      });
+      setNotice(`Campaign #${id}: ${result.pending_owner_approval} requests passed compliance and now await owner approval; ${result.blocked_compliance} were blocked.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to build campaign approvals'); }
+    finally { setLoading(false); }
+  }
+
+  async function ownerApprove(id: number) {
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const result = await request(`/sms-campaign-execution/${id}/owner-approve`, {
+        method: 'POST',
+        body: JSON.stringify({ limit: 25, note: 'Approved from SAHJONY Campaign Manager' }),
+      });
+      setNotice(`Campaign #${id}: owner approved ${result.approved} Bland SMS requests. Nothing was dispatched by this action.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to approve campaign batch'); }
+    finally { setLoading(false); }
+  }
+
   const totalAudience = useMemo(() => lists.reduce((sum, item) => sum + Number(item.audience_count || 0), 0), [lists]);
 
   return <main className={styles.page}>
@@ -188,7 +219,7 @@ export default function CampaignManager() {
         <p>Build proprietary seller audiences, personalized messages and Bland-powered acquisition campaigns. Every recipient remains individually gated by suppression, compliance and owner approval before dispatch.</p>
       </div>
       <nav>
-        <a href="/owner/sms-acquisition">AI SMS Acquisition</a>
+        <a href="/owner/sms-acquisition">AI Acquisition</a>
         <a href="/owner/communications">Communication Center</a>
         <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
       </nav>
@@ -208,10 +239,10 @@ export default function CampaignManager() {
       <article className={styles.card}>
         <span className={styles.eyebrow}>1 · AUDIENCE</span><h2>Create smart list</h2>
         <form onSubmit={createList}>
-          <input name="name" placeholder="e.g. Harris County pre-foreclosure 30-day" required />
+          <input name="name" placeholder="e.g. Pre-foreclosure 30-day" required />
           <textarea name="description" placeholder="Audience purpose" rows={2} />
-          <input name="states" placeholder="States: TX, GA" />
-          <input name="zip_codes" placeholder="ZIPs: 77021, 77033" />
+          <input name="states" placeholder="States: GA, FL" />
+          <input name="zip_codes" placeholder="ZIPs: 30310, 33610" />
           <input name="statuses" placeholder="Statuses: new, contacting, nurture" />
           <input name="sources" placeholder="Sources: foreclosure, probate, code_violation" />
           <div className={styles.inline}>
@@ -254,19 +285,27 @@ export default function CampaignManager() {
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.panelHeader}><div><span className={styles.eyebrow}>CAMPAIGN CONTROL</span><h2>SAHJONY seller campaigns</h2></div><small>{campaigns.length} campaigns</small></div>
+      <div className={styles.panelHeader}>
+        <div><span className={styles.eyebrow}>CAMPAIGN CONTROL</span><h2>SAHJONY seller campaigns</h2></div>
+        <div className={styles.timezoneControl}><input value={recipientTimezone} onChange={event => setRecipientTimezone(event.target.value)} placeholder="Recipient timezone, e.g. America/New_York" /><small>Required when building compliance decisions because quiet hours are evaluated in the recipient's local time.</small></div>
+      </div>
       <div className={styles.tableWrap}><table>
-        <thead><tr><th>Campaign</th><th>Status</th><th>Audience</th><th>Prepared</th><th>Suppressed</th><th>Compliance queue</th><th>Action</th></tr></thead>
+        <thead><tr><th>Campaign</th><th>Status</th><th>Audience</th><th>Prepared</th><th>Suppressed</th><th>Compliance queue</th><th>Actions</th></tr></thead>
         <tbody>
           {campaigns.map(item => <tr key={item.id}>
             <td><b>{item.name}</b><small>#{item.id} · {new Date(item.created_at).toLocaleString()}</small></td>
             <td><span className={styles.badge}>{item.status}</span></td>
             <td>{item.audience_count}</td><td>{item.prepared_count}</td><td>{item.suppressed_count}</td><td>{item.ready_count}</td>
-            <td><button className={styles.smallButton} onClick={() => void prepareCampaign(item.id)} disabled={loading || ['active','completed'].includes(item.status)}>Prepare + preflight</button></td>
+            <td><div className={styles.actionStack}>
+              <button className={styles.smallButton} onClick={() => void prepareCampaign(item.id)} disabled={loading || ['active','completed'].includes(item.status)}>1. Prepare + preflight</button>
+              <button className={styles.smallButton} onClick={() => void buildApprovals(item.id)} disabled={loading || !item.prepared_count}>2. Build compliance + approvals</button>
+              <button className={styles.smallButton} onClick={() => void ownerApprove(item.id)} disabled={loading || !item.prepared_count}>3. Owner approve batch</button>
+            </div></td>
           </tr>)}
           {!campaigns.length && <tr><td colSpan={7} className={styles.empty}>Create a smart list and template to build the first SAHJONY campaign.</td></tr>}
         </tbody>
       </table></div>
+      <div className={styles.guardrail}><b>Important:</b> Owner approval is intentionally separate from dispatch. This page prepares and approves eligible requests, but it does not send a mass campaign automatically. Dispatch remains behind the controlled Bland outbound gateway so expired compliance decisions, new suppressions and STOP requests can still block delivery at the last moment.</div>
     </section>
   </main>;
 }
