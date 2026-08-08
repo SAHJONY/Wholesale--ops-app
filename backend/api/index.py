@@ -63,6 +63,7 @@ from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
 from app.smarty_addresses import router as smarty_router
 from app.sms_agentic import router as sms_agentic_router
+from app.sms_attribution import router as sms_attribution_router
 from app.sms_campaign_dispatch import router as sms_campaign_dispatch_router
 from app.sms_campaign_execution import router as sms_campaign_execution_router
 from app.sms_campaigns import router as sms_campaigns_router
@@ -130,6 +131,7 @@ app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
 app.include_router(sms_router)
 app.include_router(sms_agentic_router)
+app.include_router(sms_attribution_router)
 app.include_router(sms_campaigns_router)
 app.include_router(sms_campaign_execution_router)
 app.include_router(sms_campaign_dispatch_router)
