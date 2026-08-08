@@ -25,10 +25,13 @@ from .auth import Principal
 from .auth_models import CrmActivity
 from .compliance import normalize_phone
 from .database import get_db
+from .models import Lead
 from .outbound_models import OutboundRequest
 from .sms_agentic import process_message
+from .sms_agentic_models import SmsConversationState
 from .sms_engine import classify_inbound, suppress
 from .sms_models import SmsMessage
+from .sms_scheduling import cancel_active_followups, schedule_from_agent
 
 router = APIRouter(prefix="/webhooks/bland", tags=["bland messaging"])
 
@@ -235,14 +238,32 @@ async def bland_messaging_webhook(
             f"bland_sms:{keyword}",
             lead_id,
         )
+        cancel_active_followups(db, principal.organization_id, lead_id, "recipient_opt_out")
     db.commit()
     db.refresh(message)
 
     result = process_message(db, principal, message)
+    scheduling = None
+    state_id = result.get("conversation_state_id")
+    if state_id:
+        state = db.get(SmsConversationState, int(state_id))
+        lead = db.get(Lead, lead_id)
+        if state and lead:
+            scheduling = schedule_from_agent(
+                db,
+                principal,
+                lead,
+                state.id,
+                message.id,
+                state.last_analysis if isinstance(state.last_analysis, dict) else {},
+            )
+            db.commit()
+
     return {
         "accepted": True,
         "routed": True,
         "conversation_id": payload.get("conversation_id"),
+        "scheduling": scheduling,
         **result,
     }
 
