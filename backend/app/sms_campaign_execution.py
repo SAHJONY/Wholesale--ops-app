@@ -16,6 +16,24 @@ from .sms_campaign_models import SmsCampaign, SmsCampaignRecipient, SmsMessageTe
 
 router = APIRouter(prefix="/sms-campaign-execution", tags=["SAHJONY SMS campaign execution"])
 
+MAX_APPROVAL_BATCH = 25
+SINGLE_ZONE_STATE_TIMEZONES = {
+    "AL": "America/Chicago", "AZ": "America/Phoenix", "AR": "America/Chicago",
+    "CA": "America/Los_Angeles", "CO": "America/Denver", "CT": "America/New_York",
+    "DC": "America/New_York", "DE": "America/New_York", "GA": "America/New_York",
+    "HI": "Pacific/Honolulu", "IA": "America/Chicago", "IL": "America/Chicago",
+    "LA": "America/Chicago", "MA": "America/New_York", "MD": "America/New_York",
+    "ME": "America/New_York", "MN": "America/Chicago", "MO": "America/Chicago",
+    "MS": "America/Chicago", "MT": "America/Denver", "NC": "America/New_York",
+    "NH": "America/New_York", "NJ": "America/New_York", "NM": "America/Denver",
+    "NV": "America/Los_Angeles", "NY": "America/New_York", "OH": "America/New_York",
+    "OK": "America/Chicago", "PA": "America/New_York", "RI": "America/New_York",
+    "SC": "America/New_York", "UT": "America/Denver", "VA": "America/New_York",
+    "VT": "America/New_York", "WA": "America/Los_Angeles", "WI": "America/Chicago",
+    "WV": "America/New_York", "WY": "America/Denver",
+}
+MULTI_ZONE_STATES = frozenset({"AK", "FL", "ID", "IN", "KS", "KY", "MI", "NE", "ND", "OR", "SD", "TN", "TX"})
+
 
 def _campaign(db: Session, principal: Principal, campaign_id: int) -> SmsCampaign:
     campaign = db.get(SmsCampaign, campaign_id)
@@ -33,6 +51,29 @@ def _template(db: Session, principal: Principal, template_id: int | None) -> Sms
     return template
 
 
+def infer_recipient_timezone(lead: Lead, explicit: str | None = None) -> tuple[str | None, str]:
+    if explicit and explicit.strip():
+        return explicit.strip(), "explicit_override"
+    state = str(getattr(getattr(lead, "property", None), "state", "") or "").upper().strip()
+    if not state:
+        return None, "property_state_missing"
+    if state in MULTI_ZONE_STATES:
+        return None, "multi_zone_state_requires_exact_timezone"
+    zone = SINGLE_ZONE_STATE_TIMEZONES.get(state)
+    return (zone, "single_zone_state_inference") if zone else (None, "timezone_not_mapped")
+
+
+def _override(payload: dict, recipient: SmsCampaignRecipient) -> str | None:
+    overrides = payload.get("timezone_overrides")
+    if not isinstance(overrides, dict):
+        return None
+    for key in (str(recipient.lead_id), str(recipient.contact)):
+        value = overrides.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 @router.get("/{campaign_id}/readiness")
 def readiness(campaign_id: int, principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     campaign = _campaign(db, principal, campaign_id)
@@ -47,8 +88,9 @@ def readiness(campaign_id: int, principal: Principal = Depends(get_principal), d
         "campaign_id": campaign.id,
         "campaign_status": campaign.status,
         "recipient_statuses": counts,
-        "can_build_approvals": counts.get("needs_compliance", 0) > 0,
+        "can_build_approvals": counts.get("needs_compliance", 0) + counts.get("needs_timezone", 0) > 0,
         "can_owner_approve": counts.get("pending_owner_approval", 0) > 0,
+        "max_approval_batch": MAX_APPROVAL_BATCH,
         "dispatch_is_separate": True,
     }
 
@@ -60,40 +102,53 @@ def build_approvals(
     principal: Principal = Depends(require_role("manager")),
     db: Session = Depends(get_db),
 ):
-    """Turn prepared recipients into individually evaluated outbound requests.
+    """Create recipient-specific compliance decisions and owner approvals.
 
-    This endpoint deliberately stops at owner approval. It may create compliance
-    decisions and outbound requests, but it never sends an SMS.
+    No SMS is sent. Single-zone states may be inferred. Multi-zone states fail
+    closed unless an exact recipient timezone override is supplied.
     """
     campaign = _campaign(db, principal, campaign_id)
     template = _template(db, principal, campaign.template_id)
-    recipient_timezone = str(payload.get("recipient_timezone") or "").strip()
-    if not recipient_timezone:
-        raise HTTPException(422, "recipient_timezone is required for SMS quiet-hours evaluation")
-    limit = max(1, min(int(payload.get("limit") or 50), 100))
+    limit = max(1, min(int(payload.get("limit") or 10), MAX_APPROVAL_BATCH))
 
     recipients = db.scalars(select(SmsCampaignRecipient).where(
         SmsCampaignRecipient.organization_id == principal.organization_id,
         SmsCampaignRecipient.campaign_id == campaign.id,
-        SmsCampaignRecipient.status == "needs_compliance",
+        SmsCampaignRecipient.status.in_(["needs_compliance", "needs_timezone"]),
     ).order_by(SmsCampaignRecipient.id.asc()).limit(limit)).all()
 
-    allowed = blocked = missing_lead = 0
+    allowed = blocked = missing_lead = needs_timezone = 0
     created_requests: list[dict] = []
     for recipient in recipients:
         lead = db.get(Lead, recipient.lead_id)
-        if not lead:
+        if not lead or not lead.property:
             recipient.status = "blocked_missing_lead"
-            recipient.suppression_reason = "lead_not_found"
+            recipient.suppression_reason = "lead_or_property_not_found"
             missing_lead += 1
             continue
 
-        decision = evaluate_contact(
-            db, principal, lead, "sms", recipient.contact, recipient_timezone
-        )
+        recipient_timezone, timezone_source = infer_recipient_timezone(lead, _override(payload, recipient))
+        if not recipient_timezone:
+            recipient.status = "needs_timezone"
+            recipient.evidence = {
+                **(recipient.evidence or {}),
+                "timezone_source": timezone_source,
+                "timezone_required": True,
+            }
+            needs_timezone += 1
+            continue
+
+        decision = evaluate_contact(db, principal, lead, "sms", recipient.contact, recipient_timezone)
         if not decision["allowed"]:
             recipient.status = "blocked_compliance"
             recipient.suppression_reason = ",".join(decision.get("reasons") or []) or "compliance_blocked"
+            recipient.evidence = {
+                **(recipient.evidence or {}),
+                "recipient_timezone": recipient_timezone,
+                "timezone_source": timezone_source,
+                "compliance_decision_id": decision["decision_id"],
+                "compliance_reasons": decision.get("reasons") or [],
+            }
             blocked += 1
             db.commit()
             continue
@@ -126,8 +181,10 @@ def build_approvals(
         recipient.evidence = {
             **(recipient.evidence or {}),
             "compliance_decision_id": decision["decision_id"],
+            "compliance_expires_at": decision.get("expires_at"),
             "approval_id": result["approval_id"],
             "recipient_timezone": recipient_timezone,
+            "timezone_source": timezone_source,
             "approval_built_at": datetime.now(timezone.utc).isoformat(),
         }
         db.commit()
@@ -137,21 +194,23 @@ def build_approvals(
             "lead_id": lead.id,
             "outbound_request_id": result["request_id"],
             "approval_id": result["approval_id"],
+            "recipient_timezone": recipient_timezone,
         })
 
     remaining = db.scalars(select(SmsCampaignRecipient).where(
         SmsCampaignRecipient.organization_id == principal.organization_id,
         SmsCampaignRecipient.campaign_id == campaign.id,
-        SmsCampaignRecipient.status == "needs_compliance",
+        SmsCampaignRecipient.status.in_(["needs_compliance", "needs_timezone"]),
     )).all()
     campaign.ready_count = len(remaining)
+    campaign.status = "approval_queue" if not remaining else "partially_queued"
     campaign.metadata_json = {
         **(campaign.metadata_json or {}),
         "last_approval_batch": {
             "built": allowed,
             "blocked": blocked,
             "missing_lead": missing_lead,
-            "recipient_timezone": recipient_timezone,
+            "needs_timezone": needs_timezone,
             "at": datetime.now(timezone.utc).isoformat(),
         },
     }
@@ -165,7 +224,8 @@ def build_approvals(
             "allowed": allowed,
             "blocked": blocked,
             "missing_lead": missing_lead,
-            "remaining_needs_compliance": len(remaining),
+            "needs_timezone": needs_timezone,
+            "remaining": len(remaining),
         },
     ))
     db.commit()
@@ -175,9 +235,11 @@ def build_approvals(
         "pending_owner_approval": allowed,
         "blocked_compliance": blocked,
         "missing_lead": missing_lead,
-        "remaining_needs_compliance": len(remaining),
+        "needs_timezone": needs_timezone,
+        "remaining_needs_processing": len(remaining),
         "created_requests": created_requests,
         "dispatch_allowed": False,
+        "messages_sent": 0,
     }
 
 
@@ -188,9 +250,9 @@ def owner_approve_campaign_batch(
     principal: Principal = Depends(require_role("owner")),
     db: Session = Depends(get_db),
 ):
-    """Explicit owner action that approves a bounded batch; it does not dispatch."""
+    """Explicit owner approval for a bounded batch; this never dispatches."""
     campaign = _campaign(db, principal, campaign_id)
-    limit = max(1, min(int(payload.get("limit") or 25), 100))
+    limit = max(1, min(int(payload.get("limit") or 10), MAX_APPROVAL_BATCH))
     note = str(payload.get("note") or "Approved from SAHJONY Campaign Manager").strip()
 
     recipients = db.scalars(select(SmsCampaignRecipient).where(
@@ -229,7 +291,7 @@ def owner_approve_campaign_batch(
     return {
         "campaign_id": campaign.id,
         "approved": approved,
-        "dispatch_allowed": True if approved else False,
+        "dispatch_allowed": bool(approved),
         "dispatched": 0,
         "next_step": "Dispatch remains a separate explicit owner action through the controlled Bland outbound gateway.",
     }
