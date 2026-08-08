@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, event, select
 from sqlalchemy.orm import Mapped, mapped_column
 
+from .auth_models import WorkspaceEntity
 from .database import Base, UtcDateTime
 
 
@@ -43,3 +44,20 @@ class SmsMessage(Base):
     created_at: Mapped[datetime] = mapped_column(
         UtcDateTime, default=lambda: datetime.now(timezone.utc), index=True
     )
+
+
+def _workspace_owns_lead(connection, organization_id: int, lead_id: int) -> bool:
+    return connection.execute(select(WorkspaceEntity.id).where(
+        WorkspaceEntity.organization_id == organization_id,
+        WorkspaceEntity.entity_type == "lead",
+        WorkspaceEntity.entity_id == lead_id,
+    )).first() is not None
+
+
+@event.listens_for(SmsMessage, "before_insert")
+def _guard_sms_lead_workspace(_mapper, connection, target: SmsMessage) -> None:
+    """Fail closed if a message tries to attach another tenant's global Lead ID."""
+    if target.lead_id is None:
+        return
+    if not _workspace_owns_lead(connection, target.organization_id, target.lead_id):
+        raise ValueError("SMS lead is outside this workspace")

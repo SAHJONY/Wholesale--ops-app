@@ -1,9 +1,10 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
-from app.sms_attribution import MILESTONES, _amount
+from app.sms_attribution import MILESTONES, REALIZED_REVENUE_EVENT, _amount, _realized_revenue
 
 
 def test_attribution_milestones_cover_revenue_funnel():
@@ -24,3 +25,12 @@ def test_amount_rejects_negative_values():
     with pytest.raises(HTTPException) as exc:
         _amount(-1)
     assert exc.value.status_code == 422
+
+
+def test_realized_revenue_counts_fee_receipt_not_close_milestone_twice():
+    events = [
+        SimpleNamespace(event_type="assignment_closed", amount=30000),
+        SimpleNamespace(event_type="assignment_fee_received", amount=30000),
+    ]
+    assert REALIZED_REVENUE_EVENT == "assignment_fee_received"
+    assert _realized_revenue(events) == Decimal("30000")

@@ -21,6 +21,7 @@ router = APIRouter(prefix="/sms-attribution", tags=["SAHJONY SMS attribution"])
 MILESTONES = frozenset({
     "offer_created", "offer_accepted", "contract_signed", "assignment_closed", "assignment_fee_received"
 })
+REALIZED_REVENUE_EVENT = "assignment_fee_received"
 
 
 def _campaign(db: Session, principal: Principal, campaign_id: int) -> SmsCampaign:
@@ -40,6 +41,14 @@ def _amount(value) -> Decimal | None:
     if amount < 0:
         raise HTTPException(422, "amount cannot be negative")
     return amount
+
+
+def _realized_revenue(events: list[SmsAttributionEvent]) -> Decimal:
+    return sum(
+        (Decimal(str(event.amount)) for event in events
+         if event.event_type == REALIZED_REVENUE_EVENT and event.amount is not None),
+        Decimal("0"),
+    )
 
 
 @router.post("/events")
@@ -147,11 +156,9 @@ def campaign_funnel(
         SmsAttributionEvent.campaign_id == campaign.id,
     )).all()
     by_type: dict[str, set[int]] = {key: set() for key in MILESTONES}
-    revenue = Decimal("0")
     for event in events:
         by_type.setdefault(event.event_type, set()).add(event.lead_id)
-        if event.event_type in {"assignment_closed", "assignment_fee_received"} and event.amount is not None:
-            revenue += Decimal(str(event.amount))
+    revenue = _realized_revenue(events)
 
     audience = len(lead_ids)
     sent = len(sent_leads)
@@ -189,6 +196,7 @@ def campaign_funnel(
             "assignment_revenue": float(revenue),
             "revenue_per_sent": float(revenue / sent) if sent else 0.0,
             "revenue_per_closed": float(revenue / closed) if closed else 0.0,
+            "recognized_from": REALIZED_REVENUE_EVENT,
         },
         "event_count": len(events),
     }

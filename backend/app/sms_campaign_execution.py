@@ -64,13 +64,21 @@ def infer_recipient_timezone(lead: Lead, explicit: str | None = None) -> tuple[s
 
 
 def _override(payload: dict, recipient: SmsCampaignRecipient) -> str | None:
+    """Resolve an explicit timezone supplied by the operator.
+
+    Per-recipient overrides are preferred. `recipient_timezone` remains accepted
+    as a deliberately explicit batch-level override because the Campaign Manager
+    historically sent that shape. Both are operator-supplied; neither is guessed.
+    """
     overrides = payload.get("timezone_overrides")
-    if not isinstance(overrides, dict):
-        return None
-    for key in (str(recipient.lead_id), str(recipient.contact)):
-        value = overrides.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    if isinstance(overrides, dict):
+        for key in (str(recipient.lead_id), str(recipient.contact)):
+            value = overrides.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    batch = payload.get("recipient_timezone")
+    if isinstance(batch, str) and batch.strip():
+        return batch.strip()
     return None
 
 
