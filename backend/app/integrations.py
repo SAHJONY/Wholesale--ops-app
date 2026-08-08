@@ -46,7 +46,15 @@ PROVIDERS = [
         "env": ["GOOGLE_MAPS_API_KEY"],
         "capabilities": ["geocoding", "street_view", "maps", "distance", "visual_condition_support"],
         "authority": "geospatial_imagery",
-        "verification": "imagery_date_must_be_displayed; no condition claim_without_human_review",
+        "verification": "imagery_date_must_be_displayed; no_condition_claim_without_human_review",
+    },
+    {
+        "id": "google_calendar", "name": "Google Calendar", "category": "seller_scheduling", "tier": "optional",
+        "env": ["GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "GOOGLE_CALENDAR_REFRESH_TOKEN"],
+        "optional_env": ["GOOGLE_CALENDAR_ID"],
+        "capabilities": ["freebusy", "seller_appointment_create", "seller_appointment_cancel", "calendar_conflict_detection"],
+        "authority": "scheduling",
+        "verification": "explicit_seller_time_owner_booking_action_and_live_freebusy_check",
     },
     {
         "id": "fema", "name": "FEMA National Flood Hazard Layer", "category": "risk", "tier": "authoritative_public",
@@ -138,6 +146,7 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
             "contact_enrichment": "BatchData preview/apply with right-party and compliance screening",
             "public_data": "Official government and open-data feeds with provenance, licensing, retention, and confidence metadata",
             "visual_inspection": "Google Street View with imagery date and human confirmation",
+            "seller_scheduling": "Google Calendar OAuth with explicit seller time, free/busy verification, and owner-triggered booking",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
             "outbound_policy": "Bland-only SMS and voice; no outreach before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
             "contract_policy": "DocuSeal-first provider-neutral signing; no submission before attorney-approved state template and owner approval",
@@ -158,12 +167,15 @@ def integration_readiness(principal: Principal = Depends(get_principal)):
     public_enabled = [provider for provider in public_providers if provider["enabled"]]
     public_blocked = [provider for provider in public_enabled if provider["state"] == "enabled_missing_endpoint"]
     bland = next((provider for provider in providers if provider["id"] == "bland"), None)
+    calendar = next((provider for provider in providers if provider["id"] == "google_calendar"), None)
     return {
         "organization_id": principal.organization_id,
         "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
         "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking) and not public_blocked,
         "ready_for_outbound": bool(bland and bland["state"] in ready_states),
         "outbound_provider": "bland",
+        "ready_for_calendar_booking": bool(calendar and calendar["state"] in ready_states),
+        "calendar_provider": "google_calendar",
         "ready_for_contracts": _contracts_ready(providers),
         "configured_count": len(configured),
         "provider_count": len(providers),
