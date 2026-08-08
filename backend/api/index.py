@@ -66,6 +66,7 @@ from app.sms_campaign_dispatch import router as sms_campaign_dispatch_router
 from app.sms_campaign_execution import router as sms_campaign_execution_router
 from app.sms_campaigns import router as sms_campaigns_router
 from app.sms_engine import router as sms_router
+from app.sms_scheduling import router as sms_scheduling_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
@@ -131,6 +132,7 @@ app.include_router(sms_agentic_router)
 app.include_router(sms_campaigns_router)
 app.include_router(sms_campaign_execution_router)
 app.include_router(sms_campaign_dispatch_router)
+app.include_router(sms_scheduling_router)
 app.include_router(bland_messaging_router)
 app.include_router(voice_router)
 app.include_router(deal_execution_router)
