@@ -31,12 +31,20 @@ type FollowUp = {
   outbound_request_id?: number;
 };
 
+type CalendarHealth = {
+  configured: boolean;
+  provider: string;
+  calendar_id_configured: boolean;
+  oauth_mode: string;
+};
+
 type Summary = Record<string, number>;
 
 export default function SchedulingCommandCenter() {
   const [summary, setSummary] = useState<Summary>({});
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [followups, setFollowups] = useState<FollowUp[]>([]);
+  const [calendar, setCalendar] = useState<CalendarHealth>({ configured: false, provider: 'google_calendar', calendar_id_configured: false, oauth_mode: 'offline_refresh_token' });
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -64,14 +72,16 @@ export default function SchedulingCommandCenter() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [summaryData, appointmentsData, followupsData] = await Promise.all([
+      const [summaryData, appointmentsData, followupsData, calendarData] = await Promise.all([
         request('/sms-scheduling/summary'),
         request('/sms-scheduling/appointments'),
         request('/sms-scheduling/follow-ups'),
+        request('/sms-calendar/health'),
       ]);
       setSummary(summaryData || {});
       setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
       setFollowups(Array.isArray(followupsData) ? followupsData : []);
+      setCalendar(calendarData as CalendarHealth);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load scheduling');
     } finally { setLoading(false); }
@@ -99,6 +109,26 @@ export default function SchedulingCommandCenter() {
     finally { setLoading(false); }
   }
 
+  async function bookGoogle(item: Appointment) {
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const result = await request(`/sms-calendar/appointments/${item.id}/book`, { method: 'POST', body: JSON.stringify({ duration_minutes: item.duration_minutes || 30 }) });
+      setNotice(`Appointment #${item.id} booked on Google Calendar${result.calendar_event_id ? ` · ${result.calendar_event_id}` : ''}.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to book Google Calendar appointment'); }
+    finally { setLoading(false); }
+  }
+
+  async function cancelGoogle(item: Appointment) {
+    setLoading(true); setError(''); setNotice('');
+    try {
+      await request(`/sms-calendar/appointments/${item.id}/cancel`, { method: 'POST', body: '{}' });
+      setNotice(`Appointment #${item.id} cancelled.`);
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to cancel appointment'); }
+    finally { setLoading(false); }
+  }
+
   const ready = useMemo(() => appointments.filter(item => item.status === 'ready_to_book').length, [appointments]);
   const confirmation = useMemo(() => appointments.filter(item => item.status === 'needs_confirmation').length, [appointments]);
   const due = useMemo(() => followups.filter(item => item.status === 'scheduled' && new Date(item.due_at).getTime() <= Date.now()).length, [followups]);
@@ -109,7 +139,7 @@ export default function SchedulingCommandCenter() {
       <div>
         <span>SAHJONY AI ACQUISITION</span>
         <h1>Scheduling Command Center</h1>
-        <p>Convert seller replies into callback and appointment work, cancel stale nurture when sellers re-engage, and prepare due follow-ups through the same compliance and owner-approval controls used by Bland messaging.</p>
+        <p>Convert seller replies into callback and appointment work, cancel stale nurture when sellers re-engage, check acquisition-calendar availability, and prepare due follow-ups through the same compliance and owner-approval controls used by Bland messaging.</p>
       </div>
       <nav>
         <a href="/owner/sms-acquisition">AI SMS Acquisition</a>
@@ -126,7 +156,7 @@ export default function SchedulingCommandCenter() {
       <article><span>Ready to book</span><strong>{ready}</strong><small>Explicit seller date/time resolved</small></article>
       <article><span>Needs confirmation</span><strong>{confirmation}</strong><small>Ambiguous callback intent fails closed</small></article>
       <article><span>Due follow-ups</span><strong>{due}</strong><small>Waiting for compliance preparation</small></article>
-      <article><span>Pending owner approval</span><strong>{pendingApproval}</strong><small>No automatic send authority</small></article>
+      <article><span>Google Calendar</span><strong>{calendar.configured ? 'READY' : 'OFF'}</strong><small>{calendar.configured ? 'OAuth booking adapter configured' : 'OAuth credentials required'}</small></article>
     </section>
 
     <section className={styles.panel}>
@@ -141,7 +171,11 @@ export default function SchedulingCommandCenter() {
             <td>{item.recipient_timezone || 'Unresolved'}</td>
             <td>{item.confidence}%</td>
             <td>{item.raw_preference || 'No explicit wording captured'}</td>
-            <td>{item.calendar_event_id ? `${item.provider || 'calendar'} · ${item.calendar_event_id}` : 'Not booked'}</td>
+            <td>
+              {item.status === 'ready_to_book' && !item.calendar_event_id && <button className={styles.smallButton} onClick={() => void bookGoogle(item)} disabled={loading || !calendar.configured}>Book Google</button>}
+              {item.status === 'booked' && item.calendar_event_id && <><b>Google Calendar</b><small>{item.calendar_event_id}</small><button className={styles.smallButton} onClick={() => void cancelGoogle(item)} disabled={loading}>Cancel</button></>}
+              {!['ready_to_book','booked'].includes(item.status) && <span>{item.status === 'calendar_conflict' ? 'Conflict — choose another time' : 'Not bookable yet'}</span>}
+            </td>
           </tr>)}
           {!appointments.length && <tr><td colSpan={7} className={styles.empty}>No appointment requests yet.</td></tr>}
         </tbody>
@@ -149,7 +183,7 @@ export default function SchedulingCommandCenter() {
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.panelHeader}><div><span className={styles.eyebrow}>FOLLOW-UP</span><h2>Behavior-based nurture queue</h2></div><small>{followups.length} jobs</small></div>
+      <div className={styles.panelHeader}><div><span className={styles.eyebrow}>FOLLOW-UP</span><h2>Behavior-based nurture queue</h2></div><small>{followups.length} jobs · {pendingApproval} pending approval</small></div>
       <div className={styles.tableWrap}><table>
         <thead><tr><th>Lead</th><th>Status</th><th>Due</th><th>Timezone</th><th>Reason</th><th>Draft</th><th>Outbound request</th></tr></thead>
         <tbody>
@@ -168,7 +202,7 @@ export default function SchedulingCommandCenter() {
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.guardrail}><b>Execution boundary</b><br/>Explicit seller times may become ready-to-book records. Ambiguous wording requires confirmation. Follow-up jobs never send by themselves: due jobs are rechecked for DNC, consent, suppression and quiet hours, then converted into an owner-approved Bland outbound request.</div>
+      <div className={styles.guardrail}><b>Execution boundary</b><br/>Google booking is owner-triggered and only allowed for high-confidence explicit seller times after a live free/busy check. Ambiguous wording requires confirmation. Follow-up jobs never send by themselves: due jobs are rechecked for DNC, consent, suppression and quiet hours, then converted into an owner-approved Bland outbound request.</div>
       <small>{Object.entries(summary).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'No scheduling state yet.'}</small>
     </section>
   </main>;
