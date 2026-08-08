@@ -34,6 +34,7 @@ from app.executive_ops import router as executive_ops_router
 from app.foreclosure_procedure import router as foreclosure_procedure_router
 from app.getting_started import router as getting_started_router
 from app.go_live import router as go_live_router
+from app.google_calendar_sms import router as google_calendar_sms_router
 from app.human_auth import router as human_auth_router
 from app.integration_hub import router as integration_hub_router
 from app.integration_reliability import router as integration_reliability_router
@@ -133,6 +134,7 @@ app.include_router(sms_campaigns_router)
 app.include_router(sms_campaign_execution_router)
 app.include_router(sms_campaign_dispatch_router)
 app.include_router(sms_scheduling_router)
+app.include_router(google_calendar_sms_router)
 app.include_router(bland_messaging_router)
 app.include_router(voice_router)
 app.include_router(deal_execution_router)
