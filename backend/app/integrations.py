@@ -46,7 +46,7 @@ PROVIDERS = [
         "env": ["GOOGLE_MAPS_API_KEY"],
         "capabilities": ["geocoding", "street_view", "maps", "distance", "visual_condition_support"],
         "authority": "geospatial_imagery",
-        "verification": "imagery_date_must_be_displayed; no condition claim without human_review",
+        "verification": "imagery_date_must_be_displayed; no condition claim_without_human_review",
     },
     {
         "id": "fema", "name": "FEMA National Flood Hazard Layer", "category": "risk", "tier": "authoritative_public",
@@ -54,18 +54,16 @@ PROVIDERS = [
         "authority": "federal_public_source", "verification": "insurance_or_survey_confirmation_for_closing",
     },
     {
-        "id": "bland", "name": "Bland AI", "category": "voice", "tier": "primary",
-        "env": ["BLAND_AI_API_KEY", "BLAND_AI_WEBHOOK_SECRET"],
-        "capabilities": ["inbound_calls", "outbound_calls", "transcripts", "call_outcomes"],
-        "authority": "communications", "verification": "dnc_consent_quiet_hours_and_owner_approval",
-    },
-    {
-        "id": "twilio", "name": "Twilio", "category": "sms_and_phone", "tier": "primary",
-        "env": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"],
-        "any_of_env": ["TWILIO_MESSAGING_SERVICE_SID", "TWILIO_FROM_NUMBER", "BLAND_DEFAULT_FROM_NUMBER"],
-        "optional_env": ["TWILIO_STATUS_CALLBACK_URL"],
-        "capabilities": ["sms", "phone_numbers", "delivery_status", "opt_out_events"],
-        "authority": "communications", "verification": "a2p_registration_consent_and_opt_out_enforcement",
+        "id": "bland", "name": "Bland AI Messaging + Voice", "category": "omnichannel_communications", "tier": "primary",
+        "env": ["BLAND_AI_API_KEY", "BLAND_WEBHOOK_SIGNING_SECRET"],
+        "any_of_env": ["BLAND_SMS_AGENT_NUMBER", "BLAND_MESSAGING_NUMBER"],
+        "optional_env": ["BLAND_SMS_WEBHOOK_URL", "BLAND_DEFAULT_FROM_NUMBER", "BLAND_DEFAULT_CALLER_ID"],
+        "capabilities": [
+            "inbound_sms", "outbound_sms", "inbound_calls", "outbound_calls",
+            "pathways", "personas", "transcripts", "call_outcomes", "conversation_webhooks",
+        ],
+        "authority": "communications",
+        "verification": "a2p_registration_dnc_consent_opt_out_quiet_hours_owner_approval_and_fresh_dispatch_compliance",
     },
     {
         "id": "docuseal", "name": "DocuSeal eSignature", "category": "contracts", "tier": "primary",
@@ -141,7 +139,7 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
             "public_data": "Official government and open-data feeds with provenance, licensing, retention, and confidence metadata",
             "visual_inspection": "Google Street View with imagery date and human confirmation",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
-            "outbound_policy": "No call or SMS before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
+            "outbound_policy": "Bland-only SMS and voice; no outreach before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
             "contract_policy": "DocuSeal-first provider-neutral signing; no submission before attorney-approved state template and owner approval",
             "texas_policy": "Excluded from acquisition and outreach workflows",
         },
@@ -159,11 +157,13 @@ def integration_readiness(principal: Principal = Depends(get_principal)):
     blocking = [provider for provider in providers if provider["tier"] in {"primary", "required"} and provider["state"] not in ready_states]
     public_enabled = [provider for provider in public_providers if provider["enabled"]]
     public_blocked = [provider for provider in public_enabled if provider["state"] == "enabled_missing_endpoint"]
+    bland = next((provider for provider in providers if provider["id"] == "bland"), None)
     return {
         "organization_id": principal.organization_id,
         "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
         "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking) and not public_blocked,
-        "ready_for_outbound": all(provider["id"] not in {"bland", "twilio"} for provider in blocking),
+        "ready_for_outbound": bool(bland and bland["state"] in ready_states),
+        "outbound_provider": "bland",
         "ready_for_contracts": _contracts_ready(providers),
         "configured_count": len(configured),
         "provider_count": len(providers),
