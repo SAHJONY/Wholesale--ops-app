@@ -55,6 +55,7 @@ type WorkflowStep = {
 
 const workflow: WorkflowStep[] = [
   { title: 'Lead enters', subtitle: 'Distress / off-market intake', state: 'live' },
+  { title: 'Smart audience', subtitle: 'SAHJONY filters · segments · campaign targeting', state: 'live' },
   { title: 'Compliance gate', subtitle: 'DNC + consent + channel authorization', state: 'guarded' },
   { title: 'SMS outreach', subtitle: 'Bland Messaging outbound request', state: 'guarded' },
   { title: 'Seller replies', subtitle: 'Signed Bland webhook + STOP interception', state: 'live' },
@@ -173,11 +174,12 @@ export default function SmsAcquisitionWorkspace() {
   return <main className={styles.page}>
     <header className={styles.hero}>
       <div>
-        <span>SAHJONY WHOLESALE OS · BLAND AI SELLER ACQUISITION</span>
-        <h1>Agentic SMS Wholesale Acquisition</h1>
-        <p>Bland Messaging handles SMS and voice while SAHJONY agents classify, qualify, score, route, and prepare the next action behind deterministic compliance and owner approval.</p>
+        <span>SAHJONY WHOLESALE OS · SAHJONY AI ACQUISITION</span>
+        <h1>SAHJONY AI Acquisition</h1>
+        <p>Our proprietary seller-acquisition system uses Bland for SMS and voice while SAHJONY agents segment, personalize, classify, qualify, score, route, and prepare the next action behind deterministic compliance and owner approval.</p>
       </div>
       <div className={styles.heroActions}>
+        <a href="/owner/sms-acquisition/campaigns">Campaign Manager</a>
         <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
         <a href="/owner/communications">Open Bland communications</a>
       </div>
@@ -261,8 +263,8 @@ export default function SmsAcquisitionWorkspace() {
     </section>
 
     <section className={styles.readiness}>
-      <article><span>LIVE</span><b>Bland outbound transport</b><p>SMS uses Bland /v1/sms/send; voice remains on Bland calls. No SAHJONY Twilio account is required.</p></article>
-      <article><span>LIVE</span><b>Signed inbound ingestion</b><p>Bland HMAC webhooks route seller-authored messages into STOP handling and the agentic SMS brain.</p></article>
+      <article><span>LIVE</span><b>SAHJONY Campaign Manager</b><p>Smart lists, proprietary message templates, personalized rendering, audience snapshots, suppression checks, and frequency preflight.</p></article>
+      <article><span>LIVE</span><b>Bland outbound transport</b><p>SMS uses Bland messaging; voice remains on Bland calls. No SAHJONY Twilio account is required.</p></article>
       <article><span>LIVE</span><b>Agentic reply brain</b><p>Intent classification, structured qualification, HOT routing, conversation memory, and draft generation.</p></article>
       <article><span>NEXT</span><b>Autonomous scheduling</b><p>Calendar-aware appointment scheduling and exact follow-up execution remain the next controlled integration.</p></article>
     </section>
