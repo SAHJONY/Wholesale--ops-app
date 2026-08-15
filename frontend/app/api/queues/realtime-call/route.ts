@@ -11,7 +11,7 @@ function validMessage(value: unknown): value is VoiceRuntimeContext {
   return typeof item.callId === 'string' && item.callId.length >= 8 && Number.isInteger(item.organizationId) && Number(item.organizationId) > 0;
 }
 
-export const POST = handleCallback(
+const queueCallback = handleCallback(
   async (message, metadata) => {
     if (!validMessage(message)) {
       throw new Error('Invalid SAHJONY Realtime call queue message');
@@ -32,3 +32,10 @@ export const POST = handleCallback(
     },
   },
 );
+
+// @vercel/queue's callback accepts an object containing the Request. Next.js 14
+// requires route exports themselves to accept Request/NextRequest directly, so
+// adapt the signature here while preserving Vercel's callback implementation.
+export async function POST(request: Request): Promise<Response> {
+  return queueCallback({ request });
+}
