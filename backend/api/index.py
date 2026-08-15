@@ -50,6 +50,7 @@ from app.national_intelligence_safe import router as national_intelligence_route
 from app.nationwide_public_data import router as nationwide_public_data_router
 from app.observability_api import router as observability_router
 from app.observability_middleware import install_observability
+from app.openai_wholesale_copilot import router as openai_wholesale_copilot_router
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
 from app.property_enrichment import router as property_enrichment_router
@@ -116,6 +117,7 @@ app.include_router(real_estate_intelligence_router)
 app.include_router(real_deals_router)
 app.include_router(real_deal_candidates_router)
 app.include_router(wholesale_skill_engine_router)
+app.include_router(openai_wholesale_copilot_router)
 app.include_router(property_workspace_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
