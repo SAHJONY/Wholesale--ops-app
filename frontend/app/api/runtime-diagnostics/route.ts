@@ -1,8 +1,33 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
 
-export async function GET() {
+async function requireOwnerAdmin(request: NextRequest) {
+  const cookie = request.headers.get('cookie') || '';
+  if (!cookie.includes('sahjony_owner_session=')) return { ok: false as const, status: 401 };
+  try {
+    const response = await fetch(new URL('/api/owner-access/session', request.url), {
+      cache: 'no-store',
+      headers: { cookie },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.authenticated) return { ok: false as const, status: response.status === 503 ? 503 : 401 };
+    const role = String(data?.principal?.role || '').toLowerCase();
+    if (!['owner', 'admin'].includes(role)) return { ok: false as const, status: 403 };
+    return { ok: true as const, status: 200 };
+  } catch {
+    return { ok: false as const, status: 503 };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const session = await requireOwnerAdmin(request);
+  if (!session.ok) {
+    const detail = session.status === 503 ? 'Owner session validation unavailable' : session.status === 403 ? 'Owner or admin role required' : 'Owner session required';
+    return NextResponse.json({ detail }, { status: session.status, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
+  }
+
   const target = new URL(BACKEND_URL);
   const result: Record<string, unknown> = {
     frontend_environment: process.env.VERCEL_ENV || 'unknown',
@@ -13,10 +38,12 @@ export async function GET() {
   };
 
   try {
+    const cookie = request.headers.get('cookie') || '';
+    const authorization = request.headers.get('authorization') || '';
     const response = await fetch(`${BACKEND_URL}/openai-copilot/status`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(10000),
-      headers: { Authorization: 'Bearer cookie-session' },
+      signal: AbortSignal.timeout(10_000),
+      headers: { cookie, ...(authorization ? { authorization } : {}) },
     });
     const text = await response.text();
     let body: unknown = null;
@@ -36,9 +63,6 @@ export async function GET() {
   }
 
   return NextResponse.json(result, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'X-Robots-Tag': 'noindex',
-    },
+    headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' },
   });
 }
