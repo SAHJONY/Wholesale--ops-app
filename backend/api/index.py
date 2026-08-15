@@ -4,6 +4,7 @@ from app import background_jobs as background_jobs_module
 from app.acquisition_intake import router as acquisition_intake_router
 from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
+from app.agentic_voice_brain import router as agentic_voice_router
 from app.audit_center import router as audit_router
 from app.auth import router as auth_router
 from app.authorized_acquisition import router as authorized_acquisition_router
@@ -153,6 +154,7 @@ app.include_router(bland_messaging_router)
 app.include_router(voice_router)
 app.include_router(phone_os_router)
 app.include_router(phone_os_automation_router)
+app.include_router(agentic_voice_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(disposition_router)
