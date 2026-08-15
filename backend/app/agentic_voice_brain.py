@@ -12,6 +12,7 @@ from .auth_models import CrmActivity, FollowUpTask, WorkspaceEntity
 from .background_jobs import BackgroundJob
 from .database import get_db
 from .models import Lead
+from .voice_intelligence import jurisdiction_policy, seller_memory
 
 router = APIRouter(prefix="/agentic-voice", tags=["agentic voice brain"])
 
@@ -23,6 +24,8 @@ HUMAN_TRANSFER = os.getenv("VOICE_HUMAN_TRANSFER_TARGET") or "+12816628581"
 # or outbound-dispatch tool is exposed to the model.
 SAFE_TOOL_NAMES = (
     "get_lead_context",
+    "get_seller_memory",
+    "get_call_policy",
     "save_seller_pillars",
     "create_follow_up",
     "request_underwriting",
@@ -49,16 +52,32 @@ def _linked(db: Session, principal: Principal, lead_id: int) -> Lead:
     return lead
 
 
+def _lead_id_schema() -> dict[str, Any]:
+    return {
+        "type": "object", "additionalProperties": False,
+        "properties": {"lead_id": {"type": "integer"}}, "required": ["lead_id"],
+    }
+
+
 def realtime_tools() -> list[dict[str, Any]]:
     return [
         {
             "type": "function",
             "name": "get_lead_context",
-            "description": "Read the current SAHJONY lead context. Treat seller statements as claims until verified.",
-            "parameters": {
-                "type": "object", "additionalProperties": False,
-                "properties": {"lead_id": {"type": "integer"}}, "required": ["lead_id"],
-            },
+            "description": "Read current tenant-scoped lead and property context. Do not treat seller claims as verified facts.",
+            "parameters": _lead_id_schema(),
+        },
+        {
+            "type": "function",
+            "name": "get_seller_memory",
+            "description": "Recall prior seller-stated pillars, previous voice activity and property context from the tenant CRM ledger before repeating questions.",
+            "parameters": _lead_id_schema(),
+        },
+        {
+            "type": "function",
+            "name": "get_call_policy",
+            "description": "Read the jurisdiction-aware operational call policy for the lead. Unknown state fails closed for recording and consequential automation.",
+            "parameters": _lead_id_schema(),
         },
         {
             "type": "function",
@@ -119,6 +138,7 @@ def session_instructions() -> str:
     return (
         "You are SAHJONY's bilingual English/Spanish acquisition voice agent for U.S. wholesale real estate. "
         "Your mission is to understand the seller and gather explicit Motivation, Timeline, Condition and Price, while staying natural and concise. "
+        "When a lead id is available, consult seller memory and call policy early so you do not repeat known questions or violate operational controls. "
         "Never invent ownership, liens, ARV, comps, repairs, title status, legal outcomes, or seller facts. Seller statements remain unverified claims. "
         "Use tools to save facts, create supervised follow-up, request source-backed underwriting, or escalate to a human. "
         "Immediately honor any do-not-call request and end the sales conversation. "
@@ -165,15 +185,31 @@ def execute_tool(
 
     if tool_name == "get_lead_context":
         assert lead is not None
+        prop = lead.property
         return {
             "lead_id": lead.id,
             "seller_name": lead.seller_name,
             "status": lead.status,
-            "state": getattr(lead, "state", None),
-            "motivation_score": getattr(lead, "motivation_score", None),
-            "timeline_days": getattr(lead, "timeline_days", None),
+            "motivation_score": lead.motivation_score,
+            "timeline_days": lead.timeline_days,
+            "property": ({
+                "property_id": prop.id,
+                "address": prop.address,
+                "city": prop.city,
+                "state": prop.state,
+                "zip_code": prop.zip_code,
+                "property_type": prop.property_type,
+            } if prop else None),
             "facts_boundary": "workspace facts plus seller-stated claims; verify property/owner/underwriting separately",
         }
+
+    if tool_name == "get_seller_memory":
+        assert lead is not None
+        return seller_memory(db, principal, lead.id)
+
+    if tool_name == "get_call_policy":
+        assert lead is not None
+        return jurisdiction_policy(lead.property.state if lead.property else None)
 
     if tool_name == "save_seller_pillars":
         assert lead is not None
@@ -207,17 +243,20 @@ def execute_tool(
             priority=max(1, min(100, int(payload.get("priority") or 50))),
             notes=str(payload.get("notes") or "")[:4000] or None,
         )
-        db.add(task); db.commit(); db.refresh(task)
+        db.add(task)
+        db.commit()
+        db.refresh(task)
         return {"created": True, "follow_up_task_id": task.id, "dispatch_performed": False}
 
     if tool_name == "request_underwriting":
         assert lead is not None
-        existing = db.scalar(select(BackgroundJob).where(
+        active_jobs = db.scalars(select(BackgroundJob).where(
             BackgroundJob.organization_id == principal.organization_id,
             BackgroundJob.job_type == "acquisition_lead",
             BackgroundJob.status.in_(["queued", "retry", "running"]),
-        ))
-        if existing and int((existing.payload_json or {}).get("lead_id") or 0) == lead.id:
+        )).all()
+        existing = next((job for job in active_jobs if int((job.payload_json or {}).get("lead_id") or 0) == lead.id), None)
+        if existing:
             return {"queued": True, "job_id": existing.id, "duplicate": True, "offer_created": False}
         job = BackgroundJob(
             organization_id=principal.organization_id,
@@ -226,7 +265,9 @@ def execute_tool(
             payload_json={"lead_id": lead.id, "force": False, "source": "agentic_voice", "reason": payload.get("reason")},
             created_by_user_id=principal.user_id,
         )
-        db.add(job); db.commit(); db.refresh(job)
+        db.add(job)
+        db.commit()
+        db.refresh(job)
         return {"queued": True, "job_id": job.id, "offer_created": False}
 
     # escalate_to_human
