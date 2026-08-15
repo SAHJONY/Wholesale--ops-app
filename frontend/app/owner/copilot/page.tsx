@@ -34,10 +34,10 @@ export default function CopilotPage() {
   const [error, setError] = useState('');
 
   const request = useCallback(async (path: string, init?: RequestInit) => {
-    const response = await fetch(`/api/backend${path}`, {
+    const response = await fetch(`/api/copilot${path}`, {
       cache: 'no-store',
       ...init,
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer cookie-session', ...(init?.headers || {}) },
+      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
@@ -49,7 +49,7 @@ export default function CopilotPage() {
   }, []);
 
   useEffect(() => {
-    void request('/openai-copilot/status').then(setStatus).catch(err => setError(err instanceof Error ? err.message : 'Unable to load Copilot status'));
+    void request('/status').then(setStatus).catch(err => setError(err instanceof Error ? err.message : 'Unable to load Copilot status'));
   }, [request]);
 
   async function send(text: string) {
@@ -58,12 +58,15 @@ export default function CopilotPage() {
     setMessages(current => [...current, { role: 'user', text: message }]);
     setInput(''); setBusy(true); setError('');
     try {
-      const data = await request('/openai-copilot/chat', { method: 'POST', body: JSON.stringify({ message }) });
+      const data = await request('/chat', { method: 'POST', body: JSON.stringify({ message }) });
       setMessages(current => [...current, {
         role: 'assistant',
         text: data.answer || 'The Copilot returned no text.',
         tools: (data.tools_used || []).map((item: { name: string }) => item.name),
-        sources: (data.web_sources || []).map((item: { url: string }) => item.url),
+        sources: [
+          ...(data.web_sources || []).map((item: { url: string }) => item.url),
+          ...(data.file_sources || []).map((item: { filename?: string; file_id?: string }) => item.filename || item.file_id).filter(Boolean),
+        ],
       }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Copilot request failed');
@@ -89,7 +92,7 @@ export default function CopilotPage() {
       <article><span>SAFETY</span><b>Supervised autonomy</b><small>No silent offers, contracts or payments</small></article>
     </section>
 
-    {!status?.configured && <section className={styles.setup}><b>Activation required</b><p>Set <code>OPENAI_API_KEY</code> in the backend deployment. To enable source-grounded file search, also set <code>OPENAI_VECTOR_STORE_ID</code>. Your ChatGPT subscription itself is not used as an application credential.</p></section>}
+    {!status?.configured && <section className={styles.setup}><b>Activation required</b><p>Set <code>OPENAI_API_KEY</code> in this Vercel project. To enable source-grounded file search, also set <code>OPENAI_VECTOR_STORE_ID</code>.</p></section>}
     {error && <div className={styles.error}>{error}</div>}
 
     <section className={styles.workspace}>
@@ -104,7 +107,7 @@ export default function CopilotPage() {
           {messages.length === 0 ? <div className={styles.empty}><b>Ask SAHJONY about a deal or market.</b><span>Example: “Find my best $10K+ single-family opportunity and tell me what owner/deed facts still need verification.”</span></div> : messages.map((message, index) => <article key={index} className={message.role === 'user' ? styles.user : styles.assistant}>
             <span>{message.role === 'user' ? 'YOU' : 'SAHJONY COPILOT'}</span><p>{message.text}</p>
             {!!message.tools?.length && <small>Tools: {Array.from(new Set(message.tools)).join(' · ')}</small>}
-            {!!message.sources?.length && <details><summary>{message.sources.length} web source{message.sources.length === 1 ? '' : 's'}</summary>{message.sources.map(source => <a key={source} href={source} target="_blank" rel="noreferrer">{source}</a>)}</details>}
+            {!!message.sources?.length && <details><summary>{message.sources.length} source{message.sources.length === 1 ? '' : 's'}</summary>{message.sources.map(source => <span key={source}>{source}</span>)}</details>}
           </article>)}
           {busy && <div className={styles.thinking}>Researching and analyzing with bounded tools…</div>}
         </div>
