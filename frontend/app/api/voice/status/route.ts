@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Bland is the existing SAHJONY communications carrier. Keep the environment
-  // override so a future carrier migration does not require a code change.
   const provider = String(process.env.VOICE_TELEPHONY_PROVIDER || 'bland').trim().toLowerCase();
   const inbound = String(process.env.VOICE_INBOUND_NUMBER || '').trim() || null;
   const transferTarget = String(process.env.VOICE_HUMAN_TRANSFER_TARGET || '').trim() || null;
+  const webhookReady = Boolean(process.env.OPENAI_WEBHOOK_SECRET);
+  const routingConflict = Boolean(inbound && transferTarget && inbound === transferTarget);
 
   return NextResponse.json({
     runtime: 'openai_realtime_voice_os',
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       configured: Boolean(process.env.OPENAI_API_KEY),
       model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
       voice: process.env.OPENAI_REALTIME_VOICE || 'marin',
-      webhook_secret_configured: Boolean(process.env.OPENAI_WEBHOOK_SECRET),
+      webhook_secret_configured: webhookReady,
     },
     telephony: {
       provider,
@@ -62,17 +62,21 @@ export async function GET(request: NextRequest) {
       inbound_number: inbound,
       human_transfer_target_configured: Boolean(transferTarget),
       sip_domain_configured: Boolean(process.env.VOICE_SIP_DOMAIN),
+      routing_conflict: routingConflict,
     },
     controls: {
-      inbound_accept: Boolean(process.env.OPENAI_API_KEY),
-      transfer: Boolean(process.env.OPENAI_API_KEY && transferTarget),
+      inbound_accept: Boolean(process.env.OPENAI_API_KEY && webhookReady && inbound && !routingConflict),
+      transfer: Boolean(process.env.OPENAI_API_KEY && transferTarget && !routingConflict),
       hangup: Boolean(process.env.OPENAI_API_KEY),
+      verified_inbound_webhook_ingress: webhookReady,
+      inbound_auto_accept: false,
       outbound_autodial: false,
       outbound_requires_compliance: true,
       outbound_requires_owner_approval: true,
-      public_inbound_webhook_enabled: false,
     },
-    note: 'Secrets are read server-side only. PSTN activation requires a configured SIP/telephony provider and a verified OpenAI webhook ingress before inbound production traffic is enabled.',
+    note: routingConflict
+      ? 'VOICE_INBOUND_NUMBER and VOICE_HUMAN_TRANSFER_TARGET must be different; call transfer is blocked to prevent a routing loop.'
+      : 'Webhook ingress is signature-verified when OPENAI_WEBHOOK_SECRET is configured. Auto-accept and outbound autodial remain fail-closed until SIP routing and persistent call-event audit are proven end-to-end.',
   }, {
     headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' },
   });
