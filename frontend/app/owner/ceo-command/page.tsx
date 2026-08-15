@@ -37,6 +37,7 @@ function money(value = 0) { return new Intl.NumberFormat('en-US', { style: 'curr
 function label(value = '') { return value.replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase()); }
 function err(error: unknown) { return error instanceof Error ? error.message : 'Data source unavailable'; }
 function location(item: { city?: string; state?: string; address?: string }) { return [item.city, item.state].filter(Boolean).join(', ') || item.address || 'Location pending'; }
+function canonicalClosePercentage(deal: { probability_to_close: number }) { return Math.round(deal.probability_to_close || 0); }
 
 export default function CEOCommandCenter() {
   const [command, setCommand] = useState<CommandCenter | null>(null);
@@ -90,6 +91,7 @@ export default function CEOCommandCenter() {
   const healthyAgents = command?.agent_health?.filter(a => ['healthy', 'ok', 'online'].includes(String(a.health).toLowerCase())).length || 0;
   const totalAgents = command?.agent_health?.length || 0;
   const blockers = (kpi?.pending_approvals || 0) + (kpi?.failed_tasks || 0);
+  const highestRiskDeal = command?.deal_risk?.[0];
 
   return <main className={styles.page}>
     <header className={styles.topbar}>
@@ -109,7 +111,7 @@ export default function CEOCommandCenter() {
     <section className={styles.moneyStrip}>
       <article className={styles.moneyPrimary}><span>VERIFIED DEAL SPREAD</span><strong>{money(verifiedSpread)}</strong><small>{realDeals.length} promoted real deal{realDeals.length === 1 ? '' : 's'}</small></article>
       <article><span>SCREENING OPPORTUNITY</span><strong>{money(candidateSpread)}</strong><small>{candidates.length} verified candidate{candidates.length === 1 ? '' : 's'} awaiting promotion</small></article>
-      <article><span>RISK-WEIGHTED REVENUE</span><strong>{money(kpi?.probability_weighted_revenue)}</strong><small>Current active pipeline forecast</small></article>
+      <article><span>RISK-WEIGHTED REVENUE</span><strong>{money(kpi?.probability_weighted_revenue)}</strong><small>{highestRiskDeal ? `${canonicalClosePercentage(highestRiskDeal)}% close probability on lead risk item` : 'Current active pipeline forecast'}</small></article>
       <article className={blockers ? styles.needsAttention : ''}><span>NEEDS YOUR ATTENTION</span><strong>{blockers}</strong><small>{kpi?.pending_approvals || 0} approvals · {kpi?.failed_tasks || 0} failed tasks</small></article>
     </section>
 
