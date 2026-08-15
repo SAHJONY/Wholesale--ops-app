@@ -1,14 +1,31 @@
-import { handleCallback } from '@vercel/queue';
+import { handleCallback, send } from '@vercel/queue';
 
 import { runAgenticSipSession, type VoiceRuntimeContext } from '../../../../lib/agenticVoiceRuntime';
 
 export const runtime = 'nodejs';
-export const maxDuration = 1800;
+export const maxDuration = 300;
 
-function validMessage(value: unknown): value is VoiceRuntimeContext {
+const TOPIC = 'sahjony-realtime-calls';
+const SLICE_RUNTIME_MS = 230 * 1000;
+const MAX_SLICES = 30;
+
+type VoiceSliceMessage = VoiceRuntimeContext & {
+  slice?: number;
+};
+
+function validMessage(value: unknown): value is VoiceSliceMessage {
   if (!value || typeof value !== 'object') return false;
-  const item = value as Partial<VoiceRuntimeContext>;
-  return typeof item.callId === 'string' && item.callId.length >= 8 && Number.isInteger(item.organizationId) && Number(item.organizationId) > 0;
+  const item = value as Partial<VoiceSliceMessage>;
+  const slice = item.slice ?? 0;
+  return (
+    typeof item.callId === 'string' &&
+    item.callId.length >= 8 &&
+    Number.isInteger(item.organizationId) &&
+    Number(item.organizationId) > 0 &&
+    Number.isInteger(slice) &&
+    slice >= 0 &&
+    slice < MAX_SLICES
+  );
 }
 
 const queueCallback = handleCallback(
@@ -16,16 +33,41 @@ const queueCallback = handleCallback(
     if (!validMessage(message)) {
       throw new Error('Invalid SAHJONY Realtime call queue message');
     }
-    console.log('Starting durable SAHJONY SIP session', {
+
+    const slice = message.slice ?? 0;
+    console.log('Starting durable SAHJONY SIP session slice', {
       callId: message.callId,
+      slice,
       messageId: metadata.messageId,
       deliveryCount: metadata.deliveryCount,
     });
-    const result = await runAgenticSipSession(message, 25 * 60 * 1000);
-    console.log('SAHJONY SIP session worker completed', { callId: message.callId, reason: result.reason });
+
+    const result = await runAgenticSipSession(message, SLICE_RUNTIME_MS, slice === 0);
+    console.log('SAHJONY SIP session slice completed', {
+      callId: message.callId,
+      slice,
+      reason: result.reason,
+    });
+
+    if (result.reason === 'timeout' && slice + 1 < MAX_SLICES) {
+      const nextSlice = slice + 1;
+      await send(
+        TOPIC,
+        { ...message, slice: nextSlice },
+        {
+          idempotencyKey: `${message.callId}:slice:${nextSlice}`,
+          retentionSeconds: 3600,
+          delaySeconds: 1,
+        },
+      );
+      console.log('Queued next SAHJONY SIP session slice', {
+        callId: message.callId,
+        nextSlice,
+      });
+    }
   },
   {
-    visibilityTimeoutSeconds: 1800,
+    visibilityTimeoutSeconds: 300,
     retry: (_error, metadata) => {
       if (metadata.deliveryCount >= 5) return { acknowledge: true };
       return { afterSeconds: Math.min(120, 2 ** metadata.deliveryCount * 5) };

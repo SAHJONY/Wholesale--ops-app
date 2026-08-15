@@ -216,7 +216,8 @@ export async function acceptAgenticSipCall(context: VoiceRuntimeContext): Promis
 
 export async function runAgenticSipSession(
   context: VoiceRuntimeContext,
-  maxRuntimeMs = 25 * 60 * 1000,
+  maxRuntimeMs = 230 * 1000,
+  startWithGreeting = true,
 ): Promise<{ reason: 'disconnected' | 'timeout' }> {
   const agent = buildAgenticVoiceAgent(context);
   const transport = new OpenAIRealtimeSIP();
@@ -231,13 +232,18 @@ export async function runAgenticSipSession(
 
   try {
     await session.connect({ apiKey: requireEnv('OPENAI_API_KEY'), callId: context.callId });
-    transport.sendEvent({
-      type: 'response.create',
-      response: { instructions: 'Greet the caller, disclose that you are an AI assistant for SAHJONY, and ask how you can help with the property.' },
-    } as any);
+    if (startWithGreeting) {
+      transport.sendEvent({
+        type: 'response.create',
+        response: { instructions: 'Greet the caller, disclose that you are an AI assistant for SAHJONY, and ask how you can help with the property.' },
+      } as any);
+    }
     return await finished;
   } finally {
     if (timeout) clearTimeout(timeout);
+    // OpenAIRealtimeSIP.close() closes only this WebSocket attachment. It does
+    // not issue a Realtime Calls hangup, allowing the next durable slice to
+    // attach to the same existing SIP call by callId.
     transport.close();
   }
 }
