@@ -54,6 +54,7 @@ from app.observability_middleware import install_observability
 from app.openai_wholesale_copilot import router as openai_wholesale_copilot_router
 from app.outbound_gateway import router as outbound_gateway_router
 from app.owner_insights import router as owner_insights_router
+from app.phone_os import router as phone_os_router
 from app.property_enrichment import router as property_enrichment_router
 from app.property_workspace import router as property_workspace_router
 from app.provider_activation import router as provider_activation_router
@@ -149,6 +150,7 @@ app.include_router(sms_scheduling_router)
 app.include_router(google_calendar_sms_router)
 app.include_router(bland_messaging_router)
 app.include_router(voice_router)
+app.include_router(phone_os_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(disposition_router)
