@@ -86,7 +86,7 @@ export default function DealFactoryPage() {
         <p>Every opportunity is separated into verified facts, screening economics, missing evidence and human-controlled next actions. No invented comps. No guessed owners. No autonomous contracts.</p>
       </div>
       <div className={styles.actions}>
-        <a href="/owner/public-data">Find public sources</a>
+        <a href="/owner/live-data">Review data sources</a>
         <a href="/owner/deal-intelligence">Underwrite with comps</a>
         <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh Deal Factory'}</button>
       </div>

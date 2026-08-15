@@ -19,6 +19,7 @@ const command: NavItem[] = [
 const execution: NavItem[] = [
   { href: '/owner/properties', label: 'Property Workspace', icon: '▣' },
   { href: '/owner/communications', label: 'Seller Conversations', icon: '◌' },
+  { href: '/owner/sms-acquisition', label: 'Campaigns', icon: '✦', hint: 'Supervised seller SMS campaigns' },
   { href: '/owner/disposition', label: 'Disposition', icon: '◇' },
   { href: '/owner/closing', label: 'Closings', icon: '□' },
 ];
@@ -36,31 +37,6 @@ const system: NavItem[] = [
   { href: '/owner/system-health', label: 'System Health', icon: '●' },
   { href: '/owner/audit', label: 'Audit Trail', icon: '≡' },
   { href: '/owner/security', label: 'Admin & Security', icon: '⌾' },
-];
-
-const advanced: NavItem[] = [
-  { href: '/owner/start', label: 'Start Here', icon: '➤' },
-  { href: '/owner/deals', label: 'Legacy Deals View', icon: '◇' },
-  { href: '/owner/nationwide-acquisition', label: 'Nationwide Acquisition', icon: '★' },
-  { href: '/owner/acquisition-automation', label: 'Acquisition Automation', icon: '↯' },
-  { href: '/owner/sms-acquisition', label: 'AI SMS Acquisition', icon: '✦' },
-  { href: '/owner/nationwide-data', label: 'Nationwide Data', icon: '✓' },
-  { href: '/owner/national-intelligence', label: 'National Intelligence', icon: '◫' },
-  { href: '/owner/real-estate-intelligence', label: 'Property Intelligence', icon: '◆' },
-  { href: '/owner/county', label: 'County Verification', icon: '▤' },
-  { href: '/owner/public-data', label: 'Public Data Providers', icon: '◎' },
-  { href: '/owner/provider-activation', label: 'Provider Activation', icon: '⊕' },
-  { href: '/owner/intelligence', label: 'Canonical Intelligence', icon: '◈' },
-  { href: '/owner/data-intake', label: 'Data Intake', icon: '⇩' },
-  { href: '/owner/business', label: 'Business OS', icon: '▦' },
-  { href: '/owner/operations', label: 'Operations Console', icon: '⚙' },
-  { href: '/owner/activate', label: 'Activation Console', icon: '△' },
-  { href: '/owner/events', label: 'Event Core', icon: '⌁' },
-  { href: '/owner/go-live', label: 'Go-Live Readiness', icon: '▷' },
-  { href: '/owner/launch-validation', label: 'Launch Validation', icon: '✓' },
-  { href: '/owner/continuity', label: 'Business Continuity', icon: '∞' },
-  { href: '/owner/sessions', label: 'Active Sessions', icon: '⌁' },
-  { href: '/owner/test-deal', label: 'Deal Rehearsal', icon: '◇' },
 ];
 
 function LinkGroup({ label, items, pathname, onNavigate }: { label: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
@@ -97,10 +73,6 @@ export default function OwnerNavigation() {
         <LinkGroup label="Execute" items={execution} pathname={pathname} onNavigate={() => setOpen(false)} />
         <LinkGroup label="Intelligence" items={intelligence} pathname={pathname} onNavigate={() => setOpen(false)} />
         <LinkGroup label="System" items={system} pathname={pathname} onNavigate={() => setOpen(false)} />
-        <details className="ownerNavAdvanced">
-          <summary>Advanced tools</summary>
-          <LinkGroup label="" items={advanced} pathname={pathname} onNavigate={() => setOpen(false)} />
-        </details>
       </nav>
       <footer><span className="ownerLiveDot"/><div><b>Supervised autonomy</b><small>AI prepares · humans authorize</small></div></footer>
     </aside>
