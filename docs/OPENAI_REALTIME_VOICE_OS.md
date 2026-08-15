@@ -70,7 +70,7 @@ Store the generated signing secret in Vercel as `OPENAI_WEBHOOK_SECRET` for Prod
 
 ## Bland SIP routing target
 
-Bland supports SIP trunk configuration through its SIP dashboard/API. The inbound number `+12164804413` must be attached to an inbound SIP route whose destination is the OpenAI Realtime SIP endpoint for the OpenAI project. Do not guess the SIP endpoint or substitute Bland's own generic SIP host: use the project-specific destination shown/configured by OpenAI and verify it with a test call.
+Bland supports inbound and outbound SIP trunks. Attach `+12164804413` to the inbound trunk and route it to the project-specific OpenAI Realtime SIP destination. Use Bland's SIP setup wizard or `POST /v1/sip/attach`; do not substitute a generic SIP hostname for the OpenAI project destination without a successful test call.
 
 The Bland outbound number `+13465214387` remains controlled by the existing outbound gateway and must continue to pass compliance evaluation and owner approval before dispatch.
 
