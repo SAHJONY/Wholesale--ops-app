@@ -65,6 +65,7 @@ from app.public_data_providers import router as public_data_router
 from app.real_deal_candidates import router as real_deal_candidates_router
 from app.real_deals import router as real_deals_router
 from app.real_estate_intelligence import router as real_estate_intelligence_router
+from app.realtime_voice_orchestrator import router as realtime_voice_orchestrator_router
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
 from app.security_middleware import SecurityMiddleware
@@ -157,6 +158,7 @@ app.include_router(phone_os_router)
 app.include_router(phone_os_automation_router)
 app.include_router(agentic_voice_router)
 app.include_router(voice_intelligence_router)
+app.include_router(realtime_voice_orchestrator_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(disposition_router)
