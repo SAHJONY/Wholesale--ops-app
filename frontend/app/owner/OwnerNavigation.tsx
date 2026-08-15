@@ -4,66 +4,57 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-type NavItem = { href: string; label: string; icon: string };
+type NavItem = { href: string; label: string; icon: string; hint?: string };
 
-const primary: NavItem[] = [
-  { href: '/owner/start', label: 'Start here', icon: '➤' },
-  { href: '/owner', label: 'CEO command center', icon: '⌂' },
-  { href: '/owner/attention', label: 'Attention', icon: '!' },
-  { href: '/owner/nationwide-acquisition', label: 'Nationwide acquisition', icon: '★' },
-  { href: '/owner/properties', label: 'Property workspaces', icon: '▣' },
-  { href: '/owner/acquisition', label: 'Acquisition pipeline', icon: '↗' },
-  { href: '/owner/real-deals', label: 'Real wholesale deals', icon: '$' },
-  { href: '/owner/deals', label: 'Deals', icon: '◇' },
-  { href: '/owner/communications', label: 'Seller communications', icon: '◌' },
-  { href: '/owner/sms-acquisition', label: 'AI SMS acquisition', icon: '✦' },
-  { href: '/owner/disposition', label: 'Buyer disposition', icon: '◎' },
+const command: NavItem[] = [
+  { href: '/owner', label: 'Command Center', icon: '⌂', hint: 'Money + next actions' },
+  { href: '/owner/attention', label: 'Action Inbox', icon: '!', hint: 'Approvals + blockers' },
+  { href: '/owner/acquisition', label: 'Prospects', icon: '↗', hint: 'Discover + qualify' },
+  { href: '/owner/real-deals', label: 'Real Deals', icon: '$', hint: 'Verified $10K+ spread' },
+  { href: '/owner/buyer-intake', label: 'Buyers', icon: '◎', hint: 'Buy boxes + proof of funds' },
+];
+
+const execution: NavItem[] = [
+  { href: '/owner/properties', label: 'Property Workspace', icon: '▣' },
+  { href: '/owner/communications', label: 'Seller Conversations', icon: '◌' },
+  { href: '/owner/disposition', label: 'Disposition', icon: '◇' },
+  { href: '/owner/closing', label: 'Closings', icon: '□' },
 ];
 
 const intelligence: NavItem[] = [
-  { href: '/owner/deal-intelligence', label: 'Deal intelligence', icon: '⌘' },
-  { href: '/owner/markets', label: 'Market selection', icon: '⌖' },
-  { href: '/owner/lead-verification', label: 'Lead verification', icon: '⛨' },
-  { href: '/owner/live-data', label: 'Live data control plane', icon: '◉' },
-  { href: '/owner/real-estate-intelligence', label: 'Property intelligence', icon: '◆' },
-  { href: '/owner/nationwide-data', label: 'Nationwide data', icon: '✓' },
-  { href: '/owner/national-intelligence', label: 'Market intelligence', icon: '◫' },
-  { href: '/owner/buyer-intake', label: 'Buyer network', icon: '♢' },
+  { href: '/owner/deal-intelligence', label: 'Underwriting', icon: '⌘' },
+  { href: '/owner/lead-verification', label: 'Verification', icon: '⛨' },
+  { href: '/owner/markets', label: 'Markets', icon: '⌖' },
+  { href: '/owner/live-data', label: 'Data Sources', icon: '◉' },
+  { href: '/owner/jobs', label: 'AI Workforce', icon: '↻' },
 ];
 
-const operations: NavItem[] = [
-  { href: '/owner/business', label: 'Business OS', icon: '▦' },
-  { href: '/owner/operations', label: 'Business operations', icon: '⚙' },
-  { href: '/owner/closing', label: 'Closings', icon: '□' },
-  { href: '/owner/jobs', label: 'AI workforce', icon: '↻' },
+const system: NavItem[] = [
   { href: '/owner/integrations', label: 'Integrations', icon: '+' },
-  { href: '/owner/system-health', label: 'System health', icon: '●' },
-  { href: '/owner/security', label: 'Administration & security', icon: '⌾' },
+  { href: '/owner/system-health', label: 'System Health', icon: '●' },
+  { href: '/owner/audit', label: 'Audit Trail', icon: '≡' },
+  { href: '/owner/security', label: 'Admin & Security', icon: '⌾' },
 ];
 
 const advanced: NavItem[] = [
-  { href: '/owner/acquisition-automation', label: 'Acquisition automation', icon: '↯' },
-  { href: '/owner/activate', label: 'Activation console', icon: '△' },
-  { href: '/owner/audit', label: 'Audit trail', icon: '≡' },
-  { href: '/owner/continuity', label: 'Business continuity', icon: '∞' },
-  { href: '/owner/county', label: 'County verification', icon: '▤' },
-  { href: '/owner/data-intake', label: 'Data intake', icon: '⇩' },
-  { href: '/owner/events', label: 'Event core', icon: '⌁' },
-  { href: '/owner/go-live', label: 'Go-live readiness', icon: '▷' },
-  { href: '/owner/intelligence', label: 'Canonical intelligence', icon: '◈' },
-  { href: '/owner/launch-validation', label: 'Launch validation', icon: '✓' },
-  { href: '/owner/provider-activation', label: 'Provider activation', icon: '⊕' },
-  { href: '/owner/public-data', label: 'Public data providers', icon: '◎' },
-  { href: '/owner/sessions', label: 'Active sessions', icon: '⌁' },
-  { href: '/owner/test-deal', label: 'Deal rehearsal', icon: '◇' },
+  { href: '/owner/nationwide-acquisition', label: 'Nationwide Acquisition', icon: '★' },
+  { href: '/owner/sms-acquisition', label: 'AI SMS Acquisition', icon: '✦' },
+  { href: '/owner/nationwide-data', label: 'Nationwide Data', icon: '✓' },
+  { href: '/owner/county', label: 'County Verification', icon: '▤' },
+  { href: '/owner/public-data', label: 'Public Data Providers', icon: '◎' },
+  { href: '/owner/provider-activation', label: 'Provider Activation', icon: '⊕' },
+  { href: '/owner/intelligence', label: 'Canonical Intelligence', icon: '◈' },
+  { href: '/owner/operations', label: 'Operations Console', icon: '⚙' },
 ];
 
 function LinkGroup({ label, items, pathname, onNavigate }: { label: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
   return <section className="ownerNavGroup">
     <span>{label}</span>
     {items.map(item => {
-      const active = item.href === '/owner' ? pathname === '/owner' || pathname === '/owner/ceo-command' : pathname === item.href || pathname.startsWith(`${item.href}/`);
-      return <Link key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate}>
+      const active = item.href === '/owner'
+        ? pathname === '/owner' || pathname === '/owner/ceo-command'
+        : pathname === item.href || pathname.startsWith(`${item.href}/`);
+      return <Link key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate} title={item.hint}>
         <i aria-hidden="true">{item.icon}</i><span>{item.label}</span>
       </Link>;
     })}
@@ -84,14 +75,18 @@ export default function OwnerNavigation() {
     </header>
     {open && <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} />}
     <aside id="owner-navigation" className={`ownerNav ${open ? 'open' : ''}`}>
-      <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale OS</small></div></Link>
+      <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale Operating System</small></div></Link>
       <nav aria-label="Owner workspace">
-        <LinkGroup label="Executive workspace" items={primary} pathname={pathname} onNavigate={() => setOpen(false)} />
+        <LinkGroup label="Operate" items={command} pathname={pathname} onNavigate={() => setOpen(false)} />
+        <LinkGroup label="Execute" items={execution} pathname={pathname} onNavigate={() => setOpen(false)} />
         <LinkGroup label="Intelligence" items={intelligence} pathname={pathname} onNavigate={() => setOpen(false)} />
-        <LinkGroup label="Business operations" items={operations} pathname={pathname} onNavigate={() => setOpen(false)} />
-        <LinkGroup label="Advanced & setup" items={advanced} pathname={pathname} onNavigate={() => setOpen(false)} />
+        <LinkGroup label="System" items={system} pathname={pathname} onNavigate={() => setOpen(false)} />
+        <details className="ownerNavAdvanced">
+          <summary>Advanced tools</summary>
+          <LinkGroup label="" items={advanced} pathname={pathname} onNavigate={() => setOpen(false)} />
+        </details>
       </nav>
-      <footer><span className="ownerLiveDot"/><div><b>Supervised autonomy</b><small>Human approval enforced</small></div></footer>
+      <footer><span className="ownerLiveDot"/><div><b>Supervised autonomy</b><small>AI prepares · humans authorize</small></div></footer>
     </aside>
   </>;
 }
