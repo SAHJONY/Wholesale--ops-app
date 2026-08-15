@@ -81,6 +81,7 @@ from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
 from app.verified_ingest import router as verified_ingest_router
 from app.voice_engine import router as voice_router
+from app.voice_intelligence import router as voice_intelligence_router
 from app.wholesale_skill_engine import router as wholesale_skill_engine_router
 
 background_jobs_module.SCHEDULE = "30 13 * * *"
@@ -155,6 +156,7 @@ app.include_router(voice_router)
 app.include_router(phone_os_router)
 app.include_router(phone_os_automation_router)
 app.include_router(agentic_voice_router)
+app.include_router(voice_intelligence_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(disposition_router)
