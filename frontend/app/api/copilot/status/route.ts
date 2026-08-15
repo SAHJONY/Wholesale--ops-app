@@ -1,6 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+async function requireSession(request: NextRequest) {
+  const cookie = request.headers.get('cookie') || '';
+  if (!cookie.includes('sahjony_owner_session=')) return { ok: false as const, status: 401 };
+  try {
+    const response = await fetch(new URL('/api/owner-access/session', request.url), {
+      cache: 'no-store',
+      headers: { cookie },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.authenticated) return { ok: false as const, status: response.status === 503 ? 503 : 401 };
+    return { ok: true as const, status: 200 };
+  } catch {
+    return { ok: false as const, status: 503 };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const session = await requireSession(request);
+  if (!session.ok) {
+    return NextResponse.json(
+      { detail: session.status === 503 ? 'Owner session validation unavailable' : 'Owner session required' },
+      { status: session.status, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+    );
+  }
+
   return NextResponse.json({
     configured: Boolean(process.env.OPENAI_API_KEY),
     model: process.env.OPENAI_MODEL || 'gpt-5',
