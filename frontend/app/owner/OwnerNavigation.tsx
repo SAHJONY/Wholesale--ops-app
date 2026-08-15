@@ -13,6 +13,7 @@ const primary: NavItem[] = [
   { href: '/owner/nationwide-acquisition', label: 'Nationwide acquisition', icon: '★' },
   { href: '/owner/properties', label: 'Property workspaces', icon: '▣' },
   { href: '/owner/acquisition', label: 'Acquisition pipeline', icon: '↗' },
+  { href: '/owner/real-deals', label: 'Real wholesale deals', icon: '$' },
   { href: '/owner/deals', label: 'Deals', icon: '◇' },
   { href: '/owner/communications', label: 'Seller communications', icon: '◌' },
   { href: '/owner/sms-acquisition', label: 'AI SMS acquisition', icon: '✦' },
