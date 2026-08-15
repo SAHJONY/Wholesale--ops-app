@@ -6,7 +6,7 @@
   "outputDirectory": "frontend/.next",
   "functions": {
     "frontend/app/api/queues/realtime-call/route.ts": {
-      "maxDuration": 1800,
+      "maxDuration": 300,
       "experimentalTriggers": [
         {
           "type": "queue/v2beta",
