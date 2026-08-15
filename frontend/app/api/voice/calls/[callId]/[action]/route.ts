@@ -43,13 +43,13 @@ function safeCallId(value: string) {
   return /^rtc_[A-Za-z0-9_-]{8,200}$/.test(value);
 }
 
-function validE164(raw: string) {
+function normalizeE164(raw: string) {
   const value = raw.trim();
   return /^\+[1-9]\d{7,14}$/.test(value) ? value : null;
 }
 
 function phoneTarget(raw: string) {
-  const value = validE164(raw);
+  const value = normalizeE164(raw);
   return value ? `tel:${value}` : null;
 }
 
@@ -78,15 +78,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ca
   } else if (action === 'refer') {
     const configured = String(process.env.VOICE_HUMAN_TRANSFER_TARGET || '').trim();
     const requested = String((await request.json().catch(() => ({})))?.target || '').trim();
-    const target = validE164(requested || configured);
+    const target = normalizeE164(requested || configured);
+    const inbound = normalizeE164(String(process.env.VOICE_INBOUND_NUMBER || '').trim());
     if (!target) return NextResponse.json({ detail: 'A valid E.164 human transfer target is required' }, { status: 422 });
-
-    const inbound = validE164(String(process.env.VOICE_INBOUND_NUMBER || ''));
     if (inbound && target === inbound) {
-      return NextResponse.json(
-        { detail: 'Human transfer target must differ from the AI inbound number to prevent a transfer loop' },
-        { status: 422 },
-      );
+      return NextResponse.json({ detail: 'Human transfer target cannot equal the AI inbound number; transfer loop blocked' }, { status: 422 });
     }
     body = { target_uri: phoneTarget(target) };
   } else if (action === 'reject') {
