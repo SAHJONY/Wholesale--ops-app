@@ -10,6 +10,33 @@ Phone/SIP provider -> OpenAI Realtime SIP -> SAHJONY Voice Agent -> CRM / wholes
 
 OpenAI is the AI conversation runtime. A telephone/SIP provider is still required to supply and route PSTN phone numbers.
 
+## Resolved SAHJONY voice configuration
+
+- Primary phone number: `+12816628581`.
+- Telephony provider target: `bland` (matches the application's existing communications provider and outbound gateway).
+- Realtime model: `gpt-realtime`.
+- Realtime voice: `marin`.
+- Human transfer target: intentionally unset until a second reachable phone number is supplied. Do not set it to `+12816628581`, because referring the call back to the same inbound number can create a transfer loop.
+- OpenAI webhook secret: intentionally unset until a webhook endpoint is created in the OpenAI project and its signing secret is copied into Vercel.
+- SIP routing domain: intentionally unset until the Bland SIP trunk is attached and its destination is verified end-to-end. Do not substitute Bland's generic outbound setup host for the actual OpenAI-bound route without testing.
+
+Target Vercel values:
+
+```text
+OPENAI_REALTIME_MODEL=gpt-realtime
+OPENAI_REALTIME_VOICE=marin
+VOICE_TELEPHONY_PROVIDER=bland
+VOICE_INBOUND_NUMBER=+12816628581
+```
+
+Still required before production activation:
+
+```text
+OPENAI_WEBHOOK_SECRET=<OpenAI-generated webhook signing secret>
+VOICE_HUMAN_TRANSFER_TARGET=<different human E.164 number>
+VOICE_SIP_DOMAIN=<verified SIP routing destination/domain>
+```
+
 ## Current controlled implementation
 
 - Authenticated `/api/voice/status` reports configuration presence without returning secrets.
