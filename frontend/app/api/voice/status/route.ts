@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const provider = String(process.env.VOICE_TELEPHONY_PROVIDER || '').trim().toLowerCase() || null;
+  // Bland is the existing SAHJONY communications carrier. Keep the environment
+  // override so a future carrier migration does not require a code change.
+  const provider = String(process.env.VOICE_TELEPHONY_PROVIDER || 'bland').trim().toLowerCase();
   const inbound = String(process.env.VOICE_INBOUND_NUMBER || '').trim() || null;
   const transferTarget = String(process.env.VOICE_HUMAN_TRANSFER_TARGET || '').trim() || null;
 
