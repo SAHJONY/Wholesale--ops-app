@@ -18,6 +18,7 @@ const command: NavItem[] = [
 
 const execution: NavItem[] = [
   { href: '/owner/properties', label: 'Property Workspace', icon: '▣' },
+  { href: '/owner/phone-os', label: 'Phone OS', icon: '☎', hint: 'AI calls + qualification + human handoff' },
   { href: '/owner/communications', label: 'Seller Conversations', icon: '◌' },
   { href: '/owner/sms-acquisition', label: 'Campaigns', icon: '✦', hint: 'Supervised seller SMS campaigns' },
   { href: '/owner/disposition', label: 'Disposition', icon: '◇' },
