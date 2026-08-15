@@ -3,5 +3,18 @@
   "framework": "nextjs",
   "installCommand": "npm install",
   "buildCommand": "npm run build",
-  "outputDirectory": "frontend/.next"
+  "outputDirectory": "frontend/.next",
+  "functions": {
+    "frontend/app/api/queues/realtime-call/route.ts": {
+      "maxDuration": 1800,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "sahjony-realtime-calls",
+          "retryAfterSeconds": 10,
+          "initialDelaySeconds": 0
+        }
+      ]
+    }
+  }
 }
