@@ -43,10 +43,14 @@ function safeCallId(value: string) {
   return /^rtc_[A-Za-z0-9_-]{8,200}$/.test(value);
 }
 
-function phoneTarget(raw: string) {
+function validE164(raw: string) {
   const value = raw.trim();
-  if (!/^\+[1-9]\d{7,14}$/.test(value)) return null;
-  return `tel:${value}`;
+  return /^\+[1-9]\d{7,14}$/.test(value) ? value : null;
+}
+
+function phoneTarget(raw: string) {
+  const value = validE164(raw);
+  return value ? `tel:${value}` : null;
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ callId: string; action: string }> }) {
@@ -74,10 +78,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ca
   } else if (action === 'refer') {
     const configured = String(process.env.VOICE_HUMAN_TRANSFER_TARGET || '').trim();
     const requested = String((await request.json().catch(() => ({})))?.target || '').trim();
-    const target = requested || configured;
-    const uri = phoneTarget(target);
-    if (!uri) return NextResponse.json({ detail: 'A valid E.164 human transfer target is required' }, { status: 422 });
-    body = { target_uri: uri };
+    const target = validE164(requested || configured);
+    if (!target) return NextResponse.json({ detail: 'A valid E.164 human transfer target is required' }, { status: 422 });
+
+    const inbound = validE164(String(process.env.VOICE_INBOUND_NUMBER || ''));
+    if (inbound && target === inbound) {
+      return NextResponse.json(
+        { detail: 'Human transfer target must differ from the AI inbound number to prevent a transfer loop' },
+        { status: 422 },
+      );
+    }
+    body = { target_uri: phoneTarget(target) };
   } else if (action === 'reject') {
     const payload = await request.json().catch(() => ({}));
     const statusCode = Number(payload?.status_code || 603);
