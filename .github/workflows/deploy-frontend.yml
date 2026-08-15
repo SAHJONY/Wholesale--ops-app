@@ -1,0 +1,51 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vercel.json'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: false
+
+env:
+  FRONTEND_ORG_ID: team_Me3fB0D0J6He10CgJlJ44Xaq
+  FRONTEND_PROJECT_ID: prj_9kGGPvXomtn9ZMscOcsapPQMlWkV
+
+jobs:
+  frontend:
+    name: Deploy frontend production
+    runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' && 'yes' || 'no' }}
+      MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'yes' || 'no' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require deployment token
+        if: env.HAS_TOKEN == 'no'
+        run: |
+          echo "::warning::VERCEL_TOKEN is not set, so the frontend was not deployed."
+          if [ "$MANUAL_RUN" = "yes" ]; then
+            exit 1
+          fi
+
+      - name: Deploy frontend
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          VERCEL_ORG_ID: ${{ env.FRONTEND_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.FRONTEND_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npm install --global vercel@latest
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
+            --env GIT_COMMIT_SHA="$GITHUB_SHA" \
+            --build-env GIT_COMMIT_SHA="$GITHUB_SHA"
