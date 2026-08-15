@@ -37,14 +37,28 @@ const system: NavItem[] = [
 ];
 
 const advanced: NavItem[] = [
+  { href: '/owner/start', label: 'Start Here', icon: '➤' },
+  { href: '/owner/deals', label: 'Legacy Deals View', icon: '◇' },
   { href: '/owner/nationwide-acquisition', label: 'Nationwide Acquisition', icon: '★' },
+  { href: '/owner/acquisition-automation', label: 'Acquisition Automation', icon: '↯' },
   { href: '/owner/sms-acquisition', label: 'AI SMS Acquisition', icon: '✦' },
   { href: '/owner/nationwide-data', label: 'Nationwide Data', icon: '✓' },
+  { href: '/owner/national-intelligence', label: 'National Intelligence', icon: '◫' },
+  { href: '/owner/real-estate-intelligence', label: 'Property Intelligence', icon: '◆' },
   { href: '/owner/county', label: 'County Verification', icon: '▤' },
   { href: '/owner/public-data', label: 'Public Data Providers', icon: '◎' },
   { href: '/owner/provider-activation', label: 'Provider Activation', icon: '⊕' },
   { href: '/owner/intelligence', label: 'Canonical Intelligence', icon: '◈' },
+  { href: '/owner/data-intake', label: 'Data Intake', icon: '⇩' },
+  { href: '/owner/business', label: 'Business OS', icon: '▦' },
   { href: '/owner/operations', label: 'Operations Console', icon: '⚙' },
+  { href: '/owner/activate', label: 'Activation Console', icon: '△' },
+  { href: '/owner/events', label: 'Event Core', icon: '⌁' },
+  { href: '/owner/go-live', label: 'Go-Live Readiness', icon: '▷' },
+  { href: '/owner/launch-validation', label: 'Launch Validation', icon: '✓' },
+  { href: '/owner/continuity', label: 'Business Continuity', icon: '∞' },
+  { href: '/owner/sessions', label: 'Active Sessions', icon: '⌁' },
+  { href: '/owner/test-deal', label: 'Deal Rehearsal', icon: '◇' },
 ];
 
 function LinkGroup({ label, items, pathname, onNavigate }: { label: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
