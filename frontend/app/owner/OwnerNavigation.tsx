@@ -8,6 +8,7 @@ type NavItem = { href: string; label: string; icon: string; hint?: string };
 
 const command: NavItem[] = [
   { href: '/owner', label: 'Command Center', icon: '⌂', hint: 'Money + next actions' },
+  { href: '/owner/deal-factory', label: 'Deal Factory', icon: '✦', hint: 'Nationwide source-backed deal analysis' },
   { href: '/owner/attention', label: 'Action Inbox', icon: '!', hint: 'Approvals + blockers' },
   { href: '/owner/acquisition', label: 'Prospects', icon: '↗', hint: 'Discover + qualify' },
   { href: '/owner/real-deals', label: 'Real Deals', icon: '$', hint: 'Verified $10K+ spread' },
