@@ -11,6 +11,16 @@ For material recommendations, state evidence, unknowns, and next checkable actio
 const MAX_CONTEXT_CHARS = 30_000;
 const MAX_ITEMS_PER_ARRAY = 20;
 const MAX_STRING_CHARS = 800;
+const ROLE_RANK: Record<string, number> = {
+  viewer: 10,
+  va: 20,
+  acquisitions: 30,
+  disposition: 30,
+  transaction_coordinator: 30,
+  manager: 70,
+  admin: 90,
+  owner: 100,
+};
 
 function outputText(response: any): string {
   if (typeof response?.output_text === 'string') return response.output_text;
@@ -93,7 +103,10 @@ async function requireOwner(request: NextRequest) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data?.authenticated) return { ok: false as const, status: response.status === 503 ? 503 : 401, principal: null };
-    return { ok: true as const, status: 200, principal: data.principal || null };
+    const principal = data.principal || null;
+    const role = String(principal?.role || '').toLowerCase();
+    if ((ROLE_RANK[role] || 0) < ROLE_RANK.acquisitions) return { ok: false as const, status: 403, principal };
+    return { ok: true as const, status: 200, principal };
   } catch {
     return { ok: false as const, status: 503, principal: null };
   }
@@ -154,8 +167,9 @@ async function workspaceContext(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const owner = await requireOwner(request);
   if (!owner.ok) {
+    const detail = owner.status === 503 ? 'Owner session validation unavailable' : owner.status === 403 ? 'Acquisitions role or higher required' : 'Owner session required';
     return NextResponse.json(
-      { detail: owner.status === 503 ? 'Owner session validation unavailable' : 'Owner session required' },
+      { detail },
       { status: owner.status, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
     );
   }
