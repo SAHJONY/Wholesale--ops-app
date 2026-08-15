@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -15,6 +16,7 @@ from .intelligence_models import IntelligenceConflict, IntelligenceFact
 from .models import Buyer, Deal, Lead, Property
 from .real_deals import _looks_like_entity
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/wholesale-os", tags=["wholesale operating system"])
 
 SKILLS: list[dict[str, Any]] = [
@@ -125,14 +127,24 @@ def _facts(db: Session, org_id: int, property_id: int) -> list[IntelligenceFact]
     ).order_by(IntelligenceFact.confidence.desc(), IntelligenceFact.updated_at.desc())).all())
 
 
+def _fact_value(fact: IntelligenceFact | None):
+    if not fact or not isinstance(fact.value_json, dict):
+        return None
+    return fact.value_json.get("value")
+
+
 def _best(facts: list[IntelligenceFact], field: str) -> IntelligenceFact | None:
-    eligible = [f for f in facts if f.field_name == field and f.verification_status in ACCEPTED and (f.value_json or {}).get("value") not in (None, "")]
+    eligible = [
+        fact for fact in facts
+        if fact.field_name == field
+        and fact.verification_status in ACCEPTED
+        and _fact_value(fact) not in (None, "")
+    ]
     return eligible[0] if eligible else None
 
 
 def _value(facts: list[IntelligenceFact], field: str):
-    fact = _best(facts, field)
-    return (fact.value_json or {}).get("value") if fact else None
+    return _fact_value(_best(facts, field))
 
 
 def _open_conflicts(db: Session, org_id: int, property_id: int) -> list[str]:
@@ -154,8 +166,8 @@ def _buyer_payload(buyer: Buyer) -> dict[str, Any]:
     return {
         "id": buyer.id,
         "name": buyer.name,
-        "zip_codes": buyer.zip_codes or [],
-        "asset_types": buyer.asset_types or [],
+        "zip_codes": buyer.zip_codes if isinstance(buyer.zip_codes, list) else [],
+        "asset_types": buyer.asset_types if isinstance(buyer.asset_types, list) else [],
         "min_price": buyer.min_price,
         "max_price": buyer.max_price,
         "max_rehab": buyer.max_rehab,
@@ -164,6 +176,41 @@ def _buyer_payload(buyer: Buyer) -> dict[str, Any]:
         "response_rate": buyer.response_rate,
         "reliability_score": buyer.reliability_score,
     }
+
+
+def _rank_buyer_matches(property_payload: dict[str, Any], buyers: list[Buyer]) -> tuple[list[dict[str, Any]], int]:
+    """Rank buyers without allowing one malformed buy box to crash the factory.
+
+    Invalid numeric/list fields are not guessed or silently coerced into a deal fact.
+    The offending buyer is omitted from this property's ranking and counted so the
+    analysis can surface the evidence gap.
+    """
+    ranked: list[dict[str, Any]] = []
+    invalid = 0
+    for buyer in buyers:
+        try:
+            rows = rank_buyers(property_payload, [_buyer_payload(buyer)])
+        except (TypeError, ValueError, OverflowError):
+            invalid += 1
+            logger.warning(
+                "Deal Factory skipped malformed buyer buy box",
+                extra={"buyer_id": getattr(buyer, "id", None), "property_id": property_payload.get("id")},
+            )
+            continue
+        ranked.extend(rows)
+
+    ranked.sort(key=lambda row: float(row.get("response_probability") or 0), reverse=True)
+    matches = [
+        {
+            "buyer_id": row.get("buyer_id"),
+            "name": row.get("buyer_name"),
+            "response_probability": row.get("response_probability"),
+            "fit_score": row.get("buy_box_fit"),
+            "reasons": row.get("reasons") or [],
+        }
+        for row in ranked[:5]
+    ]
+    return matches, invalid
 
 
 def _source_summary(facts: list[IntelligenceFact]) -> list[dict[str, Any]]:
@@ -190,7 +237,7 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
     facts = _facts(db, principal.organization_id, prop.id)
     conflicts = _open_conflicts(db, principal.organization_id, prop.id)
     owner_fact = _best(facts, "owner_name")
-    owner = str((owner_fact.value_json or {}).get("value") or "").strip() if owner_fact else ""
+    owner = str(_fact_value(owner_fact) or "").strip() if owner_fact else ""
     individual_owner = bool(owner and not _looks_like_entity(owner))
 
     missing: list[str] = []
@@ -210,6 +257,10 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
         if prop.asking_price is not None:
             spread = screening_buyer_price - float(prop.asking_price)
 
+    distress_signals = prop.distress_signals if isinstance(prop.distress_signals, list) else []
+    if prop.distress_signals not in (None, []) and not isinstance(prop.distress_signals, list):
+        missing.append("normalize malformed distress signals")
+
     property_payload = {
         "id": prop.id,
         "address": prop.address,
@@ -223,18 +274,11 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
         "asking_price": prop.asking_price,
         "arv": prop.arv,
         "repairs": prop.repairs,
-        "distress_signals": prop.distress_signals or [],
+        "distress_signals": distress_signals,
     }
-    ranked = rank_buyers(property_payload, [_buyer_payload(b) for b in buyers]) if buyers else []
-    buyer_matches = []
-    for row in ranked[:5]:
-        buyer_matches.append({
-            "buyer_id": row.get("buyer_id"),
-            "name": row.get("name"),
-            "response_probability": row.get("response_probability"),
-            "fit_score": row.get("fit_score"),
-            "reasons": row.get("reasons") or [],
-        })
+    buyer_matches, invalid_buyers = _rank_buyer_matches(property_payload, buyers) if buyers else ([], 0)
+    if invalid_buyers:
+        missing.append(f"{invalid_buyers} buyer buy box record(s) require normalization")
 
     verified_material = 0
     material_total = 7
@@ -248,9 +292,15 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
     evidence_score = round(100 * verified_material / material_total)
 
     economics_pass = spread is not None and spread >= 10_000
-    ready_for_promotion = not conflicts and individual_owner and economics_pass and prop.property_type == "single_family" and not any(x in missing for x in ["parcel/APN", "source-backed ARV", "repair estimate", "seller/asking price"])
+    ready_for_promotion = (
+        not conflicts
+        and individual_owner
+        and economics_pass
+        and prop.property_type == "single_family"
+        and not any(x in missing for x in ["parcel/APN", "source-backed ARV", "repair estimate", "seller/asking price"])
+    )
 
-    distress = list(dict.fromkeys((prop.distress_signals or []) + [
+    distress = list(dict.fromkeys(distress_signals + [
         field for field in ("tax_delinquency", "code_violation", "probate", "lis_pendens", "foreclosure_sale", "notice_of_default", "vacancy")
         if _value(facts, field) not in (None, False, "", 0)
     ]))
@@ -275,6 +325,7 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
     else:
         next_action = "Complete buyer and title verification."
 
+    sources = _source_summary(facts)
     return {
         "property": property_payload,
         "owner": {
@@ -303,8 +354,8 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
         "buyers": buyer_matches,
         "evidence": {
             "score": evidence_score,
-            "sources": _source_summary(facts),
-            "source_count": len(_source_summary(facts)),
+            "sources": sources,
+            "source_count": len(sources),
             "open_conflicts": conflicts,
             "missing": missing,
         },
@@ -339,7 +390,29 @@ def deal_factory(principal: Principal = Depends(get_principal), db: Session = De
     lead_ids = _ids(db, principal.organization_id, "lead")
     leads = list(db.scalars(select(Lead).where(Lead.id.in_(lead_ids))).all()) if lead_ids else []
     buyers = _buyer_rows(db, principal)
-    analyses = [_analysis(db, principal, lead.property, buyers) for lead in leads if lead.property]
+
+    analyses: list[dict[str, Any]] = []
+    analysis_warnings: list[dict[str, Any]] = []
+    seen_properties: set[int] = set()
+    for lead in leads:
+        prop = lead.property
+        if not prop or prop.id in seen_properties:
+            continue
+        seen_properties.add(prop.id)
+        try:
+            analyses.append(_analysis(db, principal, prop, buyers))
+        except Exception:
+            logger.exception(
+                "Deal Factory property analysis failed",
+                extra={"organization_id": principal.organization_id, "lead_id": lead.id, "property_id": prop.id},
+            )
+            analysis_warnings.append({
+                "lead_id": lead.id,
+                "property_id": prop.id,
+                "code": "property_analysis_failed",
+                "message": "This property was skipped because stored source data requires normalization.",
+            })
+
     analyses.sort(key=lambda row: (
         bool(row["decision"]["ready_for_promotion"]),
         float(row["economics"]["projected_screening_spread"] or -1e12),
@@ -359,8 +432,10 @@ def deal_factory(principal: Principal = Depends(get_principal), db: Session = De
             "meets_10k_screen": sum(bool(row["economics"]["meets_10k_target"]) for row in analyses),
             "buyers": len(buyers),
             "promoted_deals": len(deals),
+            "analysis_errors": len(analysis_warnings),
         },
         "opportunities": analyses,
+        "analysis_warnings": analysis_warnings,
         "skills": [{"id": item["id"], "name": item["name"], "risk": item["risk"]} for item in SKILLS],
         "operating_flow": [
             "Discover public/court/property sources",
