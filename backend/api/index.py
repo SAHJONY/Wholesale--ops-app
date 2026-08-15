@@ -6,6 +6,7 @@ from app.acquisition_worker_safe import router as acquisition_worker_router
 from app.activation import router as activation_router
 from app.audit_center import router as audit_router
 from app.auth import router as auth_router
+from app.authorized_acquisition import router as authorized_acquisition_router
 from app.bland_messaging import router as bland_messaging_router
 from app.buyer_intake import router as buyer_intake_router
 from app.cash_buyer_discovery import router as cash_buyer_router
@@ -130,6 +131,7 @@ app.include_router(integration_hub_router)
 app.include_router(integration_reliability_router)
 app.include_router(acquisition_intake_router)
 app.include_router(acquisition_worker_router)
+app.include_router(authorized_acquisition_router)
 app.include_router(property_enrichment_router)
 app.include_router(contact_enrichment_router)
 app.include_router(smarty_router)
