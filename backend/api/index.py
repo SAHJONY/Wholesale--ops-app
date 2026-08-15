@@ -57,6 +57,7 @@ from app.property_workspace import router as property_workspace_router
 from app.provider_activation import router as provider_activation_router
 from app.provider_intelligence import router as provider_intelligence_router
 from app.public_data_providers import router as public_data_router
+from app.real_deals import router as real_deals_router
 from app.real_estate_intelligence import router as real_estate_intelligence_router
 from app.schema_policy import configure_schema
 from app.security_diagnostics import router as security_router
@@ -110,6 +111,7 @@ app.include_router(cash_buyer_router)
 app.include_router(business_os_router)
 app.include_router(test_deal_router)
 app.include_router(real_estate_intelligence_router)
+app.include_router(real_deals_router)
 app.include_router(property_workspace_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
