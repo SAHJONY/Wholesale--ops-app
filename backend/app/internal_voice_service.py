@@ -5,7 +5,6 @@ import hmac
 import json
 import os
 import time
-from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy import select
@@ -16,7 +15,7 @@ from .auth import Principal
 from .auth_models import AppUser, Membership, Organization
 from .database import get_db
 
-router = APIRouter(prefix="/agentic-voice/internal", tags=["internal voice service"])
+router = APIRouter(prefix="/internal", tags=["internal voice service"])
 MAX_SKEW_SECONDS = 300
 DOMAIN = b"sahjony-agentic-voice-service-v1"
 
@@ -104,9 +103,4 @@ async def internal_tool(
         raise HTTPException(422, "arguments must be an object")
     principal = _service_principal(db, organization_id)
     result = execute_tool(tool_name, arguments, principal, db)
-    return {
-        "organization_id": organization_id,
-        "tool_name": tool_name,
-        "result": result,
-        "service_authenticated": True,
-    }
+    return {"organization_id": organization_id, "tool_name": tool_name, "result": result, "service_authenticated": True}
