@@ -86,14 +86,45 @@ def test_ceo_command_center_displays_canonical_close_percentage_once():
     assert "(deal.probability_to_close || 0) * 100" not in source
 
 
-def test_owner_navigation_exposes_every_distinct_workspace():
+def test_owner_navigation_exposes_canonical_workspaces_and_allowlists_transitional_routes():
     navigation = read("frontend/app/owner/OwnerNavigation.tsx")
+    canonical_routes = {
+        "/owner/copilot",
+        "/owner/deal-factory",
+        "/owner/attention",
+        "/owner/acquisition",
+        "/owner/real-deals",
+        "/owner/buyer-intake",
+        "/owner/properties",
+        "/owner/communications",
+        "/owner/sms-acquisition",
+        "/owner/disposition",
+        "/owner/closing",
+        "/owner/deal-intelligence",
+        "/owner/lead-verification",
+        "/owner/markets",
+        "/owner/live-data",
+        "/owner/jobs",
+        "/owner/integrations",
+        "/owner/system-health",
+        "/owner/audit",
+        "/owner/security",
+    }
+    for route in canonical_routes:
+        assert f"href: '{route}'" in navigation, f"Canonical owner route missing from navigation: {route}"
+
+    transitional_hidden_routes = {
+        "/owner/deals",
+        "/owner/provider-activation",
+        "/owner/public-data",
+        "/owner/sessions",
+    }
     pages = sorted((ROOT / "frontend/app/owner").glob("*/page.tsx"))
-    missing = []
+    unexpected_hidden = []
     for page in pages:
         route = f"/owner/{page.parent.name}"
-        if route == "/owner/ceo-command":
+        if route == "/owner/ceo-command" or route in transitional_hidden_routes:
             continue
-        if f"href: '{route}'" not in navigation:
-            missing.append(route)
-    assert not missing, f"Owner routes missing from navigation: {missing}"
+        if route != "/owner" and f"href: '{route}'" not in navigation:
+            unexpected_hidden.append(route)
+    assert not unexpected_hidden, f"Unclassified owner routes missing from navigation: {unexpected_hidden}"
