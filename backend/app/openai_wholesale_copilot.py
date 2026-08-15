@@ -12,8 +12,8 @@ from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity, WorkspaceEntity
 from .config import settings
 from .database import get_db
-from .models import Buyer, Lead, Property
-from .wholesale_os import SKILLS, _analysis
+from .models import Buyer, Property
+from .wholesale_skill_engine import SKILLS, _analysis
 
 router = APIRouter(prefix="/openai-copilot", tags=["OpenAI wholesale copilot"])
 
@@ -78,12 +78,9 @@ def _buyer_dict(buyer: Buyer) -> dict[str, Any]:
 
 def _candidate_rows(db: Session, principal: Principal, limit: int = 25) -> list[dict[str, Any]]:
     buyers = _buyers(db, principal)
-    rows: list[dict[str, Any]] = []
     ids = _property_ids(db, principal)
     props = list(db.scalars(select(Property).where(Property.id.in_(ids))).all()) if ids else []
-    for prop in props:
-        result = _analysis(db, principal, prop, buyers)
-        rows.append(result)
+    rows = [_analysis(db, principal, prop, buyers) for prop in props]
     rows.sort(
         key=lambda row: (
             bool((row.get("decision") or {}).get("ready_for_promotion")),
@@ -111,9 +108,7 @@ def _tool_schemas() -> list[dict[str, Any]]:
             "description": "Return the highest-priority properties already inside the SAHJONY workspace, including owner/deed verification, economics, buyers, evidence gaps, and next action.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "limit": {"type": "integer", "minimum": 1, "maximum": 100},
-                },
+                "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}},
                 "required": ["limit"],
                 "additionalProperties": False,
             },
@@ -137,9 +132,7 @@ def _tool_schemas() -> list[dict[str, Any]]:
             "description": "Return workspace buyers and their buy boxes, including proof-of-funds verification and reliability fields. Does not contact buyers.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "proof_of_funds_only": {"type": "boolean"},
-                },
+                "properties": {"proof_of_funds_only": {"type": "boolean"}},
                 "required": ["proof_of_funds_only"],
                 "additionalProperties": False,
             },
@@ -147,10 +140,7 @@ def _tool_schemas() -> list[dict[str, Any]]:
         },
     ]
     if settings.openai_vector_store_id:
-        tools.insert(1, {
-            "type": "file_search",
-            "vector_store_ids": [settings.openai_vector_store_id],
-        })
+        tools.insert(1, {"type": "file_search", "vector_store_ids": [settings.openai_vector_store_id]})
     return tools
 
 
