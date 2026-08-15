@@ -6,19 +6,19 @@ Add supervised inbound and outbound phone operations to SAHJONY Wholesale OS usi
 
 ## Architecture
 
-Phone/SIP provider -> OpenAI Realtime SIP -> SAHJONY Voice Agent -> CRM / wholesale skills / compliance -> human transfer when required.
+Bland/PSTN -> OpenAI Realtime SIP -> SAHJONY Voice Agent -> CRM / wholesale skills / compliance -> human transfer when required.
 
-OpenAI is the AI conversation runtime. A telephone/SIP provider is still required to supply and route PSTN phone numbers.
+OpenAI is the AI conversation runtime. Bland remains the telephony provider and number owner/routing layer.
 
 ## SAHJONY number map
 
-- Telephony provider target: `bland`.
-- Human transfer target: `+12816628581` (owner personal line).
+- AI inbound / callback number: `+12164804413`.
+- Human transfer target: `+12816628581`.
 - Bland outbound default from: `+13465214387`.
-- Bland caller ID fallback: `+12164804413`.
-- AI inbound number: must be a dedicated Bland/SIP-capable number and must NOT equal `+12816628581`.
+- Bland caller-ID fallback: `+12164804413`.
+- Telephony provider: `bland`.
 
-The transfer control rejects a transfer when `VOICE_HUMAN_TRANSFER_TARGET` equals `VOICE_INBOUND_NUMBER`, preventing an AI-to-itself routing loop.
+The inbound/callback number and human-transfer target are intentionally different. The transfer control rejects a transfer when `VOICE_HUMAN_TRANSFER_TARGET` equals `VOICE_INBOUND_NUMBER`, preventing an AI-to-itself routing loop.
 
 ## Target Vercel values
 
@@ -26,18 +26,21 @@ The transfer control rejects a transfer when `VOICE_HUMAN_TRANSFER_TARGET` equal
 OPENAI_REALTIME_MODEL=gpt-realtime
 OPENAI_REALTIME_VOICE=marin
 VOICE_TELEPHONY_PROVIDER=bland
+VOICE_INBOUND_NUMBER=+12164804413
 VOICE_HUMAN_TRANSFER_TARGET=+12816628581
 BLAND_DEFAULT_FROM_NUMBER=+13465214387
 BLAND_DEFAULT_CALLER_ID=+12164804413
 ```
 
-Still required before production activation:
+Secrets / provider-derived values still required before production activation:
 
 ```text
 OPENAI_WEBHOOK_SECRET=<OpenAI-generated webhook signing secret>
-VOICE_INBOUND_NUMBER=<dedicated Bland/SIP-capable AI number; not +12816628581>
-VOICE_SIP_DOMAIN=<verified SIP routing destination/domain>
+VOICE_SIP_DOMAIN=<verified OpenAI/Bland SIP routing destination/domain>
+BLAND_AI_API_KEY=<existing Bland server-side API key>
 ```
+
+Never place these secrets in `NEXT_PUBLIC_*` variables.
 
 ## Current controlled implementation
 
@@ -46,34 +49,30 @@ VOICE_SIP_DOMAIN=<verified SIP routing destination/domain>
 - Authenticated `/api/voice/calls/{callId}/refer` transfers an active call to the configured human E.164 target.
 - Authenticated `/api/voice/calls/{callId}/hangup` ends an active call.
 - Authenticated `/api/voice/calls/{callId}/reject` declines an inbound call with a restricted SIP status code.
-- Public `/api/voice/webhook` now verifies OpenAI webhook signatures using the official OpenAI SDK and the raw request body.
+- Public `/api/voice/webhook` verifies OpenAI webhook signatures using the official OpenAI SDK and the raw request body.
 - Verified `realtime.call.incoming` events validate and return the Realtime `call_id` for the controlled runtime.
 - Automatic inbound acceptance remains disabled until the verified inbound event can be persisted to CRM without relying on a browser/owner session.
 - Every authenticated control action fails closed if the CRM audit write cannot be persisted.
 - The main OpenAI API key remains server-side only.
-- Outbound autodial is intentionally disabled until a PSTN/SIP carrier adapter is configured and connected to the existing outbound compliance + owner-approval gateway.
+- Outbound autodial remains disabled until the carrier bridge is proven through the existing outbound compliance + owner-approval gateway.
 
-## Environment variables
+## OpenAI webhook target
 
-Existing:
+Configure the OpenAI project webhook to target:
 
-- `OPENAI_API_KEY` — required; secret; Production/Preview as appropriate.
-- `OPENAI_VECTOR_STORE_ID` — optional knowledge base for the broader Copilot.
+```text
+https://www.sahjony.com/api/voice/webhook
+```
 
-Voice runtime:
+Subscribe to `realtime.call.incoming`. OpenAI sends the call ID in that event; the control plane then uses the Realtime Calls API to accept, reject, transfer, or hang up the SIP call.
 
-- `OPENAI_REALTIME_MODEL` — default: `gpt-realtime`.
-- `OPENAI_REALTIME_VOICE` — default: `marin`.
-- `OPENAI_VOICE_INSTRUCTIONS` — optional server-side operating instructions.
-- `OPENAI_WEBHOOK_SECRET` — required for verified public OpenAI webhook ingestion.
-- `VOICE_TELEPHONY_PROVIDER=bland`.
-- `VOICE_INBOUND_NUMBER` — dedicated AI inbound E.164 number; do not use the human transfer line here.
-- `VOICE_HUMAN_TRANSFER_TARGET=+12816628581`.
-- `VOICE_SIP_DOMAIN` — carrier/SIP routing domain when applicable.
-- `BLAND_DEFAULT_FROM_NUMBER=+13465214387`.
-- `BLAND_DEFAULT_CALLER_ID=+12164804413`.
+Store the generated signing secret in Vercel as `OPENAI_WEBHOOK_SECRET` for Production and Preview. Do not commit the signing secret to GitHub.
 
-Provider-specific credentials must be stored server-side only. Do not place secrets in `NEXT_PUBLIC_*` variables.
+## Bland SIP routing target
+
+Bland supports SIP trunk configuration through its SIP dashboard/API. The inbound number `+12164804413` must be attached to an inbound SIP route whose destination is the OpenAI Realtime SIP endpoint for the OpenAI project. Do not guess the SIP endpoint or substitute Bland's own generic SIP host: use the project-specific destination shown/configured by OpenAI and verify it with a test call.
+
+The Bland outbound number `+13465214387` remains controlled by the existing outbound gateway and must continue to pass compliance evaluation and owner approval before dispatch.
 
 ## Existing safety controls to retain
 
@@ -97,7 +96,7 @@ Do not enable real public inbound traffic until all are true:
 1. `OPENAI_API_KEY` is present server-side.
 2. `OPENAI_WEBHOOK_SECRET` is configured.
 3. OpenAI webhook signature validation passes valid and invalid signature tests.
-4. SIP/PSTN provider routes a dedicated AI phone number to OpenAI Realtime SIP.
+4. Bland routes `+12164804413` to the verified OpenAI Realtime SIP destination.
 5. Incoming call webhook is idempotently persisted to CRM.
 6. AI disclosure occurs at the beginning of every automated call.
 7. Verbal opt-out updates suppression records immediately.
@@ -108,13 +107,13 @@ Do not enable real public inbound traffic until all are true:
 
 Do not enable automated outbound dialing until all are true:
 
-1. A carrier adapter can originate a PSTN call and bridge/route it to the Realtime session.
+1. Bland can originate from `+13465214387` and bridge/route the conversation to the approved Realtime session.
 2. Lead/contact belongs to the authenticated workspace.
 3. Fresh compliance decision passes DNC, consent, quiet-hours, channel, and exact-contact checks.
 4. AI voice disclosure script passes preflight.
 5. Owner approval is recorded for that outbound request.
 6. Suppression is rechecked immediately before dialing.
-7. The caller ID is valid and supports callbacks/opt-outs.
+7. The caller ID supports callbacks and opt-outs; `+12164804413` is the callback line.
 8. Every call attempt, provider reference, outcome, transfer, opt-out, and error is persisted.
 
 ## Production target metrics
