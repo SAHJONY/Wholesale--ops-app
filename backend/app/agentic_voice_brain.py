@@ -53,10 +53,7 @@ def _linked(db: Session, principal: Principal, lead_id: int) -> Lead:
 
 
 def _lead_id_schema() -> dict[str, Any]:
-    return {
-        "type": "object", "additionalProperties": False,
-        "properties": {"lead_id": {"type": "integer"}}, "required": ["lead_id"],
-    }
+    return {"type": "object", "additionalProperties": False, "properties": {"lead_id": {"type": "integer"}}, "required": ["lead_id"]}
 
 
 def _resolve_lead_by_phone(db: Session, principal: Principal, phone: str) -> dict[str, Any]:
@@ -72,73 +69,36 @@ def _resolve_lead_by_phone(db: Session, principal: Principal, phone: str) -> dic
     candidates = db.scalars(select(Lead).where(Lead.id.in_(linked_ids), Lead.status != "deleted")).all()
     matches = [lead for lead in candidates if normalize_phone(str(lead.phone or "")) == contact]
     if len(matches) != 1:
-        return {
-            "matched": False,
-            "ambiguous": len(matches) > 1,
-            "contact": contact,
-            "lead_id": None,
-            "candidate_count": len(matches),
-            "boundary": "never guess among duplicate or cross-record matches",
-        }
+        return {"matched": False, "ambiguous": len(matches) > 1, "contact": contact, "lead_id": None,
+            "candidate_count": len(matches), "boundary": "never guess among duplicate or cross-record matches"}
     lead = matches[0]
     prop = lead.property
-    return {
-        "matched": True,
-        "ambiguous": False,
-        "contact": contact,
-        "lead_id": lead.id,
-        "seller_name": lead.seller_name,
-        "status": lead.status,
-        "property": ({
-            "property_id": prop.id,
-            "address": prop.address,
-            "city": prop.city,
-            "state": prop.state,
-            "zip_code": prop.zip_code,
-        } if prop else None),
-        "facts_boundary": "tenant-scoped CRM match only; ownership and property facts still require verification",
-    }
+    return {"matched": True, "ambiguous": False, "contact": contact, "lead_id": lead.id,
+        "seller_name": lead.seller_name, "status": lead.status,
+        "property": ({"property_id": prop.id, "address": prop.address, "city": prop.city, "state": prop.state, "zip_code": prop.zip_code} if prop else None),
+        "facts_boundary": "tenant-scoped CRM match only; ownership and property facts still require verification"}
 
 
 def realtime_tools() -> list[dict[str, Any]]:
     return [
-        {
-            "type": "function",
-            "name": "resolve_lead_by_phone",
-            "description": "Resolve an inbound caller to exactly one tenant-scoped SAHJONY lead. Returns no match rather than guessing when zero or multiple records match.",
-            "parameters": {
-                "type": "object", "additionalProperties": False,
-                "properties": {"phone": {"type": "string"}}, "required": ["phone"],
-            },
-        },
+        {"type": "function", "name": "resolve_lead_by_phone", "description": "Resolve an inbound caller to exactly one tenant-scoped SAHJONY lead. Returns no match rather than guessing when zero or multiple records match.",
+            "parameters": {"type": "object", "additionalProperties": False, "properties": {"phone": {"type": "string"}}, "required": ["phone"]}},
         {"type": "function", "name": "get_lead_context", "description": "Read current tenant-scoped lead and property context. Do not treat seller claims as verified facts.", "parameters": _lead_id_schema()},
         {"type": "function", "name": "get_seller_memory", "description": "Recall prior seller-stated pillars, previous voice activity and property context from the tenant CRM ledger before repeating questions.", "parameters": _lead_id_schema()},
         {"type": "function", "name": "get_call_policy", "description": "Read the jurisdiction-aware operational call policy for the lead. Unknown state fails closed for recording and consequential automation.", "parameters": _lead_id_schema()},
-        {
-            "type": "function", "name": "save_seller_pillars",
-            "description": "Save explicit seller-stated Motivation, Timeline, Condition and Price. Never infer missing values.",
+        {"type": "function", "name": "save_seller_pillars", "description": "Save explicit seller-stated Motivation, Timeline, Condition and Price. Never infer missing values.",
             "parameters": {"type": "object", "additionalProperties": False, "properties": {
-                "lead_id": {"type": "integer"}, "motivation": {"type": ["string", "null"]},
-                "timeline_days": {"type": ["integer", "null"]}, "condition": {"type": ["string", "null"]},
-                "seller_price": {"type": ["number", "null"]}, "summary": {"type": "string"}},
-                "required": ["lead_id", "motivation", "timeline_days", "condition", "seller_price", "summary"]},
-        },
-        {
-            "type": "function", "name": "create_follow_up", "description": "Create a supervised CRM follow-up task. This does not contact the seller.",
+                "lead_id": {"type": "integer"}, "motivation": {"type": ["string", "null"]}, "timeline_days": {"type": ["integer", "null"]},
+                "condition": {"type": ["string", "null"]}, "seller_price": {"type": ["number", "null"]}, "summary": {"type": "string"}},
+                "required": ["lead_id", "motivation", "timeline_days", "condition", "seller_price", "summary"]}},
+        {"type": "function", "name": "create_follow_up", "description": "Create a supervised CRM follow-up task. This does not contact the seller.",
             "parameters": {"type": "object", "additionalProperties": False, "properties": {
-                "lead_id": {"type": "integer"}, "title": {"type": "string"},
-                "priority": {"type": "integer", "minimum": 1, "maximum": 100}, "notes": {"type": "string"}},
-                "required": ["lead_id", "title", "priority", "notes"]},
-        },
-        {
-            "type": "function", "name": "request_underwriting",
-            "description": "Queue source-backed acquisition verification/underwriting work. Does not create or communicate an offer.",
-            "parameters": {"type": "object", "additionalProperties": False, "properties": {"lead_id": {"type": "integer"}, "reason": {"type": "string"}}, "required": ["lead_id", "reason"]},
-        },
-        {
-            "type": "function", "name": "escalate_to_human", "description": "Request transfer/handoff to the configured human acquisitions number.",
-            "parameters": {"type": "object", "additionalProperties": False, "properties": {"lead_id": {"type": ["integer", "null"]}, "reason": {"type": "string"}}, "required": ["lead_id", "reason"]},
-        },
+                "lead_id": {"type": "integer"}, "title": {"type": "string"}, "priority": {"type": "integer", "minimum": 1, "maximum": 100}, "notes": {"type": "string"}},
+                "required": ["lead_id", "title", "priority", "notes"]}},
+        {"type": "function", "name": "request_underwriting", "description": "Queue source-backed acquisition verification/underwriting work. Does not create or communicate an offer.",
+            "parameters": {"type": "object", "additionalProperties": False, "properties": {"lead_id": {"type": "integer"}, "reason": {"type": "string"}}, "required": ["lead_id", "reason"]}},
+        {"type": "function", "name": "escalate_to_human", "description": "Request transfer/handoff to the configured human acquisitions number.",
+            "parameters": {"type": "object", "additionalProperties": False, "properties": {"lead_id": {"type": ["integer", "null"]}, "reason": {"type": "string"}}, "required": ["lead_id", "reason"]}},
     ]
 
 
@@ -171,7 +131,6 @@ def execute_tool(tool_name: str, payload: dict[str, Any], principal: Principal =
         raise HTTPException(403, "Voice tool is not authorized")
     if tool_name == "resolve_lead_by_phone":
         return _resolve_lead_by_phone(db, principal, str(payload.get("phone") or ""))
-
     lead_id_raw = payload.get("lead_id")
     lead_id = int(lead_id_raw) if lead_id_raw not in (None, "") else None
     lead = _linked(db, principal, lead_id) if lead_id else None
@@ -202,8 +161,8 @@ def execute_tool(tool_name: str, payload: dict[str, Any], principal: Principal =
     if tool_name == "create_follow_up":
         assert lead is not None
         task = FollowUpTask(organization_id=principal.organization_id, lead_id=lead.id, assigned_user_id=principal.user_id,
-            title=str(payload.get("title") or "Seller follow-up")[:220], status="open",
-            priority=max(1, min(100, int(payload.get("priority") or 50))), notes=str(payload.get("notes") or "")[:4000] or None)
+            title=str(payload.get("title") or "Seller follow-up")[:220], status="open", priority=max(1, min(100, int(payload.get("priority") or 50))),
+            notes=str(payload.get("notes") or "")[:4000] or None)
         db.add(task); db.commit(); db.refresh(task)
         return {"created": True, "follow_up_task_id": task.id, "dispatch_performed": False}
     if tool_name == "request_underwriting":
@@ -222,3 +181,9 @@ def execute_tool(tool_name: str, payload: dict[str, Any], principal: Principal =
         metadata_json={"reason": payload.get("reason"), "target": HUMAN_TRANSFER}))
     db.commit()
     return {"escalate": True, "transfer_target": HUMAN_TRANSFER, "binding_action": False}
+
+
+# Imported after execute_tool is defined so the internal service can safely
+# reference the allowlisted executor without a circular-import startup failure.
+from .internal_voice_service import router as internal_voice_router  # noqa: E402
+router.include_router(internal_voice_router)
