@@ -235,6 +235,66 @@ def _upsert_match(
     return row
 
 
+def _running_average(previous: float | None, count_before: int, observed: float | None) -> float | None:
+    if observed is None:
+        return previous
+    value = max(0.0, float(observed))
+    if previous is None or count_before <= 0:
+        return round(value, 2)
+    return round((float(previous) * count_before + value) / (count_before + 1), 2)
+
+
+def _apply_closing_outcome(partner: TitleCompanyPartner, payload: dict[str, Any]) -> dict[str, Any]:
+    outcome = str(payload.get("outcome") or "").strip().lower()
+    if outcome not in {"closed", "failed", "cancelled"}:
+        raise HTTPException(422, "outcome must be closed, failed, or cancelled")
+    strategy = str(payload.get("strategy") or "assignment").strip().lower()
+    count_before = max(0, int(partner.investor_closings_observed or 0))
+
+    if outcome == "closed":
+        partner.investor_closings_observed = count_before + 1
+        if strategy in CAPABILITY_FIELDS:
+            partner.wholesale_closings_observed = max(0, int(partner.wholesale_closings_observed or 0)) + 1
+        partner.avg_title_turnaround_days = _running_average(
+            partner.avg_title_turnaround_days,
+            count_before,
+            payload.get("title_turnaround_days"),
+        )
+        partner.avg_closing_days = _running_average(
+            partner.avg_closing_days,
+            count_before,
+            payload.get("closing_days"),
+        )
+        partner.reliability_score = min(100.0, float(partner.reliability_score or 50) + 2.0)
+    elif outcome == "failed":
+        partner.reliability_score = max(0.0, float(partner.reliability_score or 50) - 10.0)
+
+    if payload.get("fee_quote_accurate") is True:
+        partner.fee_transparency_score = min(100.0, float(partner.fee_transparency_score or 50) + 2.0)
+    elif payload.get("fee_quote_accurate") is False:
+        partner.fee_transparency_score = max(0.0, float(partner.fee_transparency_score or 50) - 5.0)
+
+    capability_field = CAPABILITY_FIELDS.get(strategy)
+    if outcome == "closed" and capability_field and payload.get("structure_completed_as_reported") is True:
+        setattr(partner, capability_field, "verified")
+        partner.last_verified_at = datetime.now(timezone.utc)
+
+    evidence = list(partner.evidence or [])
+    evidence.append({
+        "source": "sahjony_closing_outcome",
+        "deal_id": payload.get("deal_id"),
+        "outcome": outcome,
+        "strategy": strategy,
+        "title_turnaround_days": payload.get("title_turnaround_days"),
+        "closing_days": payload.get("closing_days"),
+        "fee_quote_accurate": payload.get("fee_quote_accurate"),
+        "structure_completed_as_reported": payload.get("structure_completed_as_reported"),
+        "verified_at": datetime.now(timezone.utc).isoformat(),
+    })
+    partner.evidence = evidence[-500:]
+    return {"outcome": outcome, "strategy": strategy}
+
+
 @router.get("/snapshot")
 def snapshot(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     partners = db.scalars(select(TitleCompanyPartner).where(
@@ -252,6 +312,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             "recommended_matches": sum(1 for row in matches if row.status == "recommended"),
             "score_semantics": "Title Company Match Confidence = jurisdiction + verified closing strategy + observed wholesale/investor experience + turnaround + reliability + fee transparency + digital closing",
         },
+        "learning_loop": "Verified SAHJONY closing outcomes update experience, turnaround, reliability, fee transparency, and observed strategy capability.",
         "evidence_policy": {
             "assignment_friendly": "recommended only when assignment support is verified with evidence",
             "double_close_friendly": "recommended only when double-close support is verified with evidence",
@@ -316,6 +377,47 @@ def upsert_partner(
     ))
     db.commit()
     return {"created": created, "partner": _serialize_partner(row)}
+
+
+@router.post("/partners/{title_company_id}/closing-outcomes")
+def record_closing_outcome(
+    title_company_id: int,
+    payload: dict[str, Any],
+    principal: Principal = Depends(require_role("manager")),
+    db: Session = Depends(get_db),
+):
+    partner = db.scalar(select(TitleCompanyPartner).where(
+        TitleCompanyPartner.id == title_company_id,
+        TitleCompanyPartner.organization_id == principal.organization_id,
+    ))
+    if partner is None:
+        raise HTTPException(404, "Title company partner not found")
+    deal_id = int(payload.get("deal_id") or 0)
+    if deal_id <= 0:
+        raise HTTPException(422, "deal_id is required")
+    _assert_linked(db, principal, "deal", deal_id)
+    deal = db.get(Deal, deal_id)
+    if not deal:
+        raise HTTPException(404, "Deal not found")
+
+    normalized = _apply_closing_outcome(partner, {**payload, "deal_id": deal_id})
+    db.add(CrmActivity(
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+        deal_id=deal_id,
+        activity_type="title_company_closing_outcome_recorded",
+        summary=f"Recorded {normalized['outcome']} outcome for '{partner.name}' on deal #{deal_id}",
+        metadata_json={
+            "title_company_id": partner.id,
+            "outcome": normalized["outcome"],
+            "strategy": normalized["strategy"],
+            "reliability_score": partner.reliability_score,
+            "fee_transparency_score": partner.fee_transparency_score,
+            "wholesale_closings_observed": partner.wholesale_closings_observed,
+        },
+    ))
+    db.commit()
+    return {"partner": _serialize_partner(partner), "learning_applied": True}
 
 
 @router.post("/deals/{deal_id}/rank")
