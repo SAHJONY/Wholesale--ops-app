@@ -17,9 +17,9 @@ def _pipeline_status() -> dict:
     feed = acquisition_feed_status()
     missing: list[str] = []
     if not feed["enabled"]:
-        missing.append("Set ENABLE_AUTONOMOUS_PROPERTY_ACQUISITION=true or configure ATTOM_API_KEY for auto-enable")
+        missing.append("Set ENABLE_AUTONOMOUS_PROPERTY_ACQUISITION=true or configure OPENAI_API_KEY for auto-enable")
     if not feed["configured"]:
-        missing.append("Configure ATTOM_API_KEY or AUTONOMOUS_PROPERTY_FEED_URL=https://...")
+        missing.append("Configure OPENAI_API_KEY or AUTONOMOUS_PROPERTY_FEED_URL=https://...")
     if feed["provider_mode"] == "external_https" and not feed["secure"]:
         missing.append("AUTONOMOUS_PROPERTY_FEED_URL must use HTTPS")
     return {
@@ -27,12 +27,14 @@ def _pipeline_status() -> dict:
         "ready": bool(feed["enabled"] and feed["configured"] and feed["secure"]),
         "missing_configuration": missing,
         "pipeline": [
-            "authorized provider or HTTPS property feed",
+            "OpenAI web search over public county/government sources or authorized HTTPS feed",
+            "source URL evidence gate",
             "provider-neutral normalization",
             "tenant-safe address deduplication",
             "property-candidate review queue",
             "public-record owner/deed verification",
             "individual-owner screening",
+            "jurisdiction policy gate",
             "distress and comp-backed underwriting",
             "Deal Factory promotion after evidence gates",
         ],
@@ -58,6 +60,7 @@ def status(principal: Principal = Depends(get_principal)):
 
 @router.post("/run")
 async def run_authorized_feed(
+    payload: dict | None = None,
     principal: Principal = Depends(require_role("manager")),
     db: Session = Depends(get_db),
 ):
@@ -66,28 +69,34 @@ async def run_authorized_feed(
         raise HTTPException(
             503,
             {
-                "message": "Authorized property feed is not ready",
+                "message": "Authorized property discovery is not ready",
                 "missing_configuration": state["missing_configuration"],
                 "safety": state["safety"],
             },
         )
+    scope = None
+    if isinstance(payload, dict):
+        requested = payload.get("scope")
+        if isinstance(requested, dict) and any(str(requested.get(key) or "").strip() for key in ("city", "county", "state")):
+            scope = requested
     try:
-        result = await run_autonomous_property_acquisition(db, principal)
+        result = await run_autonomous_property_acquisition(db, principal, scope=scope)
     except RuntimeError as exc:
         db.rollback()
-        raise HTTPException(503, str(exc)) from exc
+        raise HTTPException(422 if "State" in str(exc) or "city or county" in str(exc) else 503, str(exc)) from exc
     except Exception as exc:
         db.rollback()
-        raise HTTPException(502, f"Authorized property feed failed: {type(exc).__name__}") from exc
+        raise HTTPException(502, f"Authorized property discovery failed: {type(exc).__name__}") from exc
 
     db.add(CrmActivity(
         organization_id=principal.organization_id,
         user_id=principal.user_id,
         activity_type="authorized_property_feed_run",
-        summary="Authorized property feed completed in review-only mode",
+        summary="Source-backed distressed-property discovery completed in review-only mode",
         metadata_json={
             "source": result.get("source"),
             "provider_mode": result.get("provider_mode"),
+            "search_targets": result.get("search_targets") or [],
             "received": result.get("received", 0),
             "created": result.get("created", 0),
             "updated": result.get("updated", 0),
@@ -102,6 +111,7 @@ async def run_authorized_feed(
         **result,
         "mode": "authorized_review_only",
         "owner_verification_required": True,
+        "jurisdiction_policy_required": True,
         "outreach_allowed": False,
-        "next_action": "Review property candidates and verify owner/deed evidence before underwriting or outreach.",
+        "next_action": "Review candidates, verify owner/deed evidence, then apply the jurisdiction policy before underwriting or outreach.",
     }
