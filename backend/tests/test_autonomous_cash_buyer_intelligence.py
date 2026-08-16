@@ -1,7 +1,12 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from app.autonomous_cash_buyer_intelligence import _auto_promote, _merge_candidate
+from app.autonomous_cash_buyer_intelligence import (
+    _auto_promote,
+    _merge_candidate,
+    _mortgage_liens_for_source,
+)
 from app.cash_buyer_models import CashBuyerCandidate
 
 
@@ -40,12 +45,19 @@ def test_no_autonomous_promotion_without_confirmed_cash_evidence():
 
 def test_autonomous_promotion_never_infers_current_proof_of_funds_or_contact():
     db = MagicMock()
-    row = candidate()
+    row = candidate(evidence=[
+        {"consideration": 125000},
+        {"consideration": 190000},
+        {"consideration": 155000},
+    ])
     buyer = _auto_promote(db, principal(), row)
     assert buyer is not None
     assert buyer.phone == ""
     assert buyer.email is None
     assert buyer.proof_of_funds_verified is False
+    assert buyer.min_price == 125000
+    assert buyer.max_price == 190000
+    assert buyer.zip_codes == ["77002"]
     assert row.status == "approved"
 
 
@@ -74,3 +86,42 @@ def test_deed_only_refresh_cannot_downgrade_confirmed_cash_evidence():
     assert merged.cash_confirmed_count == 2
     assert merged.purchase_count == 4
     assert "77003" in merged.zip_codes
+
+
+def test_truncated_mortgage_index_never_proves_cash_absence():
+    deed_source = SimpleNamespace(id="harris_deeds")
+    mortgage_source = SimpleNamespace(id="harris_mortgages", address_field="address")
+
+    async def fetch_rows(source, limit):
+        assert source.id == "harris_mortgages"
+        return [{"address": "1 Main St"}, {"address": "2 Main St"}]
+
+    liens, status = asyncio.run(_mortgage_liens_for_source(
+        deed_source,
+        {"harris_mortgages": mortgage_source},
+        {"harris_deeds": "harris_mortgages"},
+        fetch_rows,
+        2,
+    ))
+    assert liens is None
+    assert status["cash_confirmation_available"] is False
+    assert status["error"] == "mortgage_index_truncated"
+
+
+def test_complete_mortgage_index_returns_normalized_lien_set():
+    deed_source = SimpleNamespace(id="harris_deeds")
+    mortgage_source = SimpleNamespace(id="harris_mortgages", address_field="address")
+
+    async def fetch_rows(source, limit):
+        return [{"address": "123 Main St."}, {"address": "500 Elm Ave"}]
+
+    liens, status = asyncio.run(_mortgage_liens_for_source(
+        deed_source,
+        {"harris_mortgages": mortgage_source},
+        {"harris_deeds": "harris_mortgages"},
+        fetch_rows,
+        100,
+    ))
+    assert liens == {"123 main st", "500 elm ave"}
+    assert status["cash_confirmation_available"] is True
+    assert status["mortgage_rows"] == 2
