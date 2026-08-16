@@ -81,6 +81,7 @@ from app.sms_scheduling import router as sms_scheduling_router
 from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
+from app.title_company_matching import router as title_company_matching_router
 from app.verified_ingest import router as verified_ingest_router
 from app.voice_engine import router as voice_router
 from app.voice_intelligence import router as voice_intelligence_router
@@ -163,6 +164,7 @@ app.include_router(voice_intelligence_router)
 app.include_router(realtime_voice_orchestrator_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
+app.include_router(title_company_matching_router)
 app.include_router(disposition_router)
 app.include_router(event_core_router)
 app.include_router(intelligence_platform_router)
