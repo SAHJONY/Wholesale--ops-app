@@ -39,7 +39,13 @@ class BackgroundJob(Base):
 
 
 router = APIRouter(prefix="/jobs", tags=["durable background jobs"])
-SUPPORTED_JOB_TYPES = {"process_events", "acquisition_lead", "autonomous_property_acquisition", "sms_due_followups"}
+SUPPORTED_JOB_TYPES = {
+    "process_events",
+    "acquisition_lead",
+    "autonomous_property_acquisition",
+    "autonomous_cash_buyer_intelligence",
+    "sms_due_followups",
+}
 STALE_LOCK_MINUTES = 20
 SCHEDULE = "*/15 * * * *"
 
@@ -124,6 +130,16 @@ async def _execute_job(db: Session, principal: Principal, job: BackgroundJob) ->
     if job.job_type == "autonomous_property_acquisition":
         from .autonomous_property_acquisition import run_autonomous_property_acquisition
         return await run_autonomous_property_acquisition(db, principal)
+    if job.job_type == "autonomous_cash_buyer_intelligence":
+        from .autonomous_cash_buyer_intelligence import run_autonomous_cash_buyer_intelligence
+        max_sources = max(1, min(10, int(job.payload_json.get("max_sources") or 3)))
+        max_rows = max(1, min(5000, int(job.payload_json.get("max_rows") or 1000)))
+        return await run_autonomous_cash_buyer_intelligence(
+            db,
+            principal,
+            max_sources=max_sources,
+            max_rows=max_rows,
+        )
     if job.job_type == "sms_due_followups":
         from .sms_scheduling import prepare_due_followups
         limit = max(1, min(25, int(job.payload_json.get("limit") or 25)))
@@ -291,6 +307,28 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
                     status="queued",
                     priority=70,
                     payload_json={"review_only": True},
+                    created_by_user_id=principal.user_id,
+                ))
+                db.commit()
+
+            # Cash Buyer Intelligence is always safe to enqueue when at least
+            # one public cash_purchase_deed jurisdiction is configured. The
+            # worker itself promotes only repeated buyers with explicit
+            # historical cash evidence and never infers contacts or current POF.
+            from .distress_ingest import load_jurisdictions
+            buyer_sources = [source for source in load_jurisdictions() if source.category == "cash_purchase_deed"]
+            pending_buyer_job = db.scalar(select(BackgroundJob.id).where(
+                BackgroundJob.organization_id == organization.id,
+                BackgroundJob.job_type == "autonomous_cash_buyer_intelligence",
+                BackgroundJob.status.in_(["queued", "retry", "running"]),
+            ))
+            if buyer_sources and not pending_buyer_job:
+                db.add(BackgroundJob(
+                    organization_id=organization.id,
+                    job_type="autonomous_cash_buyer_intelligence",
+                    status="queued",
+                    priority=72,
+                    payload_json={"max_sources": 3, "max_rows": 1000},
                     created_by_user_id=principal.user_id,
                 ))
                 db.commit()
