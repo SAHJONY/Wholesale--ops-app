@@ -33,6 +33,13 @@ DISTRESS_COLLECTORS: tuple[dict[str, Any], ...] = (
         "preferred_source_kinds": ["other_public", "recorder_deed"],
         "query_focus": "official probate, estate administration, executor, personal representative, decedent estate or court docket records that identify a property address",
     },
+    {
+        "id": "fsbo_public",
+        "label": "Free public FSBO / owner-listed",
+        "signals": ["fsbo", "owner_listed", "for_sale_by_owner"],
+        "preferred_source_kinds": ["fsbo_public", "other_public"],
+        "query_focus": "free publicly accessible for-sale-by-owner, owner-listed, owner selling directly, no-agent property listing pages and public classifieds; exclude login-gated, paid, private-group, broker-only and skip-trace sources",
+    },
 )
 
 VERIFICATION_SOURCE_KINDS: tuple[str, ...] = (
@@ -145,5 +152,5 @@ def coverage_summary(records: list[dict[str, Any]], targets: list[dict[str, str]
             for c in DISTRESS_COLLECTORS
         ],
         "verification_source_kinds": list(VERIFICATION_SOURCE_KINDS),
-        "boundary": "Coverage measures searched public-source depth, not completeness of all distressed properties in a jurisdiction.",
+        "boundary": "Coverage measures searched public-source depth, including free public FSBO discovery, not completeness of all distressed or owner-listed properties in a jurisdiction.",
     }
