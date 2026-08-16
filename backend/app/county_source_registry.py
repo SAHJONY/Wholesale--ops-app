@@ -40,6 +40,13 @@ DISTRESS_COLLECTORS: tuple[dict[str, Any], ...] = (
         "preferred_source_kinds": ["fsbo_public", "other_public"],
         "query_focus": "free publicly accessible for-sale-by-owner, owner-listed, owner selling directly, no-agent property listing pages and public classifieds; exclude login-gated, paid, private-group, broker-only and skip-trace sources",
     },
+    {
+        "id": "facebook_groups_fsbo",
+        "label": "Public Facebook Groups FSBO",
+        "signals": ["fsbo", "owner_listed", "for_sale_by_owner", "facebook_group_fsbo"],
+        "preferred_source_kinds": ["fsbo_public", "other_public"],
+        "query_focus": "search-engine-indexed, publicly accessible Facebook group or post URLs that explicitly advertise a residential property for sale by owner; accept only public URLs/evidence returned by web search, never automate login, scroll, scrape, join groups, bypass access controls, collect member profiles, or use private/login-gated group content",
+    },
 )
 
 VERIFICATION_SOURCE_KINDS: tuple[str, ...] = (
@@ -152,5 +159,5 @@ def coverage_summary(records: list[dict[str, Any]], targets: list[dict[str, str]
             for c in DISTRESS_COLLECTORS
         ],
         "verification_source_kinds": list(VERIFICATION_SOURCE_KINDS),
-        "boundary": "Coverage measures searched public-source depth, including free public FSBO discovery, not completeness of all distressed or owner-listed properties in a jurisdiction.",
+        "boundary": "Coverage measures searched public-source depth, including free public FSBO and public Facebook Groups FSBO discovery, not completeness of all distressed or owner-listed properties in a jurisdiction.",
     }
