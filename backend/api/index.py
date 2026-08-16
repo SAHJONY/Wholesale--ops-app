@@ -10,6 +10,7 @@ from app.auth import router as auth_router
 from app.authorized_acquisition import router as authorized_acquisition_router
 from app.bland_messaging import router as bland_messaging_router
 from app.buyer_intake import router as buyer_intake_router
+from app.buyer_match_api import router as buyer_match_router
 from app.cash_buyer_discovery import router as cash_buyer_router
 from app.business_os import router as business_os_router
 from app.closing_command import router as closing_command_router
@@ -117,6 +118,7 @@ app.include_router(getting_started_router)
 app.include_router(data_intake_router)
 app.include_router(buyer_intake_router)
 app.include_router(cash_buyer_router)
+app.include_router(buyer_match_router)
 app.include_router(business_os_router)
 app.include_router(test_deal_router)
 app.include_router(real_estate_intelligence_router)
