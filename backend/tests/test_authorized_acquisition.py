@@ -5,8 +5,8 @@ from app.autonomous_property_acquisition import (
     _normalize_scope,
     _normalize_web_record,
     _rotating_states,
-    acquisition_feed_status,
 )
+from app.county_source_registry import DISTRESS_COLLECTORS, coverage_summary, source_authority
 
 
 def test_authorized_acquisition_reports_missing_feed(monkeypatch):
@@ -47,6 +47,8 @@ def test_openai_key_self_configures_public_record_discovery(monkeypatch):
     assert status["feed"]["provider_mode"] == "openai_web_public"
     assert status["feed"]["auto_configured"] is True
     assert status["feed"]["supports_manual_scope"] is True
+    assert status["feed"]["coverage_depth"] == "multi_collector"
+    assert set(status["feed"]["distress_collectors"]) == {collector["id"] for collector in DISTRESS_COLLECTORS}
 
 
 def test_manual_scope_accepts_city_county_state_and_texas():
@@ -79,8 +81,43 @@ def test_web_candidate_requires_source_url_from_actual_search_results():
         "source_kind": "county_tax",
         "source_claim": "Property appears on a public tax delinquency list.",
     }
-    assert _normalize_web_record(raw, {"https://publicrecords.example/10-main"}, "TX") is not None
-    assert _normalize_web_record(raw, {"https://different.example/source"}, "TX") is None
+    record = _normalize_web_record(raw, {"https://publicrecords.example/10-main"}, "TX", "tax_distress")
+    assert record is not None
+    assert record["provider_evidence"]["collector_id"] == "tax_distress"
+    assert _normalize_web_record(raw, {"https://different.example/source"}, "TX", "tax_distress") is None
+
+
+def test_coverage_summary_rewards_official_multi_collector_depth():
+    records = [
+        {
+            "address": "10 Main St", "city": "Houston", "state": "TX", "zip_code": "77002",
+            "distress_signals": ["tax_delinquent"], "source_kind": "county_tax",
+            "source_urls": ["https://records.harriscountytx.gov/tax/10"],
+            "provider_evidence": {"collector_id": "tax_distress"},
+        },
+        {
+            "address": "11 Main St", "city": "Houston", "state": "TX", "zip_code": "77002",
+            "distress_signals": ["code_violation"], "source_kind": "code_enforcement",
+            "source_urls": ["https://houstontx.gov/code/11"],
+            "provider_evidence": {"collector_id": "code_vacancy"},
+        },
+    ]
+    runs = [
+        {"collector_id": "tax_distress", "success": True, "records": 1},
+        {"collector_id": "code_vacancy", "success": True, "records": 1},
+        {"collector_id": "foreclosure_public_sale", "success": True, "records": 0},
+        {"collector_id": "probate_estate", "success": True, "records": 0},
+    ]
+    summary = coverage_summary(records, [{"city": "Houston", "county": "", "state": "TX"}], runs)
+    assert summary["candidate_records"] == 2
+    assert summary["official_source_ratio"] == 1.0
+    assert summary["records_by_collector"]["tax_distress"] == 1
+    assert summary["coverage_score"] > 40
+
+
+def test_source_authority_distinguishes_official_and_public_web():
+    assert source_authority("https://www.example.gov/records") == "official_government"
+    assert source_authority("https://example.com/list") == "public_web"
 
 
 def test_nationwide_rotation_is_bounded_and_unique():
