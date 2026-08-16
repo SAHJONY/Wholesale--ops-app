@@ -308,10 +308,6 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             rejected += 1
             results.append({"row": index, "status": "rejected", "reason": "incomplete_address"})
             continue
-        if record["state"] == "TX":
-            rejected += 1
-            results.append({"row": index, "status": "rejected", "reason": "texas_excluded"})
-            continue
 
         key = _address_key(record["address"], record["city"], record["state"], record["zip_code"])
         match = existing.get(key)
@@ -440,9 +436,6 @@ async def paste_addresses(payload: dict, principal: Principal = Depends(require_
     verified_records: list[dict] = []
     analyses: list[dict] = []
     for index, record in enumerate(records):
-        if record["state"] == "TX":
-            rejected.append({"line": index + 1, "input": record["address"], "reason": "texas_excluded"})
-            continue
         try:
             enrichment = await enrich_address(record, principal)
         except HTTPException as exc:
