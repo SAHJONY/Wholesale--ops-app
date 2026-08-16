@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from collections import Counter
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import Principal, require_role
+from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity, WorkspaceEntity
-from .buyer_match_adapter import buyer_to_cash_profile, deal_to_matching_profile
+from .buyer_match_adapter import buyer_to_cash_profile, deal_to_matching_profile, normalize_buyer_type
 from .cash_buyer_matching import rank_buyers
+from .cash_buyer_models import CashBuyerCandidate
 from .crm import _assert_linked
 from .database import get_db
 from .disposition_models import DealBuyerMatch
@@ -42,6 +45,57 @@ def buyer_types(principal: Principal = Depends(require_role("disposition"))):
         "evidence_policy": {
             "proof_of_funds": "must be explicitly verified before assignee selection",
             "closing_history": "must come from recorded/verified closing evidence; never inferred from reliability score",
+            "contact_release": "human_approved_only",
+        },
+    }
+
+
+@router.get("/snapshot")
+def buyer_intelligence_snapshot(
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    buyer_ids = _workspace_buyer_ids(db, principal.organization_id)
+    buyers = db.scalars(select(Buyer).where(Buyer.id.in_(buyer_ids))).all() if buyer_ids else []
+    candidates = db.scalars(select(CashBuyerCandidate).where(
+        CashBuyerCandidate.organization_id == principal.organization_id
+    )).all()
+    matches = db.scalars(select(DealBuyerMatch).where(
+        DealBuyerMatch.organization_id == principal.organization_id
+    )).all()
+
+    buyer_type_counts = Counter(normalize_buyer_type(buyer) for buyer in buyers)
+    zip_coverage = sorted({str(zip_code) for buyer in buyers for zip_code in (buyer.zip_codes or []) if str(zip_code).strip()})
+    asset_types = Counter(str(asset) for buyer in buyers for asset in (buyer.asset_types or []) if str(asset).strip())
+    candidate_status = Counter(str(candidate.status or "unknown") for candidate in candidates)
+    matched = [row for row in matches if row.status == "matched"]
+
+    return {
+        "organization_id": principal.organization_id,
+        "buyer_pool": {
+            "total": len(buyers),
+            "by_type": dict(buyer_type_counts),
+            "proof_of_funds_verified": sum(1 for buyer in buyers if buyer.proof_of_funds_verified),
+            "zip_coverage_count": len(zip_coverage),
+            "zip_coverage": zip_coverage[:250],
+            "asset_types": dict(asset_types),
+        },
+        "discovery_queue": {
+            "total_candidates": len(candidates),
+            "by_status": dict(candidate_status),
+            "cash_evidence_confirmed": sum(1 for candidate in candidates if candidate.cash_evidence == "confirmed"),
+            "repeat_buyers": sum(1 for candidate in candidates if int(candidate.purchase_count or 0) >= 2),
+            "promoted": sum(1 for candidate in candidates if candidate.promoted_buyer_id is not None),
+        },
+        "matching": {
+            "stored_matches": len(matches),
+            "active_matches": len(matched),
+            "score_80_plus": sum(1 for row in matched if float(row.score or 0) >= 80),
+        },
+        "evidence_policy": {
+            "deed": "proves recorded transfer, not cash by itself",
+            "cash": "confirmed only when mortgage-index evidence supports no recorded financing",
+            "buying_box": "buyer-stated or persisted criteria; observed closing history is supporting evidence, not a declared buying box",
             "contact_release": "human_approved_only",
         },
     }
