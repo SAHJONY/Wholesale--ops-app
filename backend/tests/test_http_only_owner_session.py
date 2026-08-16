@@ -114,6 +114,7 @@ def test_owner_navigation_exposes_canonical_workspaces_and_allowlists_transition
         assert f"href: '{route}'" in navigation, f"Canonical owner route missing from navigation: {route}"
 
     transitional_hidden_routes = {
+        "/owner/activate",
         "/owner/deals",
         "/owner/provider-activation",
         "/owner/public-data",
