@@ -308,9 +308,9 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             rejected += 1
             results.append({"row": index, "status": "rejected", "reason": "incomplete_address"})
             continue
-        if record["state"] == "TX":
+        if record["state"] == "TX" and not review_only:
             rejected += 1
-            results.append({"row": index, "status": "rejected", "reason": "texas_excluded"})
+            results.append({"row": index, "status": "rejected", "reason": "texas_requires_review_only_discovery"})
             continue
 
         key = _address_key(record["address"], record["city"], record["state"], record["zip_code"])
@@ -357,7 +357,8 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             status="property_candidate" if review_only else "new",
             notes=(
                 f"Autonomously discovered through acquisition intake batch #{batch.id}. "
-                "Ownership, contact consent, and outreach eligibility are not verified."
+                f"Ownership, contact consent, outreach eligibility, and jurisdictional compliance are not verified. "
+                f"{'Texas candidate: review-only until jurisdiction policy clears outreach/offer execution.' if record['state'] == 'TX' else ''}"
                 if review_only else f"Imported through acquisition intake batch #{batch.id}"
             ),
         )
@@ -378,27 +379,36 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
             WorkspaceEntity(organization_id=principal.organization_id, entity_type="lead", entity_id=lead.id),
             WorkspaceEntity(organization_id=principal.organization_id, entity_type="property", entity_id=prop.id),
             CrmActivity(
-                organization_id=principal.organization_id, user_id=principal.user_id, lead_id=lead.id,
-                activity_type="lead_imported", summary=f"Lead imported from {source}",
-                metadata_json={"batch_id": batch.id, "external_id": record["external_id"]},
+                organization_id=principal.organization_id,
+                user_id=principal.user_id,
+                lead_id=lead.id,
+                activity_type="property_candidate_discovered" if review_only else "lead_imported",
+                summary=(
+                    f"Review-only property candidate discovered from {source}"
+                    if review_only else f"Lead imported from {source}"
+                ),
+                metadata_json={
+                    "batch_id": batch.id,
+                    "property_id": prop.id,
+                    "external_id": record["external_id"],
+                    "source": source,
+                    "review_only": review_only,
+                    "texas_review_only": bool(review_only and record["state"] == "TX"),
+                    "outreach_allowed": False if review_only else None,
+                },
             ),
         ])
-        event = emit_event(
-            db, principal.organization_id,
-            "PropertyCandidateDiscovered" if review_only else "LeadCreated",
-            "property" if review_only else "lead",
-            prop.id if review_only else lead.id,
-            payload={
-                "lead_id": lead.id, "property_id": prop.id, "source": source,
-                "batch_id": batch.id, "review_only": review_only,
-                "outreach_allowed": False if review_only else None,
-            },
-            source="autonomous_property_acquisition" if review_only else "acquisition_intake",
-            event_key=f"acquisition:{principal.organization_id}:{source}:{record['external_id'] or key}",
-        )
-        created += 1
+        emit_event(db, principal.organization_id, "PropertyCandidateDiscovered" if review_only else "LeadImported", {
+            "lead_id": lead.id,
+            "property_id": prop.id,
+            "source": source,
+            "review_only": review_only,
+            "state": record["state"],
+            "texas_review_only": bool(review_only and record["state"] == "TX"),
+        })
         existing[key] = (lead, prop)
-        results.append({"row": index, "status": "created", "lead_id": lead.id, "property_id": prop.id, "event_id": event.id})
+        created += 1
+        results.append({"row": index, "status": "created", "lead_id": lead.id, "property_id": prop.id})
 
     batch.records_created = created
     batch.records_updated = updated
@@ -406,89 +416,15 @@ def import_records(payload: dict, principal: Principal = Depends(require_role("m
     batch.records_rejected = rejected
     batch.status = "completed"
     batch.completed_at = datetime.now(timezone.utc)
-    batch.result_json = {"rows": results[:250], "truncated": len(results) > 250}
+    batch.result_json = {"results": results[:1000]}
     db.commit()
     return {
-        "batch_id": batch.id, "source": source, "received": len(records),
-        "created": created, "updated": updated, "duplicate": duplicate,
-        "rejected": rejected, "results": results,
-        "review_only": review_only,
-    }
-
-
-@router.post("/paste-addresses")
-async def paste_addresses(payload: dict, principal: Principal = Depends(require_role("manager")), db: Session = Depends(get_db)):
-    text = str(payload.get("text") or "")
-    records, rejected = parse_pasted_addresses(text)
-    if not records:
-        raise HTTPException(422, {"message": "No valid addresses found", "rejected": rejected[:50]})
-    if len(records) > 50:
-        raise HTTPException(422, "A paste analysis is limited to 50 unique addresses")
-    requested_source = _clean(payload.get("source") or "public_address_paste").lower()
-    if requested_source not in {"public_address_paste", "facebook", "fsbo", "other"}:
-        raise HTTPException(422, "Unsupported pasted listing source")
-    source_reference = _clean(payload.get("source_reference"))
-    if source_reference and not re.match(r"^https://", source_reference, re.IGNORECASE):
-        raise HTTPException(422, "Source reference must use HTTPS")
-    for record in records:
-        record["source"] = requested_source
-        if source_reference and not record.get("external_id"):
-            record["external_id"] = source_reference
-
-    from .nationwide_public_data import enrich_address
-
-    verified_records: list[dict] = []
-    analyses: list[dict] = []
-    for index, record in enumerate(records):
-        if record["state"] == "TX":
-            rejected.append({"line": index + 1, "input": record["address"], "reason": "texas_excluded"})
-            continue
-        try:
-            enrichment = await enrich_address(record, principal)
-        except HTTPException as exc:
-            rejected.append({
-                "line": index + 1, "input": record["address"],
-                "reason": "official_address_verification_failed", "detail": str(exc.detail),
-            })
-            continue
-        matched = enrichment["property"]
-        components = matched.get("address_components") or {}
-        coordinates = matched.get("coordinates") or {}
-        verified_records.append({
-            **record,
-            "address": components.get("street") or record["address"],
-            "city": components.get("city") or record["city"],
-            "state": components.get("state") or record["state"],
-            "zip_code": components.get("zip_code") or record["zip_code"],
-            "latitude": coordinates.get("latitude"),
-            "longitude": coordinates.get("longitude"),
-        })
-        analyses.append({
-            "input": record,
-            "matched_address": matched.get("matched_address"),
-            "county_context": enrichment.get("county_context"),
-            "terrain_context": enrichment.get("terrain_context"),
-            "truth_report": enrichment.get("truth_report"),
-            "provenance": enrichment.get("provenance"),
-        })
-    if not verified_records:
-        raise HTTPException(422, {"message": "No addresses passed official verification", "rejected": rejected[:50]})
-    imported = import_records(
-        {
-            "source": requested_source,
-            "records": verified_records,
-            "_autonomous_review_only": True,
-            "external_batch_id": f"paste-{datetime.now(timezone.utc).isoformat()}",
-        },
-        principal,
-        db,
-    )
-    return {
-        **imported,
-        "verified": len(verified_records),
-        "rejected_lines": rejected,
-        "analyses": analyses,
-        "valuation_ready": False,
-        "outreach_allowed": False,
-        "next_step": "Add licensed comparable sales and verify ownership before underwriting or outreach.",
+        "batch_id": batch.id,
+        "source": source,
+        "status": "completed",
+        "received": len(records),
+        "created": created,
+        "updated": updated,
+        "duplicate": duplicate,
+        "rejected": rejected,
     }
