@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal, require_role
@@ -27,8 +28,10 @@ def _pipeline_status() -> dict:
         "ready": bool(feed["enabled"] and feed["configured"] and feed["secure"]),
         "missing_configuration": missing,
         "pipeline": [
+            "distress-specific public-record collectors",
             "OpenAI web search over public county/government sources or authorized HTTPS feed",
             "source URL evidence gate",
+            "county/source coverage scoring",
             "provider-neutral normalization",
             "tenant-safe address deduplication",
             "property-candidate review queue",
@@ -49,12 +52,42 @@ def _pipeline_status() -> dict:
     }
 
 
+def _latest_coverage(db: Session, organization_id: int) -> dict | None:
+    activity = db.scalar(
+        select(CrmActivity).where(
+            CrmActivity.organization_id == organization_id,
+            CrmActivity.activity_type == "authorized_property_feed_run",
+        ).order_by(CrmActivity.created_at.desc()).limit(1)
+    )
+    if not activity:
+        return None
+    metadata = activity.metadata_json or {}
+    coverage = metadata.get("coverage")
+    if not isinstance(coverage, dict):
+        return None
+    return {
+        **coverage,
+        "generated_at": activity.created_at,
+        "provider_mode": metadata.get("provider_mode"),
+        "search_targets": metadata.get("search_targets") or [],
+    }
+
+
 @router.get("/status")
-def status(principal: Principal = Depends(get_principal)):
+def status(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     return {
         "organization_id": principal.organization_id,
         "generated_at": datetime.now(timezone.utc),
+        "latest_coverage": _latest_coverage(db, principal.organization_id),
         **_pipeline_status(),
+    }
+
+
+@router.get("/coverage/latest")
+def latest_coverage(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
+    return {
+        "organization_id": principal.organization_id,
+        "coverage": _latest_coverage(db, principal.organization_id),
     }
 
 
@@ -97,6 +130,8 @@ async def run_authorized_feed(
             "source": result.get("source"),
             "provider_mode": result.get("provider_mode"),
             "search_targets": result.get("search_targets") or [],
+            "coverage": result.get("coverage") or {},
+            "provider_warnings": result.get("provider_warnings") or [],
             "received": result.get("received", 0),
             "created": result.get("created", 0),
             "updated": result.get("updated", 0),

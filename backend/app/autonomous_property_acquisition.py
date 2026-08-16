@@ -12,13 +12,14 @@ from sqlalchemy.orm import Session
 
 from .acquisition_intake import ALLOWED_SOURCES, import_records
 from .auth import Principal
+from .county_source_registry import DISTRESS_COLLECTORS, coverage_summary
 
 MAX_FEED_BYTES = 5 * 1024 * 1024
 MAX_RECORDS = 1000
 REQUEST_TIMEOUT_SECONDS = 60.0
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 PUBLIC_MARKETS_PER_RUN = 5
-PUBLIC_RESULTS_PER_MARKET = 12
+PUBLIC_RESULTS_PER_COLLECTOR = 8
 
 NATIONWIDE_STATE_ROTATION: tuple[tuple[str, str], ...] = (
     ("AL", "Alabama"), ("AK", "Alaska"), ("AZ", "Arizona"), ("AR", "Arkansas"),
@@ -69,6 +70,8 @@ def acquisition_feed_status() -> dict[str, Any]:
         "market_rotation": "50_state_public_record_rotation" if provider_mode == "openai_web_public" else None,
         "supports_manual_scope": provider_mode == "openai_web_public",
         "scope_inputs": ["city", "county", "state"] if provider_mode == "openai_web_public" else [],
+        "coverage_depth": "multi_collector" if provider_mode == "openai_web_public" else None,
+        "distress_collectors": [collector["id"] for collector in DISTRESS_COLLECTORS] if provider_mode == "openai_web_public" else [],
         "source_priority": [
             "county assessor/GIS/tax collector",
             "county recorder/clerk/deed index",
@@ -76,7 +79,6 @@ def acquisition_feed_status() -> dict[str, Any]:
             "tax delinquency/tax sale notices",
             "sheriff/foreclosure/public notices",
             "government open-data portals/ArcGIS",
-            "public FSBO pages as unverified listing claims",
         ] if provider_mode == "openai_web_public" else None,
     }
 
@@ -178,72 +180,180 @@ def _web_source_urls(payload: dict[str, Any]) -> set[str]:
     return {url for url in urls if url.startswith(("http://", "https://"))}
 
 
-def _public_record_prompt(target: dict[str, str]) -> str:
-    location = target["state_name"]
+def _location_label(target: dict[str, str]) -> str:
     if target["county"]:
-        location = f"{target['county']} County, {target['state_name']}"
-    elif target["city"]:
-        location = f"{target['city']}, {target['state_name']}"
+        return f"{target['county']} County, {target['state_name']}"
+    if target["city"]:
+        return f"{target['city']}, {target['state_name']}"
+    return target["state_name"]
+
+
+def _collector_prompt(target: dict[str, str], collector: dict[str, Any]) -> str:
+    location = _location_label(target)
+    signals = ", ".join(collector["signals"])
     return f"""
-Find up to {PUBLIC_RESULTS_PER_MARKET} current SINGLE-FAMILY distressed-property candidates in {location} using publicly accessible web sources.
+Find up to {PUBLIC_RESULTS_PER_COLLECTOR} current SINGLE-FAMILY distressed-property candidates in {location}.
 
-Priority sources:
-1. Official county assessor, parcel/GIS, tax collector, treasurer.
-2. Official recorder/clerk/deed indexes.
-3. Municipal/county code enforcement, nuisance, unsafe-building, vacant-property records.
-4. Official tax-delinquency/tax-sale lists.
-5. Sheriff sale, foreclosure, pre-foreclosure or court/public-notice pages.
-6. Government open-data and ArcGIS FeatureServer/MapServer pages.
-7. Public FSBO pages only as unverified asking-price evidence.
+Collector: {collector['label']}.
+Search specifically for: {collector['query_focus']}.
+Preferred source types: {', '.join(collector['preferred_source_kinds'])}.
 
+Use publicly accessible sources, with official county/city/state/court/government pages and government-hosted ArcGIS/open-data as first priority.
 Do not use private groups, login-gated sources, paid data brokers, skip-trace data, or inferred facts.
-Every record MUST have a complete street address, city, state, ZIP and at least one URL actually used in web search.
-Only include a property when the source explicitly supports a distress signal: tax delinquency/tax sale, code violation, vacant/unsafe/nuisance, foreclosure/sheriff/public sale, probate/estate wording, or public FSBO/owner-listed claim.
-Do not return owner names, phones, emails, ARV, repair estimates or invented prices. Ownership is verified later from deed evidence.
+Every returned record MUST have a complete street address, city, state, ZIP and at least one source URL actually used by web search.
+Only return a record when the cited source explicitly supports one of these collector distress concepts: {signals}.
+Do not return owner names, phones, emails, ARV, repair estimates or invented prices. Ownership and deed chain are verified in a later stage.
 """.strip()
 
 
 def _discovery_schema(state_code: str) -> dict[str, Any]:
-    return {"type":"object","additionalProperties":False,"required":["records"],"properties":{"records":{"type":"array","maxItems":PUBLIC_RESULTS_PER_MARKET,"items":{"type":"object","additionalProperties":False,"required":["address","city","state","zip_code","distress_signals","source_urls","source_kind","source_claim"],"properties":{"address":{"type":"string"},"city":{"type":"string"},"state":{"type":"string","enum":[state_code]},"zip_code":{"type":"string"},"distress_signals":{"type":"array","items":{"type":"string"}},"source_urls":{"type":"array","minItems":1,"items":{"type":"string"}},"source_kind":{"type":"string","enum":["county_assessor","county_tax","recorder_deed","code_enforcement","tax_sale","foreclosure_notice","government_open_data","fsbo_public","other_public"]},"source_claim":{"type":"string"}}}}}}
+    return {"type":"object","additionalProperties":False,"required":["records"],"properties":{"records":{"type":"array","maxItems":PUBLIC_RESULTS_PER_COLLECTOR,"items":{"type":"object","additionalProperties":False,"required":["address","city","state","zip_code","distress_signals","source_urls","source_kind","source_claim"],"properties":{"address":{"type":"string"},"city":{"type":"string"},"state":{"type":"string","enum":[state_code]},"zip_code":{"type":"string"},"distress_signals":{"type":"array","items":{"type":"string"}},"source_urls":{"type":"array","minItems":1,"items":{"type":"string"}},"source_kind":{"type":"string","enum":["county_assessor","county_tax","recorder_deed","code_enforcement","tax_sale","foreclosure_notice","government_open_data","fsbo_public","other_public"]},"source_claim":{"type":"string"}}}}}}
 
 
-def _normalize_web_record(raw: dict[str, Any], allowed_urls: set[str], state_code: str) -> dict[str, Any] | None:
-    address = str(raw.get("address") or "").strip(); city = str(raw.get("city") or "").strip(); state = str(raw.get("state") or state_code).strip().upper(); zip_code = str(raw.get("zip_code") or "").strip()
+def _normalize_web_record(raw: dict[str, Any], allowed_urls: set[str], state_code: str, collector_id: str) -> dict[str, Any] | None:
+    address = str(raw.get("address") or "").strip()
+    city = str(raw.get("city") or "").strip()
+    state = str(raw.get("state") or state_code).strip().upper()
+    zip_code = str(raw.get("zip_code") or "").strip()
     signals = [str(value).strip().lower().replace(" ", "_") for value in (raw.get("distress_signals") or []) if str(value).strip()]
     urls = [str(value).strip() for value in (raw.get("source_urls") or []) if str(value).strip() in allowed_urls]
     if not all((address, city, state == state_code, zip_code, signals, urls)):
         return None
-    return {"address":address,"city":city,"state":state,"zip_code":zip_code,"source":"county","property_type":"single_family","distress_signals":list(dict.fromkeys(signals)),"external_id":urls[0],"source_urls":urls,"source_kind":str(raw.get("source_kind") or "other_public"),"source_claim":str(raw.get("source_claim") or "").strip(),"provider_evidence":{"provider":"openai_web_search","source_urls":urls,"owner_verified":False,"contact_verified":False,"arv_verified":False,"distress_source_backed":True}}
+    return {
+        "address": address,
+        "city": city,
+        "state": state,
+        "zip_code": zip_code,
+        "source": "county",
+        "property_type": "single_family",
+        "distress_signals": list(dict.fromkeys(signals)),
+        "external_id": urls[0],
+        "source_urls": urls,
+        "source_kind": str(raw.get("source_kind") or "other_public"),
+        "source_claim": str(raw.get("source_claim") or "").strip(),
+        "provider_evidence": {
+            "provider": "openai_web_search",
+            "collector_id": collector_id,
+            "source_urls": urls,
+            "owner_verified": False,
+            "contact_verified": False,
+            "arv_verified": False,
+            "distress_source_backed": True,
+        },
+    }
 
 
-async def _run_openai_public_discovery(client: httpx.AsyncClient, config: dict[str, Any], scope: dict[str, Any] | None = None) -> tuple[list[dict[str, Any]], list[str], list[dict[str, str]]]:
-    records: list[dict[str, Any]] = []; warnings: list[str] = []; targets = _search_targets(scope)
+def _merge_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for record in records:
+        key = "|".join((str(record.get("address") or "").lower(), str(record.get("city") or "").lower(), str(record.get("state") or ""), str(record.get("zip_code") or "")))
+        existing = merged.get(key)
+        if not existing:
+            merged[key] = record
+            continue
+        existing["distress_signals"] = list(dict.fromkeys((existing.get("distress_signals") or []) + (record.get("distress_signals") or [])))
+        existing["source_urls"] = list(dict.fromkeys((existing.get("source_urls") or []) + (record.get("source_urls") or [])))
+        evidence = existing.get("provider_evidence") or {}
+        collectors = list(evidence.get("collector_ids") or [evidence.get("collector_id")])
+        incoming = (record.get("provider_evidence") or {}).get("collector_id")
+        if incoming:
+            collectors.append(incoming)
+        evidence["collector_ids"] = list(dict.fromkeys(value for value in collectors if value))
+        existing["provider_evidence"] = evidence
+    return list(merged.values())
+
+
+async def _run_openai_public_discovery(client: httpx.AsyncClient, config: dict[str, Any], scope: dict[str, Any] | None = None) -> tuple[list[dict[str, Any]], list[str], list[dict[str, str]], list[dict[str, Any]]]:
+    records: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    targets = _search_targets(scope)
+    collector_runs: list[dict[str, Any]] = []
     for target in targets:
         state_code = target["state"]
-        body = {"model":config["model"],"tools":[{"type":"web_search","search_context_size":"high"}],"include":["web_search_call.action.sources"],"input":_public_record_prompt(target),"text":{"format":{"type":"json_schema","name":"distressed_property_candidates","strict":True,"schema":_discovery_schema(state_code)}}}
-        try:
-            response = await client.post(config["url"], headers=config["headers"], json=body); response.raise_for_status(); payload = response.json(); allowed_urls = _web_source_urls(payload); output_text = _response_output_text(payload); parsed = json.loads(output_text) if output_text else {"records":[]}
-            for raw in parsed.get("records") or []:
-                if isinstance(raw, dict):
-                    normalized = _normalize_web_record(raw, allowed_urls, state_code)
-                    if normalized is not None: records.append(normalized)
-        except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
-            warnings.append(f"{state_code}:{type(exc).__name__}")
-    return records[:MAX_RECORDS], warnings, targets
+        for collector in DISTRESS_COLLECTORS:
+            body = {
+                "model": config["model"],
+                "tools": [{"type": "web_search", "search_context_size": "high"}],
+                "include": ["web_search_call.action.sources"],
+                "input": _collector_prompt(target, collector),
+                "text": {"format": {"type": "json_schema", "name": "distressed_property_candidates", "strict": True, "schema": _discovery_schema(state_code)}},
+            }
+            run_meta = {"state": state_code, "city": target.get("city"), "county": target.get("county"), "collector_id": collector["id"], "success": False, "records": 0}
+            try:
+                response = await client.post(config["url"], headers=config["headers"], json=body)
+                response.raise_for_status()
+                payload = response.json()
+                allowed_urls = _web_source_urls(payload)
+                output_text = _response_output_text(payload)
+                parsed = json.loads(output_text) if output_text else {"records": []}
+                for raw in parsed.get("records") or []:
+                    if isinstance(raw, dict):
+                        normalized = _normalize_web_record(raw, allowed_urls, state_code, collector["id"])
+                        if normalized is not None:
+                            records.append(normalized)
+                            run_meta["records"] += 1
+                run_meta["success"] = True
+            except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
+                warnings.append(f"{state_code}:{collector['id']}:{type(exc).__name__}")
+            collector_runs.append(run_meta)
+    return _merge_records(records)[:MAX_RECORDS], warnings, targets, collector_runs
 
 
 async def run_autonomous_property_acquisition(db: Session, principal: Principal, *, client: httpx.AsyncClient | None = None, scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    config = _feed_config(); source = str(config["source"]); owns_client = client is None; active_client = client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=False); warnings: list[str] = []; targets: list[dict[str, str]] = []
+    config = _feed_config()
+    source = str(config["source"])
+    owns_client = client is None
+    active_client = client or httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=False)
+    warnings: list[str] = []
+    targets: list[dict[str, str]] = []
+    collector_runs: list[dict[str, Any]] = []
     try:
         if config["mode"] == "openai_web_public":
-            records, warnings, targets = await _run_openai_public_discovery(active_client, config, scope)
+            records, warnings, targets, collector_runs = await _run_openai_public_discovery(active_client, config, scope)
         else:
-            response = await active_client.get(config["url"], headers=config["headers"]); response.raise_for_status(); content_length = int(response.headers.get("content-length") or 0)
-            if content_length > MAX_FEED_BYTES or len(response.content) > MAX_FEED_BYTES: raise RuntimeError("Property feed response exceeds 5 MB")
+            response = await active_client.get(config["url"], headers=config["headers"])
+            response.raise_for_status()
+            content_length = int(response.headers.get("content-length") or 0)
+            if content_length > MAX_FEED_BYTES or len(response.content) > MAX_FEED_BYTES:
+                raise RuntimeError("Property feed response exceeds 5 MB")
             records = _extract_records(response.json())
     finally:
-        if owns_client: await active_client.aclose()
+        if owns_client:
+            await active_client.aclose()
+
+    coverage = coverage_summary(records, targets, collector_runs) if config["mode"] == "openai_web_public" else None
     if not records:
-        return {"status":"completed","source":source,"received":0,"created":0,"updated":0,"duplicate":0,"rejected":0,"review_only":True,"provider_warnings":warnings,"search_targets":targets}
-    result = import_records({"source":source,"records":records,"external_batch_id":f"autonomous-{datetime.now(timezone.utc).isoformat()}","_autonomous_review_only":True}, principal, db)
-    return {"status":"completed",**result,"provider_mode":config["mode"],"provider_warnings":warnings,"review_only":True,"search_targets":targets}
+        return {
+            "status": "completed",
+            "source": source,
+            "received": 0,
+            "created": 0,
+            "updated": 0,
+            "duplicate": 0,
+            "rejected": 0,
+            "review_only": True,
+            "provider_mode": config["mode"],
+            "provider_warnings": warnings,
+            "search_targets": targets,
+            "coverage": coverage,
+        }
+
+    result = import_records(
+        {
+            "source": source,
+            "records": records,
+            "external_batch_id": f"autonomous-{datetime.now(timezone.utc).isoformat()}",
+            "_autonomous_review_only": True,
+        },
+        principal,
+        db,
+    )
+    return {
+        "status": "completed",
+        **result,
+        "provider_mode": config["mode"],
+        "provider_warnings": warnings,
+        "review_only": True,
+        "search_targets": targets,
+        "coverage": coverage,
+    }
