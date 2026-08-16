@@ -17,17 +17,17 @@ def _pipeline_status() -> dict:
     feed = acquisition_feed_status()
     missing: list[str] = []
     if not feed["enabled"]:
-        missing.append("ENABLE_AUTONOMOUS_PROPERTY_ACQUISITION=true")
+        missing.append("Set ENABLE_AUTONOMOUS_PROPERTY_ACQUISITION=true or configure ATTOM_API_KEY for auto-enable")
     if not feed["configured"]:
-        missing.append("AUTONOMOUS_PROPERTY_FEED_URL=https://...")
-    if feed["configured"] and not feed["secure"]:
+        missing.append("Configure ATTOM_API_KEY or AUTONOMOUS_PROPERTY_FEED_URL=https://...")
+    if feed["provider_mode"] == "external_https" and not feed["secure"]:
         missing.append("AUTONOMOUS_PROPERTY_FEED_URL must use HTTPS")
     return {
         "feed": feed,
         "ready": bool(feed["enabled"] and feed["configured"] and feed["secure"]),
         "missing_configuration": missing,
         "pipeline": [
-            "authorized HTTPS property feed",
+            "authorized provider or HTTPS property feed",
             "provider-neutral normalization",
             "tenant-safe address deduplication",
             "property-candidate review queue",
@@ -87,6 +87,7 @@ async def run_authorized_feed(
         summary="Authorized property feed completed in review-only mode",
         metadata_json={
             "source": result.get("source"),
+            "provider_mode": result.get("provider_mode"),
             "received": result.get("received", 0),
             "created": result.get("created", 0),
             "updated": result.get("updated", 0),
