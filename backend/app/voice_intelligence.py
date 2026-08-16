@@ -111,20 +111,47 @@ def jurisdiction_policy(state: str | None, direction: str | None = None) -> dict
     normalized = str(state or "").strip().upper()
     unknown = len(normalized) != 2
     all_party = True if unknown else requires_all_party_consent(normalized)
-    return {
+    policy: dict[str, Any] = {
         "state": normalized or None,
         "direction": direction or None,
         "state_known": not unknown,
-        "recording_policy": "explicit_all_party_consent_required" if all_party else "disclosure_recommended_recording_rule_requires_review",
+        "recording_policy": "explicit_all_party_consent_required" if all_party else "one_party_state_but_system_disclosure_and_recorded_basis_required",
         "all_party_consent_treated_as_required": all_party,
         "recording_default": False,
         "ai_identity_disclosure_required_by_system": True,
         "outbound_requires_compliance_decision": True,
         "outbound_requires_human_approval": True,
         "autonomous_outbound_dispatch": False,
-        "legal_boundary": "operational safety policy, not a substitute for jurisdiction-specific legal review",
+        "discovery_allowed": not unknown,
+        "owner_deed_verification_allowed": not unknown,
+        "underwriting_allowed": not unknown,
+        "outreach_policy": "apply_state_and_federal_compliance_gate",
+        "rules_status": "state_baseline_requires_current_legal_validation" if not unknown else "blocked_state_unknown",
+        "legal_boundary": "operational safety policy, not legal advice or a substitute for current jurisdiction-specific legal review",
         "fail_closed_reason": "state_unknown" if unknown else None,
     }
+    if normalized == "TX":
+        policy.update({
+            "rules_status": "texas_operational_profile_verified_2026_08_15",
+            "discovery_allowed": True,
+            "owner_deed_verification_allowed": True,
+            "underwriting_allowed": True,
+            "outreach_policy": "allowed_only_after_federal_dnc_and_texas_compliance_decision_plus_human_approval",
+            "conservative_calling_window_local": {
+                "monday_saturday": "09:00-21:00",
+                "sunday": "12:00-21:00",
+            },
+            "caller_identification_required": ["caller_name", "business_name", "purpose_of_call"],
+            "mobile_call_consent_rule": "do_not_place_prohibited_solicitation_calls_to_chargeable_mobile_numbers_without_required_consent; compliance engine must decide applicability",
+            "recording_policy": "texas_one_party_rule_noted; system still requires AI disclosure and documented recording basis",
+            "recording_default": False,
+            "authorities": [
+                "Texas Business & Commerce Code Chapter 301, including Sec. 301.051",
+                "Texas Business & Commerce Code Chapter 305, including Sec. 305.001",
+                "Texas Penal Code Chapter 16 interception exceptions/consent provisions",
+            ],
+        })
+    return policy
 
 
 def call_qa(call: VoiceCall) -> dict[str, Any]:
