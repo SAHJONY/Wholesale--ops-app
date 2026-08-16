@@ -23,6 +23,7 @@ const execution: NavItem[] = [
   { href: '/owner/sms-acquisition', label: 'Campaigns', icon: '✦', hint: 'Supervised seller SMS campaigns' },
   { href: '/owner/disposition', label: 'Disposition', icon: '◇' },
   { href: '/owner/closing', label: 'Closings', icon: '□' },
+  { href: '/owner/title-companies', label: 'Title Companies', icon: 'T', hint: 'Wholesale-friendly closing partner matching' },
 ];
 
 const intelligence: NavItem[] = [
