@@ -10,11 +10,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BACKEND_ORG_ID: team_cBnqjnHgvjedvtvr13Dhdkxf
-  BACKEND_PROJECT_ID: prj_CITxlhXdjtdjWcw9KJAWqvkkD0t8
-  BACKEND_HEALTH_URL: https://backend-pi-opal-65.vercel.app/health
-  FRONTEND_ORG_ID: team_Me3fB0D0J6He10CgJlJ44Xaq
-  FRONTEND_PROJECT_ID: prj_9kGGPvXomtn9ZMscOcsapPQMlWkV
+  VERCEL_ORG_ID: team_Me3fB0D0J6He10CgJlJ44Xaq
+  VERCEL_PROJECT_ID: prj_9kGGPvXomtn9ZMscOcsapPQMlWkV
 
 jobs:
   migrate:
@@ -57,8 +54,8 @@ jobs:
           alembic upgrade head
           alembic current
 
-  backend:
-    name: Deploy canonical backend production
+  deploy:
+    name: Deploy unified frontend and backend
     needs: migrate
     runs-on: ubuntu-latest
     env:
@@ -72,94 +69,77 @@ jobs:
           echo "::error::VERCEL_TOKEN is not available. Refusing to report a successful production release without deploying."
           exit 1
 
-      - name: Deploy backend
+      - name: Activate Services framework on canonical Vercel project
         if: env.HAS_TOKEN == 'yes'
-        working-directory: backend
         env:
-          VERCEL_ORG_ID: ${{ env.BACKEND_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.BACKEND_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_API="https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID"
+
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --url "$PROJECT_API" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"framework":"services"}' \
+            --output /tmp/vercel-project.json
+
+          python3 - /tmp/vercel-project.json "$VERCEL_PROJECT_ID" <<'PY'
+          import json
+          import sys
+
+          path, expected_project = sys.argv[1:]
+          payload = json.load(open(path))
+          actual_project = payload.get("id")
+          framework = payload.get("framework")
+          if actual_project != expected_project:
+              raise SystemExit(f"Vercel project mismatch: expected {expected_project}, got {actual_project}")
+          if framework != "services":
+              raise SystemExit(f"Vercel framework activation failed: expected services, got {framework!r}")
+          print(f"Vercel Services enabled for {actual_project}")
+          PY
+
+      - name: Target unified Vercel project
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global vercel@latest
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Deploy Vercel Services production
+        id: deploy
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           SMARTY_AUTH_ID: ${{ secrets.SMARTY_AUTH_ID }}
           SMARTY_AUTH_TOKEN: ${{ secrets.SMARTY_AUTH_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global vercel@latest
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-          provider_env=()
+          runtime_env=(
+            --env "GIT_COMMIT_SHA=$GITHUB_SHA"
+            --build-env "GIT_COMMIT_SHA=$GITHUB_SHA"
+          )
+
+          if [ -n "$PRODUCTION_DATABASE_URL" ]; then
+            runtime_env+=(--env "DATABASE_URL=$PRODUCTION_DATABASE_URL")
+          fi
+
           if [ -n "$SMARTY_AUTH_ID" ] && [ -n "$SMARTY_AUTH_TOKEN" ]; then
-            provider_env+=(--env "SMARTY_AUTH_ID=$SMARTY_AUTH_ID")
-            provider_env+=(--env "SMARTY_AUTH_TOKEN=$SMARTY_AUTH_TOKEN")
+            runtime_env+=(--env "SMARTY_AUTH_ID=$SMARTY_AUTH_ID")
+            runtime_env+=(--env "SMARTY_AUTH_TOKEN=$SMARTY_AUTH_TOKEN")
           elif [ -n "$SMARTY_AUTH_ID" ] || [ -n "$SMARTY_AUTH_TOKEN" ]; then
             echo "::warning::Only one Smarty credential is configured; neither will be injected."
           fi
 
-          vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
-            --env GIT_COMMIT_SHA="$GITHUB_SHA" \
-            --build-env GIT_COMMIT_SHA="$GITHUB_SHA" \
-            "${provider_env[@]}"
-
-      - name: Verify backend commit
-        if: env.HAS_TOKEN == 'yes'
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in {1..12}; do
-            reported="$(curl -fsS --max-time 20 "$BACKEND_HEALTH_URL" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin).get('deployed',{}).get('commit') or '')" \
-              2>/dev/null || true)"
-            if [ "$reported" = "$GITHUB_SHA" ]; then
-              echo "Backend verified at $reported"
-              exit 0
-            fi
-            echo "Attempt $attempt: backend reports '${reported:-nothing}', expected '$GITHUB_SHA'"
-            sleep 10
-          done
-          echo "::error::Backend did not converge to $GITHUB_SHA"
-          exit 1
-
-  frontend:
-    name: Deploy canonical frontend production
-    needs: backend
-    runs-on: ubuntu-latest
-    env:
-      HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' && 'yes' || 'no' }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Require Vercel deployment token
-        if: env.HAS_TOKEN == 'no'
-        run: |
-          echo "::error::VERCEL_TOKEN is not available. Frontend production cannot be published."
-          exit 1
-
-      - name: Target correct Vercel frontend project
-        if: env.HAS_TOKEN == 'yes'
-        env:
-          VERCEL_ORG_ID: ${{ env.FRONTEND_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.FRONTEND_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --global vercel@latest
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-
-      - name: Deploy frontend
-        id: deploy
-        if: env.HAS_TOKEN == 'yes'
-        env:
-          VERCEL_ORG_ID: ${{ env.FRONTEND_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.FRONTEND_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          DEPLOYMENT_URL="$(vercel deploy --prod --yes \
-            --token="$VERCEL_TOKEN" \
-            --env GIT_COMMIT_SHA="$GITHUB_SHA" \
-            --build-env GIT_COMMIT_SHA="$GITHUB_SHA")"
+          DEPLOYMENT_URL="$(vercel deploy --prod --yes --token="$VERCEL_TOKEN" "${runtime_env[@]}")"
           echo "Production deployment: $DEPLOYMENT_URL"
           case "$DEPLOYMENT_URL" in
             https://*) ;;
@@ -167,7 +147,7 @@ jobs:
           esac
           echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Verify complete production release
+      - name: Verify atomic production release
         if: env.HAS_TOKEN == 'yes'
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
@@ -181,7 +161,7 @@ jobs:
               break
             fi
             if [ "$attempt" = "18" ]; then
-              echo "::error::Frontend login smoke test never became healthy"
+              echo "::error::Unified production login smoke test never became healthy"
               exit 1
             fi
             sleep 5
@@ -196,6 +176,7 @@ jobs:
           payload = json.loads(sys.argv[2])
           frontend = payload.get("frontend_commit")
           backend = payload.get("backend_commit")
+          transport = payload.get("backend_transport")
           status = payload.get("status")
 
           errors = []
@@ -205,10 +186,12 @@ jobs:
               errors.append(f"backend={backend!r}")
           if status != "in_sync":
               errors.append(f"status={status!r}")
+          if transport != "vercel_service_binding":
+              errors.append(f"backend_transport={transport!r}")
           if errors:
               raise SystemExit(
-                  "Production release is not synchronized: " + ", ".join(errors)
-                  + f"; expected commit {expected}"
+                  "Unified production release is not atomic: " + ", ".join(errors)
+                  + f"; expected commit {expected} and Vercel service binding"
               )
-          print(f"Production verified in_sync at {expected}")
+          print(f"Unified frontend/backend verified in_sync at {expected}")
           PY
