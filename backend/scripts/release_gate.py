@@ -38,6 +38,7 @@ REQUIRED_ROUTES = {
 REQUIRED_ROUTE_PREFIXES = {
     "/lead-verification",
     "/deal-intelligence",
+    "/deal-execution",
     "/buyer-matching",
     "/disposition",
     "/closing-command",
