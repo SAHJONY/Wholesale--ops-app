@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./premium.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -15,8 +16,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Matches --bg, so mobile browser chrome blends into the console.
-  themeColor: "#07090d",
+  themeColor: "#030406",
   colorScheme: "dark",
 };
 

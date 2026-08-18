@@ -1,0 +1,340 @@
+/* SAHJONY Ultra Premium Cinematic UI Layer
+   System-wide visual upgrade inspired by premium automotive and consumer hardware interfaces.
+   This file intentionally overrides shared tokens rather than page logic, so every current
+   and future route inherits the same visual language without weakening workflow controls. */
+
+:root {
+  --bg: #030406;
+  --surface-1: rgba(11, 13, 18, 0.82);
+  --surface-2: rgba(18, 21, 28, 0.82);
+  --surface-3: rgba(27, 31, 40, 0.9);
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --border-hover: rgba(255, 255, 255, 0.22);
+  --text: #f7f8fb;
+  --text-muted: #a8afbc;
+  --text-subtle: #727b89;
+  --accent: #f4f7fb;
+  --accent-strong: #ffffff;
+  --accent-ink: #08090b;
+  --accent-wash: rgba(255, 255, 255, 0.08);
+  --accent-edge: rgba(255, 255, 255, 0.17);
+  --info: #8bbcff;
+  --info-wash: rgba(84, 153, 255, 0.12);
+  --info-edge: rgba(119, 177, 255, 0.28);
+  --warn: #f5c77f;
+  --warn-wash: rgba(245, 199, 127, 0.1);
+  --danger: #ff9797;
+  --danger-wash: rgba(255, 112, 112, 0.1);
+  --danger-edge: rgba(255, 130, 130, 0.28);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-sm: 0 1px 0 rgba(255,255,255,.035) inset, 0 10px 35px rgba(0,0,0,.24);
+  --shadow-md: 0 1px 0 rgba(255,255,255,.05) inset, 0 24px 80px rgba(0,0,0,.42);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, ui-sans-serif, system-ui, sans-serif;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --duration: 260ms;
+  --owner-nav-width: 286px;
+}
+
+html { background: #030406; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 700px at 78% -12%, rgba(105, 145, 214, .13), transparent 58%),
+    radial-gradient(900px 680px at 8% 95%, rgba(102, 122, 160, .08), transparent 62%),
+    linear-gradient(180deg, #050609 0%, #020305 100%);
+  background-attachment: fixed;
+  letter-spacing: -.008em;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: .34;
+  background-image:
+    linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.7), transparent 85%);
+}
+
+::selection { background: rgba(157, 195, 255, .28); color: #fff; }
+
+h1, h2, h3, h4, strong, b { letter-spacing: -.025em; }
+h1 { font-weight: 720; }
+h2 { font-weight: 680; }
+a { text-underline-offset: 3px; }
+
+/* ---------- Universal premium interaction ---------- */
+button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+button, a { transition: transform var(--duration) var(--ease), opacity var(--duration) var(--ease), background var(--duration) var(--ease), border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease); }
+button:active:not(:disabled), a:active { transform: scale(.985); }
+
+input, textarea, select {
+  background: rgba(6, 8, 12, .8) !important;
+  border-color: rgba(255,255,255,.12) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 1px 1px rgba(0,0,0,.2);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+input:hover, textarea:hover, select:hover { border-color: rgba(255,255,255,.2) !important; }
+input:focus, textarea:focus, select:focus {
+  border-color: rgba(155, 194, 255, .58) !important;
+  box-shadow: 0 0 0 4px rgba(106, 168, 255, .09), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+/* ---------- Application shell ---------- */
+.ownerAppShell {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+.ownerAppShell::before {
+  content: "";
+  position: fixed;
+  top: -280px;
+  right: -180px;
+  width: 760px;
+  height: 760px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(106, 168, 255, .11), transparent 66%);
+  filter: blur(18px);
+  pointer-events: none;
+  z-index: -1;
+}
+.ownerAppContent {
+  min-height: 100vh;
+  margin-left: var(--owner-nav-width);
+  padding-top: 66px;
+  position: relative;
+}
+.ownerSignedOut .ownerAppContent { margin-left: 0; padding-top: 0; }
+
+.ownerTopRail {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: var(--owner-nav-width);
+  right: 0;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 28px;
+  border-bottom: 1px solid rgba(255,255,255,.065);
+  background: linear-gradient(180deg, rgba(7,8,11,.92), rgba(7,8,11,.72));
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+}
+.ownerTopRailPath { display:flex; align-items:center; gap:10px; min-width:0; }
+.ownerTopRailPath small { color:#6f7885; font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.16em; }
+.ownerTopRailPath strong { color:#e9edf3; font-size:13px; font-weight:600; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.ownerTopRailStatus { display:flex; align-items:center; gap:10px; color:#929ba9; font-size:11px; font-weight:650; letter-spacing:.09em; text-transform:uppercase; }
+.ownerTopRailStatus i { width:7px; height:7px; border-radius:50%; background:#7de6aa; box-shadow:0 0 0 5px rgba(125,230,170,.075),0 0 22px rgba(125,230,170,.5); }
+
+/* ---------- Navigation ---------- */
+.ownerNav {
+  width: var(--owner-nav-width) !important;
+  background:
+    linear-gradient(180deg, rgba(12,14,19,.94), rgba(5,6,9,.97)),
+    radial-gradient(circle at 40% 0%, rgba(123, 163, 221, .08), transparent 40%) !important;
+  border-right: 1px solid rgba(255,255,255,.07) !important;
+  backdrop-filter: blur(34px) saturate(140%);
+  -webkit-backdrop-filter: blur(34px) saturate(140%);
+  box-shadow: 24px 0 70px rgba(0,0,0,.22);
+}
+.ownerBrand {
+  margin: 8px 8px 24px !important;
+  padding: 10px 8px 18px !important;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.ownerBrand > span, .ownerMobileBrand > span {
+  background: linear-gradient(145deg,#fff,#9da9b8) !important;
+  color:#050608 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 8px 25px rgba(0,0,0,.32);
+}
+.ownerBrand b { font-size:14px !important; letter-spacing:.22em !important; font-weight:720 !important; }
+.ownerBrand small { color:#737d8b !important; letter-spacing:.055em; }
+.ownerNavGroup > span {
+  color:#555f6e !important;
+  font-size:9px !important;
+  letter-spacing:.2em !important;
+  font-weight:750 !important;
+  padding-left: 15px !important;
+}
+.ownerNavGroup a {
+  margin: 2px 8px;
+  min-height: 43px;
+  border: 1px solid transparent;
+  border-radius: 13px !important;
+  color:#909aa9 !important;
+  padding: 0 12px !important;
+}
+.ownerNavGroup a i {
+  width:26px !important;
+  color:#737e8e !important;
+  font-style:normal;
+  font-weight:650;
+  filter: saturate(.75);
+}
+.ownerNavGroup a:hover {
+  color:#edf1f7 !important;
+  background:rgba(255,255,255,.045) !important;
+  border-color:rgba(255,255,255,.055);
+  transform: translateX(2px);
+}
+.ownerNavGroup a.active {
+  color:#fff !important;
+  background: linear-gradient(110deg, rgba(255,255,255,.105), rgba(255,255,255,.045)) !important;
+  border-color:rgba(255,255,255,.11) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 12px 26px rgba(0,0,0,.18);
+}
+.ownerNavGroup a.active i { color:#d9e8ff !important; }
+.ownerNav footer {
+  margin: 18px 10px 8px !important;
+  padding: 15px !important;
+  border:1px solid rgba(255,255,255,.07) !important;
+  border-radius:16px;
+  background:rgba(255,255,255,.025);
+}
+.ownerLiveDot { background:#78e5a7 !important; box-shadow:0 0 18px rgba(120,229,167,.7); }
+
+/* ---------- All owner pages ---------- */
+.ownerAppContent > :where(main, div[class*="page"], div[class*="setup"]) {
+  animation: premiumPageIn .55s var(--ease) both;
+}
+@keyframes premiumPageIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+.ownerAppContent :where(h1) {
+  font-size: clamp(34px, 4vw, 54px) !important;
+  line-height: 1.02 !important;
+  letter-spacing: -.052em !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.08);
+}
+.ownerAppContent :where(h2) { letter-spacing:-.035em !important; }
+.ownerAppContent :where(p) { text-wrap: pretty; }
+
+/* Existing components already use shared surface tokens. These selectors add the
+   premium optical edge without depending on CSS-module hash names. */
+.ownerAppContent :where(article, section)[class],
+.ownerAppContent :where(div)[class*="card"],
+.ownerAppContent :where(div)[class*="Card"] {
+  border-color: rgba(255,255,255,.075);
+}
+.ownerAppContent :where(article)[class*="metric"],
+.ownerAppContent :where(article)[class*="Metric"],
+.ownerAppContent :where(div)[class*="card"],
+.ownerAppContent :where(section)[class*="card"] {
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  box-shadow: var(--shadow-sm);
+}
+.ownerAppContent :where(article, div)[class*="card"]:hover {
+  border-color: rgba(255,255,255,.125);
+}
+
+/* ---------- Buttons ---------- */
+.ownerAppContent button,
+.ownerAppContent a[class*="Button"],
+.ownerAppContent a[class*="button"] {
+  border-radius: 13px !important;
+  letter-spacing: -.01em;
+}
+.ownerAppContent button:not(:disabled):hover { transform: translateY(-1px); }
+.ownerAppContent button:not(:disabled):active { transform: translateY(0) scale(.985); }
+
+/* ---------- Data surfaces ---------- */
+.ownerAppContent table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ownerAppContent thead th {
+  background: rgba(15,18,24,.88) !important;
+  color:#7f8998 !important;
+  font-size:10px !important;
+  letter-spacing:.12em !important;
+  text-transform:uppercase;
+  backdrop-filter: blur(20px);
+}
+.ownerAppContent tbody tr { transition: background .22s ease, transform .22s ease; }
+.ownerAppContent tbody tr:hover { background:rgba(255,255,255,.035) !important; }
+.ownerAppContent td { border-color:rgba(255,255,255,.055) !important; }
+
+/* ---------- Premium scroll ---------- */
+*::-webkit-scrollbar { width: 8px; height:8px; }
+*::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border:2px solid transparent; background-clip:content-box; }
+*::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.2); background-clip:content-box; }
+
+/* ---------- Login ---------- */
+.premiumLogin {
+  position:relative;
+  min-height:100vh;
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(420px,.85fr);
+  overflow:hidden;
+  color:#fff;
+  background:#030406;
+}
+.premiumLogin::before {
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(900px 720px at 17% 34%, rgba(89,131,194,.2), transparent 60%),
+    radial-gradient(680px 560px at 90% 90%, rgba(255,255,255,.055), transparent 64%),
+    linear-gradient(130deg,#05070b 0%,#020305 68%);
+}
+.premiumLoginVisual { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:space-between; padding:56px clamp(36px,6vw,88px); border-right:1px solid rgba(255,255,255,.065); }
+.premiumLoginBrand { display:flex; align-items:center; gap:14px; font-size:12px; font-weight:750; letter-spacing:.18em; }
+.premiumLoginBrandMark { width:36px; height:36px; display:grid; place-items:center; border-radius:11px; background:linear-gradient(145deg,#fff,#9fa8b5); color:#050608; box-shadow:0 20px 45px rgba(0,0,0,.3); }
+.premiumLoginHero { max-width:760px; padding-bottom:8vh; }
+.premiumLoginHero small { color:#8d98a7; font-weight:650; font-size:11px; letter-spacing:.2em; text-transform:uppercase; }
+.premiumLoginHero h1 { margin:18px 0 22px; font-size:clamp(54px,7vw,102px); line-height:.9; letter-spacing:-.068em; font-weight:680; }
+.premiumLoginHero h1 span { display:block; color:#7d8794; }
+.premiumLoginHero p { max-width:620px; color:#9da6b4; font-size:17px; line-height:1.65; }
+.premiumLoginMeta { display:flex; gap:26px; color:#666f7d; font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+.premiumLoginPanel { position:relative; z-index:1; display:grid; place-items:center; padding:38px; background:rgba(4,5,8,.48); backdrop-filter:blur(36px); }
+.premiumLoginCard { width:min(430px,100%); }
+.premiumLoginCard .kicker { color:#778190; font-size:10px; letter-spacing:.18em; font-weight:700; text-transform:uppercase; }
+.premiumLoginCard h2 { margin:12px 0 8px; font-size:38px; letter-spacing:-.045em; }
+.premiumLoginCard > p { color:#828d9b; line-height:1.6; margin:0 0 26px; }
+.premiumStatus { display:flex; align-items:center; gap:10px; padding:11px 13px; border:1px solid rgba(255,255,255,.075); border-radius:13px; background:rgba(255,255,255,.025); color:#8f99a8; font-size:12px; margin-bottom:22px; }
+.premiumStatusDot { width:7px; height:7px; border-radius:50%; background:#738093; }
+.premiumStatus.online .premiumStatusDot { background:#7ce5aa; box-shadow:0 0 16px rgba(124,229,170,.55); }
+.premiumStatus.offline .premiumStatusDot { background:#e6bd78; }
+.premiumLoginError { background:rgba(255,95,95,.08); border:1px solid rgba(255,120,120,.23); color:#ffb1b1; padding:12px 14px; border-radius:13px; margin-bottom:18px; font-size:13px; }
+.premiumLoginForm { display:grid; gap:10px; }
+.premiumLoginForm label { margin-top:7px; color:#8d96a4; font-size:11px; font-weight:650; letter-spacing:.08em; text-transform:uppercase; }
+.premiumLoginForm input { height:52px; padding:0 15px; border-radius:14px; font-size:15px; }
+.premiumLoginForm button { height:52px; margin-top:10px; border:1px solid rgba(255,255,255,.8); border-radius:14px; background:linear-gradient(180deg,#fff,#dce2ea); color:#050608; font-weight:720; cursor:pointer; box-shadow:0 15px 42px rgba(255,255,255,.08); }
+.premiumLoginForm button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 20px 54px rgba(255,255,255,.13); }
+.premiumLoginLinks { display:flex; justify-content:space-between; align-items:center; margin-top:20px; color:#77818e; font-size:12px; }
+.premiumLoginLinks a { color:#b4c8e5; text-decoration:none; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1050px) {
+  .premiumLogin { grid-template-columns:1fr; }
+  .premiumLoginVisual { display:none; }
+  .premiumLoginPanel { min-height:100vh; }
+}
+@media (max-width: 900px) {
+  .ownerAppContent { margin-left:0; padding-top:62px; }
+  .ownerTopRail { display:none; }
+  .ownerNav { width:min(330px, 88vw) !important; }
+}
+@media (max-width: 640px) {
+  :root { --radius-xl:22px; }
+  .premiumLoginPanel { padding:28px 22px; }
+  .premiumLoginCard h2 { font-size:32px; }
+  .ownerAppContent :where(h1) { font-size:clamp(30px,10vw,42px) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
