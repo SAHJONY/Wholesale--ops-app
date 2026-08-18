@@ -74,24 +74,52 @@ export default function UnifiedLoginPage() {
     }
   }
 
-  return (
-    <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'radial-gradient(circle at top,#172033 0,#090b10 48%)',color:'#fff',padding:24}}>
-      <section style={{width:'100%',maxWidth:480,background:'rgba(21,25,35,.96)',border:'1px solid #2a3140',borderRadius:20,padding:32,boxShadow:'0 24px 80px rgba(0,0,0,.42)'}}>
-        <p style={{letterSpacing:2.4,fontSize:12,color:'#9fb0c8',marginBottom:8}}>SAHJONY WHOLESALE OS</p>
-        <h1 style={{fontSize:34,margin:'0 0 10px'}}>Sign in</h1>
-        <p style={{color:'#b8c2d1',lineHeight:1.55}}>One secure sign-in gives you access to every authorized section of the application.</p>
-        <div style={{padding:'10px 12px',borderRadius:10,background:'#10141d',border:'1px solid #273042',margin:'18px 0',color:systemOnline===true?'#bff5d0':systemOnline===false?'#ffe0a6':'#ffd1d1'}}>{status}</div>
-        {error && <div style={{background:'#421f26',border:'1px solid #7a3440',padding:12,borderRadius:10,marginBottom:16}}>{error}</div>}
-        <form onSubmit={signIn} style={{display:'grid',gap:12}}>
-          <label htmlFor="app-email"><b>Email</b></label>
-          <input id="app-email" value={email} onChange={e=>setEmail(e.target.value)} type="email" autoComplete="email" required style={{padding:13,borderRadius:9,border:'1px solid #3b465a',fontSize:16}} />
-          <label htmlFor="app-password"><b>Password</b></label>
-          <input id="app-password" value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete="current-password" required style={{padding:13,borderRadius:9,border:'1px solid #3b465a',fontSize:16}} />
-          <button type="submit" disabled={loading} style={{padding:13,borderRadius:9,fontWeight:800,fontSize:16,cursor:'pointer'}}>{loading?'Signing in…':'Sign in to SAHJONY Wholesale OS'}</button>
+  const statusClass = systemOnline === true ? 'online' : systemOnline === false ? 'offline' : '';
+
+  return <main className="premiumLogin">
+    <section className="premiumLoginVisual" aria-label="SAHJONY Wholesale Operating System">
+      <div className="premiumLoginBrand">
+        <span className="premiumLoginBrandMark">S</span>
+        <span>SAHJONY WHOLESALE OS</span>
+      </div>
+      <div className="premiumLoginHero">
+        <small>Private acquisition infrastructure</small>
+        <h1>Source. Verify.<span>Acquire.</span></h1>
+        <p>A precision operating environment for distressed-property intelligence, underwriting, seller execution, disposition and closing.</p>
+      </div>
+      <div className="premiumLoginMeta">
+        <span>Supervised autonomy</span>
+        <span>Owner access</span>
+        <span>Houston · Nationwide</span>
+      </div>
+    </section>
+
+    <section className="premiumLoginPanel">
+      <div className="premiumLoginCard">
+        <span className="kicker">Secure workspace access</span>
+        <h2>Welcome back.</h2>
+        <p>Enter the owner operating system. One authenticated session unlocks every authorized workflow.</p>
+
+        <div className={`premiumStatus ${statusClass}`}>
+          <span className="premiumStatusDot" aria-hidden="true" />
+          <span>{status}</span>
+        </div>
+
+        {error && <div className="premiumLoginError" role="alert">{error}</div>}
+
+        <form onSubmit={signIn} className="premiumLoginForm">
+          <label htmlFor="app-email">Email</label>
+          <input id="app-email" value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required />
+          <label htmlFor="app-password">Password</label>
+          <input id="app-password" value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" required />
+          <button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Enter Wholesale OS'}</button>
         </form>
-        <p style={{marginTop:14}}><Link href="/forgot-password" style={{color:'#b8d4ff'}}>Forgot password?</Link></p>
-        <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>Authentication uses a secure same-origin HttpOnly session cookie.</p>
-      </section>
-    </main>
-  );
+
+        <div className="premiumLoginLinks">
+          <Link href="/forgot-password">Forgot password?</Link>
+          <span>HttpOnly secure session</span>
+        </div>
+      </div>
+    </section>
+  </main>;
 }
