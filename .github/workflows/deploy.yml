@@ -69,6 +69,38 @@ jobs:
           echo "::error::VERCEL_TOKEN is not available. Refusing to report a successful production release without deploying."
           exit 1
 
+      - name: Activate Services framework on canonical Vercel project
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_API="https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID"
+
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --url "$PROJECT_API" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"framework":"services"}' \
+            --output /tmp/vercel-project.json
+
+          python3 - /tmp/vercel-project.json "$VERCEL_PROJECT_ID" <<'PY'
+          import json
+          import sys
+
+          path, expected_project = sys.argv[1:]
+          payload = json.load(open(path))
+          actual_project = payload.get("id")
+          framework = payload.get("framework")
+          if actual_project != expected_project:
+              raise SystemExit(f"Vercel project mismatch: expected {expected_project}, got {actual_project}")
+          if framework != "services":
+              raise SystemExit(f"Vercel framework activation failed: expected services, got {framework!r}")
+          print(f"Vercel Services enabled for {actual_project}")
+          PY
+
       - name: Target unified Vercel project
         if: env.HAS_TOKEN == 'yes'
         env:
