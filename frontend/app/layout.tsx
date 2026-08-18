@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./premium.css";
 import "./cinematic-login-v2.css";
+import "./premium-ux-v3.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
