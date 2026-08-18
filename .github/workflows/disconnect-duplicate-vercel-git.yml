@@ -1,0 +1,42 @@
+name: Disconnect Duplicate Vercel Git Link
+
+on:
+  push:
+    branches:
+      - agent/production-sync-status
+    paths:
+      - '.github/workflows/disconnect-duplicate-vercel-git.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  disconnect:
+    runs-on: ubuntu-latest
+    env:
+      DUPLICATE_SCOPE: juan-gonzalezs-projects-94b6dfe9
+      DUPLICATE_PROJECT: wholesale-ops-app
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Require Vercel token
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN is not configured"
+            exit 1
+          fi
+
+      - name: Disconnect duplicate Git integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global vercel@latest
+          mkdir -p /tmp/sahjony-vercel-cleanup
+          cd /tmp/sahjony-vercel-cleanup
+          vercel link --yes \
+            --project "$DUPLICATE_PROJECT" \
+            --scope "$DUPLICATE_SCOPE" \
+            --token="$VERCEL_TOKEN"
+          vercel git disconnect github --yes \
+            --scope "$DUPLICATE_SCOPE" \
+            --token="$VERCEL_TOKEN"
+          echo "Disconnected GitHub from duplicate Vercel project $DUPLICATE_SCOPE/$DUPLICATE_PROJECT"
