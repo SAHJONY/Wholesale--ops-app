@@ -1,0 +1,74 @@
+/* SAHJONY Premium UX Completion V3 */
+
+.ownerNavV3 nav { overflow-y:auto; padding-bottom:10px; }
+.ownerNavSectionLabel { display:block; margin:2px 15px 8px; color:#535e6f; font-size:9px; font-weight:760; letter-spacing:.2em; text-transform:uppercase; }
+.ownerNavUtility { display:flex; align-items:center; gap:11px; margin:0 10px 14px; padding:11px 12px; border:1px solid rgba(255,198,109,.12); border-radius:15px; background:linear-gradient(120deg,rgba(255,187,91,.055),rgba(255,255,255,.018)); color:#c7d0dc; text-decoration:none; }
+.ownerNavUtility:hover,.ownerNavUtility.active { border-color:rgba(255,198,109,.24); background:linear-gradient(120deg,rgba(255,187,91,.1),rgba(255,255,255,.035)); color:#fff; }
+.ownerNavUtility>i { display:grid; place-items:center; width:28px; height:28px; border-radius:10px; background:rgba(255,195,107,.09); color:#ffd28e; font-style:normal; font-weight:800; }
+.ownerNavUtility>span { min-width:0; display:grid; gap:2px; flex:1; }
+.ownerNavUtility b { font-size:12px; font-weight:700; }
+.ownerNavUtility small { color:#727e8d; font-size:9px; letter-spacing:.02em; }
+.ownerNavUtility em { color:#727e8d; font-style:normal; }
+
+.ownerNavSpaces { display:grid; gap:3px; }
+.ownerNavSpace { margin:0 8px; border:1px solid transparent; border-radius:15px; transition:border-color .22s ease,background .22s ease; }
+.ownerNavSpace.active { border-color:rgba(116,172,255,.11); background:linear-gradient(120deg,rgba(69,131,229,.065),rgba(255,255,255,.018)); }
+.ownerNavSpaceRow { display:flex; align-items:stretch; }
+.ownerNavSpaceLink { min-width:0; flex:1; display:flex; align-items:center; gap:10px; padding:9px 9px 9px 11px; color:#909aa8; text-decoration:none; border-radius:14px; }
+.ownerNavSpaceLink:hover { color:#f4f7fb; background:rgba(255,255,255,.035); transform:translateX(1px); }
+.ownerNavSpace.active .ownerNavSpaceLink { color:#f5f8fc; }
+.ownerNavSpaceLink>i { flex:0 0 28px; display:grid; place-items:center; height:28px; border-radius:9px; background:rgba(255,255,255,.028); color:#8592a4; font-style:normal; font-size:12px; font-weight:700; }
+.ownerNavSpace.active .ownerNavSpaceLink>i { background:rgba(81,153,255,.09); color:#b7d7ff; box-shadow:inset 0 0 0 1px rgba(117,176,255,.08); }
+.ownerNavSpaceLink>span { display:grid; gap:2px; min-width:0; }
+.ownerNavSpaceLink b { font-size:12px; font-weight:680; letter-spacing:-.015em; }
+.ownerNavSpaceLink small { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#626d7b; font-size:9px; }
+.ownerNavSpaceToggle { flex:0 0 34px; margin:6px 5px 6px 0; border:0; border-radius:10px; background:transparent; color:#616d7c; cursor:pointer; }
+.ownerNavSpaceToggle:hover { background:rgba(255,255,255,.045); color:#b8c6d8; }
+.ownerNavSpaceToggle span { display:block; transform:translateY(-1px); transition:transform .2s ease; }
+.ownerNavSpaceToggle[aria-expanded="true"] span { transform:rotate(180deg); }
+.ownerNavChildren { display:grid; gap:1px; padding:0 8px 7px 48px; }
+.ownerNavChildren a { min-height:29px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 7px; border-radius:9px; color:#6f7b8b; font-size:10px; text-decoration:none; }
+.ownerNavChildren a:hover,.ownerNavChildren a.active { color:#d9e8fb; background:rgba(255,255,255,.035); }
+.ownerNavChildren a i { opacity:.45; font-style:normal; }
+
+.ownerTopRailStatus { text-decoration:none; padding:7px 10px; border:1px solid rgba(255,255,255,.055); border-radius:999px; background:rgba(255,255,255,.022); }
+.ownerTopRailStatus i { transition:all .25s ease; }
+.ownerTopRailStatus.live { color:#99cdb2; border-color:rgba(125,230,170,.12); }
+.ownerTopRailStatus.live i { background:#7de6aa; box-shadow:0 0 0 5px rgba(125,230,170,.075),0 0 22px rgba(125,230,170,.5); }
+.ownerTopRailStatus.degraded { color:#dfbd84; border-color:rgba(245,199,127,.16); }
+.ownerTopRailStatus.degraded i { background:#f5c77f; box-shadow:0 0 0 5px rgba(245,199,127,.06),0 0 18px rgba(245,199,127,.28); }
+.ownerTopRailStatus.offline { color:#e99b9b; border-color:rgba(255,151,151,.16); }
+.ownerTopRailStatus.offline i { background:#ff9797; box-shadow:0 0 0 5px rgba(255,151,151,.055),0 0 18px rgba(255,151,151,.25); }
+.ownerTopRailStatus.checking i { background:#8bbcff; box-shadow:0 0 0 5px rgba(139,188,255,.05),0 0 18px rgba(139,188,255,.22); animation:ownerStatusPulse 1.4s ease-in-out infinite; }
+@keyframes ownerStatusPulse { 50% { opacity:.4; transform:scale(.78); } }
+
+@media (max-width:1050px) {
+  .premiumLogin { grid-template-columns:minmax(0,.9fr) minmax(390px,1.1fr) !important; }
+  .premiumLoginVisual { display:flex !important; min-height:100vh !important; padding:34px !important; background-size:cover,cover,920px auto !important; }
+  .premiumLoginHero { margin:auto 0 18px !important; padding:26px !important; }
+  .premiumLoginHero h1 { font-size:clamp(46px,7vw,70px) !important; }
+  .premiumLoginHero p { font-size:14px !important; }
+  .premiumLoginMeta { gap:6px !important; }
+  .premiumLoginMeta span { font-size:8px; padding:6px 8px; }
+  .premiumLoginPanel { min-height:100vh; }
+}
+
+@media (max-width:760px) {
+  .premiumLogin { display:block !important; min-height:100svh; }
+  .premiumLoginVisual { position:absolute !important; inset:0; min-height:100svh !important; padding:22px !important; border:0 !important; opacity:.72; background-size:cover,cover,940px auto !important; background-position:center,center,48% 48% !important; }
+  .premiumLoginBrand { position:relative; z-index:3; }
+  .premiumLoginHero { display:none !important; }
+  .premiumLoginMeta { display:none !important; }
+  .premiumLoginPanel { position:relative; z-index:4; min-height:100svh; padding:82px 18px 22px !important; background:linear-gradient(180deg,rgba(2,5,11,.16),rgba(2,5,11,.68) 32%,rgba(2,4,9,.94) 70%) !important; align-items:end; }
+  .premiumLoginCard { width:100% !important; max-width:480px; padding:24px !important; border:1px solid rgba(151,190,255,.16); border-radius:26px; }
+}
+
+@media (max-width:900px) {
+  .ownerNavV3 { padding-bottom:max(8px,env(safe-area-inset-bottom)); }
+  .ownerNavUtility { margin-top:2px; }
+  .ownerNavSpaceLink small { white-space:normal; line-height:1.25; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .ownerTopRailStatus.checking i { animation:none; }
+}
