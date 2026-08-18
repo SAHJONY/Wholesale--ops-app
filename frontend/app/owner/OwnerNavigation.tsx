@@ -2,63 +2,79 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-type NavItem = { href: string; label: string; icon: string; hint?: string };
+type NavItem = { href: string; label: string; hint?: string };
+type NavSpace = { id: string; href: string; label: string; icon: string; hint: string; children?: NavItem[] };
 
-const command: NavItem[] = [
-  { href: '/owner', label: 'Command Center', icon: '⌂', hint: 'Money + next actions' },
-  { href: '/owner/copilot', label: 'Wholesale Copilot', icon: 'AI', hint: 'OpenAI web research + workspace tools' },
-  { href: '/owner/deal-factory', label: 'Deal Factory', icon: '✦', hint: 'Nationwide source-backed deal analysis' },
-  { href: '/owner/attention', label: 'Action Inbox', icon: '!', hint: 'Approvals + blockers' },
-  { href: '/owner/acquisition', label: 'Prospects', icon: '↗', hint: 'Discover + qualify' },
-  { href: '/owner/real-deals', label: 'Real Deals', icon: '$', hint: 'Verified $10K+ spread' },
-  { href: '/owner/buyer-intake', label: 'Buyers', icon: '◎', hint: 'Buy boxes + proof of funds' },
+const actionInbox: NavItem = { href: '/owner/attention', label: 'Action Inbox', hint: 'Approvals + blockers' };
+
+const spaces: NavSpace[] = [
+  { id: 'command', href: '/owner', label: 'Command', icon: '⌂', hint: 'Money, risk and next actions' },
+  {
+    id: 'acquisition', href: '/owner/deal-factory', label: 'Acquisition', icon: '↗', hint: 'Source and verify opportunities',
+    children: [
+      { href: '/owner/acquisition', label: 'Prospects' },
+      { href: '/owner/lead-verification', label: 'Verification' },
+      { href: '/owner/properties', label: 'Property Workspace' },
+    ],
+  },
+  {
+    id: 'deals', href: '/owner/real-deals', label: 'Deals', icon: '$', hint: 'Verified economics and exit execution',
+    children: [
+      { href: '/owner/deal-intelligence', label: 'Underwriting' },
+      { href: '/owner/disposition', label: 'Disposition' },
+    ],
+  },
+  {
+    id: 'communications', href: '/owner/phone-os', label: 'Communications', icon: '☎', hint: 'Seller calls, conversations and campaigns',
+    children: [
+      { href: '/owner/communications', label: 'Seller Conversations' },
+      { href: '/owner/sms-acquisition', label: 'Campaigns' },
+    ],
+  },
+  { id: 'buyers', href: '/owner/buyer-intake', label: 'Buyers', icon: '◎', hint: 'Buy boxes and proof of funds' },
+  {
+    id: 'closing', href: '/owner/closing', label: 'Closing', icon: '□', hint: 'Title, assignment and funding',
+    children: [{ href: '/owner/title-companies', label: 'Title Companies' }],
+  },
+  {
+    id: 'intelligence', href: '/owner/markets', label: 'Intelligence', icon: '⌖', hint: 'Markets and source reliability',
+    children: [{ href: '/owner/live-data', label: 'Data Sources' }],
+  },
+  {
+    id: 'ai', href: '/owner/jobs', label: 'AI', icon: 'AI', hint: 'Agent workforce and research tools',
+    children: [{ href: '/owner/copilot', label: 'Wholesale Copilot' }],
+  },
+  {
+    id: 'system', href: '/owner/system-health', label: 'System', icon: '●', hint: 'Integrations, audit and security',
+    children: [
+      { href: '/owner/integrations', label: 'Integrations' },
+      { href: '/owner/audit', label: 'Audit Trail' },
+      { href: '/owner/security', label: 'Admin & Security' },
+    ],
+  },
 ];
 
-const execution: NavItem[] = [
-  { href: '/owner/properties', label: 'Property Workspace', icon: '▣' },
-  { href: '/owner/phone-os', label: 'Phone OS', icon: '☎', hint: 'AI calls + qualification + human handoff' },
-  { href: '/owner/communications', label: 'Seller Conversations', icon: '◌' },
-  { href: '/owner/sms-acquisition', label: 'Campaigns', icon: '✦', hint: 'Supervised seller SMS campaigns' },
-  { href: '/owner/disposition', label: 'Disposition', icon: '◇' },
-  { href: '/owner/closing', label: 'Closings', icon: '□' },
-  { href: '/owner/title-companies', label: 'Title Companies', icon: 'T', hint: 'Wholesale-friendly closing partner matching' },
-];
+function routeIsActive(pathname: string, href: string) {
+  if (href === '/owner') return pathname === '/owner' || pathname === '/owner/ceo-command';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
-const intelligence: NavItem[] = [
-  { href: '/owner/deal-intelligence', label: 'Underwriting', icon: '⌘' },
-  { href: '/owner/lead-verification', label: 'Verification', icon: '⛨' },
-  { href: '/owner/markets', label: 'Markets', icon: '⌖' },
-  { href: '/owner/live-data', label: 'Data Sources', icon: '◉' },
-  { href: '/owner/jobs', label: 'AI Workforce', icon: '↻' },
-];
-
-const system: NavItem[] = [
-  { href: '/owner/integrations', label: 'Integrations', icon: '+' },
-  { href: '/owner/system-health', label: 'System Health', icon: '●' },
-  { href: '/owner/audit', label: 'Audit Trail', icon: '≡' },
-  { href: '/owner/security', label: 'Admin & Security', icon: '⌾' },
-];
-
-function LinkGroup({ label, items, pathname, onNavigate }: { label: string; items: NavItem[]; pathname: string; onNavigate: () => void }) {
-  return <section className="ownerNavGroup">
-    <span>{label}</span>
-    {items.map(item => {
-      const active = item.href === '/owner'
-        ? pathname === '/owner' || pathname === '/owner/ceo-command'
-        : pathname === item.href || pathname.startsWith(`${item.href}/`);
-      return <Link key={item.href} href={item.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={onNavigate} title={item.hint}>
-        <i aria-hidden="true">{item.icon}</i><span>{item.label}</span>
-      </Link>;
-    })}
-  </section>;
+function spaceIsActive(pathname: string, space: NavSpace) {
+  return routeIsActive(pathname, space.href) || Boolean(space.children?.some(item => routeIsActive(pathname, item.href)));
 }
 
 export default function OwnerNavigation() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(false), [pathname]);
+  const activeSpace = useMemo(() => spaces.find(space => spaceIsActive(pathname, space))?.id ?? null, [pathname]);
+  const [expanded, setExpanded] = useState<string | null>(activeSpace);
+
+  useEffect(() => {
+    setOpen(false);
+    if (activeSpace) setExpanded(activeSpace);
+  }, [pathname, activeSpace]);
 
   return <>
     <header className="ownerMobileBar">
@@ -67,15 +83,40 @@ export default function OwnerNavigation() {
         <span className="srOnly">Toggle navigation</span><i/><i/><i/>
       </button>
     </header>
-    {open && <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} />}
-    <aside id="owner-navigation" className={`ownerNav ${open ? 'open' : ''}`}>
+    {open ? <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} /> : null}
+    <aside id="owner-navigation" className={`ownerNav ownerNavV3 ${open ? 'open' : ''}`}>
       <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale Operating System</small></div></Link>
-      <nav aria-label="Owner workspace">
-        <LinkGroup label="Operate" items={command} pathname={pathname} onNavigate={() => setOpen(false)} />
-        <LinkGroup label="Execute" items={execution} pathname={pathname} onNavigate={() => setOpen(false)} />
-        <LinkGroup label="Intelligence" items={intelligence} pathname={pathname} onNavigate={() => setOpen(false)} />
-        <LinkGroup label="System" items={system} pathname={pathname} onNavigate={() => setOpen(false)} />
+
+      <Link href={actionInbox.href} className={routeIsActive(pathname, actionInbox.href) ? 'ownerNavUtility active' : 'ownerNavUtility'} onClick={() => setOpen(false)}>
+        <i aria-hidden="true">!</i><span><b>{actionInbox.label}</b><small>{actionInbox.hint}</small></span><em>→</em>
+      </Link>
+
+      <nav aria-label="Owner workspace" className="ownerNavSpaces">
+        <span className="ownerNavSectionLabel">Operating spaces</span>
+        {spaces.map(space => {
+          const active = spaceIsActive(pathname, space);
+          const showChildren = Boolean(space.children?.length) && (expanded === space.id || active);
+          return <section className={`ownerNavSpace ${active ? 'active' : ''}`} key={space.id}>
+            <div className="ownerNavSpaceRow">
+              <Link href={space.href} className="ownerNavSpaceLink" aria-current={routeIsActive(pathname, space.href) ? 'page' : undefined} onClick={() => setOpen(false)} title={space.hint}>
+                <i aria-hidden="true">{space.icon}</i><span><b>{space.label}</b><small>{space.hint}</small></span>
+              </Link>
+              {space.children?.length ? <button type="button" className="ownerNavSpaceToggle" aria-label={`${showChildren ? 'Collapse' : 'Expand'} ${space.label}`} aria-expanded={showChildren} onClick={() => setExpanded(current => current === space.id && !active ? null : space.id)}>
+                <span aria-hidden="true">⌄</span>
+              </button> : null}
+            </div>
+            {showChildren ? <div className="ownerNavChildren">
+              {space.children?.map(item => {
+                const childActive = routeIsActive(pathname, item.href);
+                return <Link key={item.href} href={item.href} className={childActive ? 'active' : ''} aria-current={childActive ? 'page' : undefined} onClick={() => setOpen(false)}>
+                  <span>{item.label}</span><i aria-hidden="true">→</i>
+                </Link>;
+              })}
+            </div> : null}
+          </section>;
+        })}
       </nav>
+
       <footer><span className="ownerLiveDot"/><div><b>Supervised autonomy</b><small>AI prepares · humans authorize</small></div></footer>
     </aside>
   </>;
