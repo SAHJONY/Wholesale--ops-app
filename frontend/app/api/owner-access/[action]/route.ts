@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
 const SESSION_COOKIE = 'sahjony_owner_session';
 const SESSION_MAX_AGE = 60 * 60 * 8;
+const NO_STORE_HEADERS = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };
 
 const ACTIONS: Record<string, { path: string; method: 'GET' | 'POST' }> = {
   health: { path: '/health', method: 'GET' },
@@ -23,16 +24,18 @@ function clearSession(response: NextResponse) {
   return response;
 }
 
+function jsonError(detail: string, status: number) {
+  return NextResponse.json({ detail }, { status, headers: NO_STORE_HEADERS });
+}
+
 async function proxy(request: NextRequest, context: { params: Promise<{ action: string }> }) {
   const { action } = await context.params;
 
   if (action === 'session') {
+    if (request.method !== 'GET') return jsonError('Method not allowed', 405);
     const token = request.cookies.get(SESSION_COOKIE)?.value || '';
     if (!token) {
-      return NextResponse.json(
-        { authenticated: false },
-        { headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
-      );
+      return NextResponse.json({ authenticated: false }, { headers: NO_STORE_HEADERS });
     }
     try {
       const upstream = await fetch(`${BACKEND_URL}/auth/me`, {
@@ -43,32 +46,31 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
       if (upstream.status === 401 || upstream.status === 403) {
         return clearSession(NextResponse.json(
           { authenticated: false },
-          { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+          { status: 401, headers: NO_STORE_HEADERS },
         ));
       }
       if (!upstream.ok) {
         return NextResponse.json(
           { authenticated: false, detail: 'Session validation unavailable' },
-          { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+          { status: 503, headers: NO_STORE_HEADERS },
         );
       }
       const principal = await upstream.json();
       return NextResponse.json(
         { authenticated: true, principal },
-        { headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+        { headers: NO_STORE_HEADERS },
       );
     } catch {
       return NextResponse.json(
         { authenticated: false, detail: 'Session validation unavailable' },
-        { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } },
+        { status: 503, headers: NO_STORE_HEADERS },
       );
     }
   }
 
   const mapping = ACTIONS[action];
-  if (!mapping) {
-    return NextResponse.json({ detail: 'Unsupported owner access action' }, { status: 404 });
-  }
+  if (!mapping) return jsonError('Unsupported owner access action', 404);
+  if (request.method !== mapping.method) return jsonError('Method not allowed', 405);
 
   let body = mapping.method === 'POST' ? await request.text() : undefined;
   if (action === 'logout') {
@@ -90,8 +92,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
       status: upstream.status,
       headers: {
         'Content-Type': upstream.headers.get('content-type') || 'application/json',
-        'Cache-Control': 'no-store',
-        'X-Robots-Tag': 'noindex',
+        ...NO_STORE_HEADERS,
       },
     });
 
@@ -99,7 +100,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
       try {
         const payload = text ? JSON.parse(text) : {};
         const token = String(payload.access_token || '');
-        if (!token) return NextResponse.json({ detail: 'Sign-in succeeded without a session token' }, { status: 502 });
+        if (!token) return jsonError('Sign-in succeeded without a session token', 502);
         response.cookies.set(SESSION_COOKIE, token, {
           httpOnly: true,
           secure: true,
@@ -108,17 +109,14 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
           maxAge: SESSION_MAX_AGE,
         });
       } catch {
-        return NextResponse.json({ detail: 'Unreadable sign-in response' }, { status: 502 });
+        return jsonError('Unreadable sign-in response', 502);
       }
     }
 
     if (action === 'logout') return clearSession(response);
     return response;
-  } catch (error) {
-    const response = NextResponse.json(
-      { detail: `Backend unavailable: ${error instanceof Error ? error.message : 'request failed'}` },
-      { status: 502 },
-    );
+  } catch {
+    const response = jsonError('Backend unavailable', 502);
     return action === 'logout' ? clearSession(response) : response;
   }
 }
