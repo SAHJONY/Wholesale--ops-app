@@ -10,11 +10,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PRODUCTION_SCOPE: personal-d82253df
   BACKEND_ORG_ID: team_cBnqjnHgvjedvtvr13Dhdkxf
   BACKEND_PROJECT_ID: prj_CITxlhXdjtdjWcw9KJAWqvkkD0t8
   BACKEND_HEALTH_URL: https://backend-pi-opal-65.vercel.app/health
-  FRONTEND_PROJECT_NAME: wholesale-ops-app
+  FRONTEND_ORG_ID: team_Me3fB0D0J6He10CgJlJ44Xaq
+  FRONTEND_PROJECT_ID: prj_9kGGPvXomtn9ZMscOcsapPQMlWkV
 
 jobs:
   migrate:
@@ -134,34 +134,29 @@ jobs:
           echo "::error::VERCEL_TOKEN is not available. Frontend production cannot be published."
           exit 1
 
-      - name: Link canonical frontend project
+      - name: Target correct Vercel frontend project
         if: env.HAS_TOKEN == 'yes'
         env:
+          VERCEL_ORG_ID: ${{ env.FRONTEND_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.FRONTEND_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           npm install --global vercel@latest
-          vercel link --yes \
-            --project "$FRONTEND_PROJECT_NAME" \
-            --scope "$PRODUCTION_SCOPE" \
-            --token="$VERCEL_TOKEN"
-          vercel pull --yes \
-            --environment=production \
-            --scope "$PRODUCTION_SCOPE" \
-            --token="$VERCEL_TOKEN"
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Deploy frontend
         id: deploy
         if: env.HAS_TOKEN == 'yes'
         env:
+          VERCEL_ORG_ID: ${{ env.FRONTEND_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.FRONTEND_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           DEPLOYMENT_URL="$(vercel deploy --prod --yes \
-            --project "$FRONTEND_PROJECT_NAME" \
-            --scope "$PRODUCTION_SCOPE" \
             --token="$VERCEL_TOKEN" \
             --env GIT_COMMIT_SHA="$GITHUB_SHA" \
             --build-env GIT_COMMIT_SHA="$GITHUB_SHA")"
