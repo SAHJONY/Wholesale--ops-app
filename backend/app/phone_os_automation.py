@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from .auth import Principal, require_role
@@ -23,6 +24,11 @@ def _linked(db: Session, principal: Principal, lead_id: int) -> bool:
         WorkspaceEntity.entity_type == "lead",
         WorkspaceEntity.entity_id == lead_id,
     )))
+
+
+def _phone_schema_not_ready(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "voice_calls" in message and ("does not exist" in message or "undefinedtable" in message)
 
 
 async def qualify_and_route(db: Session, principal: Principal, call: VoiceCall) -> dict[str, Any]:
@@ -115,11 +121,24 @@ async def process_pending(
     db: Session = Depends(get_db),
 ):
     limit = max(1, min(25, int((payload or {}).get("limit") or 10)))
-    rows = db.scalars(select(VoiceCall).where(
-        VoiceCall.organization_id == principal.organization_id,
-        VoiceCall.status.in_(["completed", "answered", "ended"]),
-        VoiceCall.transcript_excerpt.is_not(None),
-    ).order_by(VoiceCall.created_at.desc()).limit(100)).all()
+    try:
+        rows = db.scalars(select(VoiceCall).where(
+            VoiceCall.organization_id == principal.organization_id,
+            VoiceCall.status.in_(["completed", "answered", "ended"]),
+            VoiceCall.transcript_excerpt.is_not(None),
+        ).order_by(VoiceCall.created_at.desc()).limit(100)).all()
+    except ProgrammingError as exc:
+        db.rollback()
+        if _phone_schema_not_ready(exc):
+            raise HTTPException(
+                503,
+                {
+                    "code": "phone_os_schema_not_ready",
+                    "message": "Phone OS is not ready because its database schema has not been activated.",
+                    "action": "Apply the pending voice-call schema migration before processing calls.",
+                },
+            ) from exc
+        raise
 
     pending = [row for row in rows if not isinstance((row.evidence or {}).get("phone_qualification"), dict)][:limit]
     results: list[dict[str, Any]] = []
