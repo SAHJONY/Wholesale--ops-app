@@ -92,8 +92,20 @@ def evaluate_contact(db: Session, principal: Principal, lead: Lead, channel: str
     reasons: list[str] = []
     evidence: dict = {"state": state, "policy": "fail_closed"}
 
+    # Texas is not categorically excluded. Texas Business & Commerce Code
+    # Chapter 304 expressly covers telephone calls/text transmissions and the
+    # Texas No-Call list, so Texas phone/SMS outreach must pass the same fresh
+    # national/state DNC evidence gate below. Automated calls and SMS remain
+    # consent-gated. Chapter 302 registration/exemption questions are business-
+    # specific and must be handled as an organizational compliance prerequisite,
+    # not by silently disabling every Texas lead, including email.
     if state == "TX":
-        reasons.append("texas_excluded")
+        evidence["texas_policy"] = {
+            "status": "state_specific_rules_apply",
+            "dnc_evidence_required_for_phone_or_sms": True,
+            "automated_call_and_sms_require_written_consent": True,
+            "telephone_solicitation_registration_or_exemption_must_be_validated_by_business": True,
+        }
 
     suppression = _active_suppression(db, principal.organization_id, channel, normalized)
     if suppression:
