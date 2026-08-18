@@ -4,6 +4,8 @@ from app.compliance import (
     CALL_START_HOUR,
     CONSENT_REQUIRED,
     DNC_MAX_AGE_DAYS,
+    TEXAS_SOLICITATION_COMPLIANCE_ENV,
+    _env_true,
     normalize_contact,
     normalize_phone,
 )
@@ -24,3 +26,10 @@ def test_fail_closed_policy_constants():
     assert CALL_END_HOUR == 21
     assert {"automated_call", "sms"}.issubset(CONSENT_REQUIRED)
     assert {"live_call", "automated_call", "sms", "email"} == ALLOWED_CHANNELS
+
+
+def test_texas_solicitation_confirmation_is_explicit(monkeypatch):
+    monkeypatch.delenv(TEXAS_SOLICITATION_COMPLIANCE_ENV, raising=False)
+    assert _env_true(TEXAS_SOLICITATION_COMPLIANCE_ENV) is False
+    monkeypatch.setenv(TEXAS_SOLICITATION_COMPLIANCE_ENV, "true")
+    assert _env_true(TEXAS_SOLICITATION_COMPLIANCE_ENV) is True

@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-const OWNER_EMAIL = 'sahjonycapitalllc@outlook.com';
 const DEFAULT_DESTINATION = '/owner';
 
 function safeReturnTo() {
@@ -13,9 +12,10 @@ function safeReturnTo() {
 }
 
 export default function UnifiedLoginPage() {
-  const [email, setEmail] = useState(OWNER_EMAIL);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('Checking system…');
+  const [systemOnline, setSystemOnline] = useState<boolean | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const destination = useMemo(() => safeReturnTo(), []);
@@ -30,11 +30,18 @@ export default function UnifiedLoginPage() {
           window.location.replace(destination);
           return;
         }
+
         const health = await fetch('/api/owner-access/health', { cache: 'no-store' });
         if (!health.ok) throw new Error(`HTTP ${health.status}`);
-        if (!cancelled) setStatus('System online');
+        if (!cancelled) {
+          setSystemOnline(true);
+          setStatus('System online');
+        }
       } catch {
-        if (!cancelled) setStatus('System temporarily unavailable');
+        if (!cancelled) {
+          setSystemOnline(false);
+          setStatus('System status unavailable — sign-in remains available');
+        }
       }
     }
     void initialize();
@@ -73,14 +80,14 @@ export default function UnifiedLoginPage() {
         <p style={{letterSpacing:2.4,fontSize:12,color:'#9fb0c8',marginBottom:8}}>SAHJONY WHOLESALE OS</p>
         <h1 style={{fontSize:34,margin:'0 0 10px'}}>Sign in</h1>
         <p style={{color:'#b8c2d1',lineHeight:1.55}}>One secure sign-in gives you access to every authorized section of the application.</p>
-        <div style={{padding:'10px 12px',borderRadius:10,background:'#10141d',border:'1px solid #273042',margin:'18px 0',color:status==='System online'?'#bff5d0':'#ffd1d1'}}>{status}</div>
+        <div style={{padding:'10px 12px',borderRadius:10,background:'#10141d',border:'1px solid #273042',margin:'18px 0',color:systemOnline===true?'#bff5d0':systemOnline===false?'#ffe0a6':'#ffd1d1'}}>{status}</div>
         {error && <div style={{background:'#421f26',border:'1px solid #7a3440',padding:12,borderRadius:10,marginBottom:16}}>{error}</div>}
         <form onSubmit={signIn} style={{display:'grid',gap:12}}>
           <label htmlFor="app-email"><b>Email</b></label>
           <input id="app-email" value={email} onChange={e=>setEmail(e.target.value)} type="email" autoComplete="email" required style={{padding:13,borderRadius:9,border:'1px solid #3b465a',fontSize:16}} />
           <label htmlFor="app-password"><b>Password</b></label>
           <input id="app-password" value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete="current-password" required style={{padding:13,borderRadius:9,border:'1px solid #3b465a',fontSize:16}} />
-          <button type="submit" disabled={loading || status !== 'System online'} style={{padding:13,borderRadius:9,fontWeight:800,fontSize:16,cursor:'pointer'}}>{loading?'Signing in…':'Sign in to SAHJONY Wholesale OS'}</button>
+          <button type="submit" disabled={loading} style={{padding:13,borderRadius:9,fontWeight:800,fontSize:16,cursor:'pointer'}}>{loading?'Signing in…':'Sign in to SAHJONY Wholesale OS'}</button>
         </form>
         <p style={{marginTop:14}}><Link href="/forgot-password" style={{color:'#b8d4ff'}}>Forgot password?</Link></p>
         <p style={{marginTop:18,color:'#9fb0c8',fontSize:13}}>Authentication uses a secure same-origin HttpOnly session cookie.</p>

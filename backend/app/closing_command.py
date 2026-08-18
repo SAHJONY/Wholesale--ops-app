@@ -36,8 +36,10 @@ def _context(db: Session, principal: Principal, deal_id: int):
     lead = db.get(Lead, prop.lead_id) if prop else None
     if not prop or not lead:
         raise HTTPException(422, "Deal requires a linked property and seller")
-    if str(prop.state or "").upper() == "TX":
-        raise HTTPException(422, "Texas is excluded from SAHJONY acquisition workflows")
+    # Jurisdiction-specific transaction rules belong in compliance and title
+    # strategy validation. Closing Command must not hard-block a state merely
+    # because of a legacy market policy; Texas deals remain subject to the same
+    # evidence, approval, title-company, and legal-compliance gates as others.
     return deal, prop, lead
 
 
