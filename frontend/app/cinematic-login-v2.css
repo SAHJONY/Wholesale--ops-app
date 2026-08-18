@@ -1,0 +1,274 @@
+/* SAHJONY Wholesale OS — cinematic owner access v2 */
+:root {
+  --cinematic-blue: #4f8cff;
+  --cinematic-cyan: #28d7ff;
+  --cinematic-emerald: #56e4b5;
+  --cinematic-violet: #8b7cff;
+  --cinematic-amber: #ffc66d;
+}
+
+.premiumLogin {
+  background:
+    radial-gradient(75rem 55rem at 4% 12%, rgba(55, 117, 255, .22), transparent 58%),
+    radial-gradient(60rem 50rem at 72% 4%, rgba(39, 218, 255, .10), transparent 62%),
+    radial-gradient(50rem 40rem at 88% 96%, rgba(121, 91, 255, .12), transparent 64%),
+    linear-gradient(135deg, #02050b 0%, #050916 38%, #02040a 100%) !important;
+}
+
+.premiumLogin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(115deg, transparent 0 34%, rgba(92, 158, 255, .055) 42%, transparent 48%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 90px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 1px, transparent 1px 90px);
+  mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,.7) 55%, transparent 92%);
+}
+
+.premiumLoginVisual {
+  isolation: isolate;
+  background-image:
+    linear-gradient(180deg, rgba(2,5,11,.02), rgba(2,5,11,.34) 70%, rgba(2,5,11,.82)),
+    linear-gradient(90deg, rgba(2,5,11,.03), rgba(2,5,11,.16)),
+    url('/brand/acquisition-command-landscape.svg');
+  background-size: cover, cover, min(1160px, 112vw) auto;
+  background-position: center, center, 52% center;
+  background-repeat: no-repeat;
+  box-shadow: inset -1px 0 rgba(255,255,255,.055), inset -80px 0 140px rgba(0,0,0,.18);
+}
+
+.premiumLoginVisual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(46rem 32rem at 32% 44%, rgba(38, 133, 255, .14), transparent 66%),
+    radial-gradient(32rem 24rem at 78% 62%, rgba(37, 220, 255, .08), transparent 70%);
+  mix-blend-mode: screen;
+}
+
+.premiumLoginBrand {
+  width: fit-content;
+  padding: 9px 13px 9px 9px;
+  border: 1px solid rgba(167, 202, 255, .15);
+  border-radius: 15px;
+  background: linear-gradient(120deg, rgba(7,14,27,.64), rgba(7,10,18,.35));
+  box-shadow: 0 18px 55px rgba(0,0,0,.26), inset 0 1px rgba(255,255,255,.07);
+  backdrop-filter: blur(24px) saturate(145%);
+}
+
+.premiumLoginBrandMark {
+  background: linear-gradient(145deg, #f7fbff 0%, #a9caff 42%, #64dfff 100%) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.28) inset,
+    0 12px 32px rgba(37, 134, 255, .22),
+    0 0 46px rgba(44, 213, 255, .12) !important;
+}
+
+.premiumLoginHero {
+  position: relative;
+  max-width: 720px;
+  padding: clamp(28px, 4vw, 58px);
+  margin-left: clamp(-18px, -1vw, 0px);
+  border: 1px solid rgba(140, 185, 255, .12);
+  border-radius: 34px;
+  background:
+    linear-gradient(135deg, rgba(7,15,30,.64), rgba(3,7,14,.31) 62%, rgba(3,7,14,.15)),
+    radial-gradient(40rem 18rem at 0 0, rgba(66,136,255,.12), transparent 70%);
+  box-shadow: 0 40px 120px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.07);
+  backdrop-filter: blur(20px) saturate(135%);
+}
+
+.premiumLoginHero::before {
+  content: "DISTRESS  →  UNDERWRITE  →  CONTRACT  →  DISPOSITION  →  CLOSE";
+  display: block;
+  margin-bottom: 24px;
+  color: #78b7ff;
+  font: 700 10px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  letter-spacing: .16em;
+  text-shadow: 0 0 24px rgba(76, 151, 255, .38);
+}
+
+.premiumLoginHero small {
+  color: #8ce7ff !important;
+  text-shadow: 0 0 24px rgba(40, 215, 255, .28);
+}
+
+.premiumLoginHero h1 {
+  max-width: 660px;
+  font-size: clamp(54px, 6.5vw, 100px) !important;
+  line-height: .88 !important;
+  letter-spacing: -.066em !important;
+  text-shadow: 0 6px 50px rgba(0,0,0,.5);
+}
+
+.premiumLoginHero h1 span {
+  display: block;
+  color: transparent !important;
+  background: linear-gradient(90deg, #ffffff 0%, #90c8ff 25%, #55dcff 53%, #65e4b6 82%, #fff4d6 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  filter: drop-shadow(0 0 20px rgba(63, 170, 255, .14));
+}
+
+.premiumLoginHero p {
+  max-width: 600px;
+  color: #b6c5d8 !important;
+  font-size: clamp(15px, 1.25vw, 18px) !important;
+  line-height: 1.68 !important;
+}
+
+.premiumLoginMeta {
+  align-items: center;
+  gap: 8px !important;
+  flex-wrap: wrap;
+}
+
+.premiumLoginMeta span {
+  padding: 8px 12px;
+  border: 1px solid rgba(148,187,244,.12);
+  border-radius: 999px;
+  background: rgba(5,11,21,.55);
+  color: #a8bad0 !important;
+  backdrop-filter: blur(16px);
+}
+
+.premiumLoginMeta span:first-child {
+  color: #9df0ca !important;
+  border-color: rgba(86,228,181,.19);
+  box-shadow: inset 0 0 24px rgba(86,228,181,.035);
+}
+
+.premiumLoginPanel {
+  position: relative;
+  z-index: 2;
+  background:
+    radial-gradient(38rem 28rem at 60% 5%, rgba(72, 123, 255, .10), transparent 68%),
+    linear-gradient(180deg, rgba(6,9,16,.84), rgba(2,4,9,.96));
+}
+
+.premiumLoginPanel::before {
+  content: "";
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  right: -95px;
+  top: -100px;
+  border-radius: 50%;
+  background: conic-gradient(from 200deg, rgba(79,140,255,.5), rgba(40,215,255,.12), rgba(139,124,255,.32), rgba(79,140,255,.5));
+  filter: blur(48px);
+  opacity: .34;
+  pointer-events: none;
+}
+
+.premiumLoginCard {
+  border-color: rgba(151, 190, 255, .16) !important;
+  background:
+    linear-gradient(145deg, rgba(12,18,31,.88), rgba(4,7,13,.88)) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.08) inset,
+    0 44px 140px rgba(0,0,0,.56),
+    0 0 0 1px rgba(64,133,255,.035),
+    0 0 100px rgba(37,111,255,.055) !important;
+  backdrop-filter: blur(34px) saturate(150%) !important;
+}
+
+.premiumLoginCard .kicker {
+  color: #83c6ff !important;
+  text-shadow: 0 0 24px rgba(78,156,255,.3);
+}
+
+.premiumStatus.online {
+  border-color: rgba(86, 228, 181, .20) !important;
+  background: rgba(38, 142, 107, .075) !important;
+  color: #a9f4d4 !important;
+}
+
+.premiumStatus.offline {
+  border-color: rgba(255, 198, 109, .22) !important;
+  background: rgba(255, 172, 54, .06) !important;
+  color: #ffdba3 !important;
+}
+
+.premiumLoginForm input {
+  min-height: 54px;
+  border-radius: 14px !important;
+  border-color: rgba(151, 190, 255, .14) !important;
+  background: linear-gradient(180deg, rgba(4,8,16,.88), rgba(7,11,19,.74)) !important;
+}
+
+.premiumLoginForm input:focus {
+  border-color: rgba(70, 174, 255, .65) !important;
+  box-shadow:
+    0 0 0 4px rgba(54, 141, 255, .09),
+    0 0 44px rgba(38, 135, 255, .08),
+    inset 0 1px rgba(255,255,255,.04) !important;
+}
+
+.premiumLoginForm button {
+  min-height: 56px;
+  border: 1px solid rgba(183, 218, 255, .48) !important;
+  background:
+    linear-gradient(105deg, #f7fbff 0%, #c2ddff 36%, #8be8ff 70%, #b8ffe3 100%) !important;
+  color: #04101a !important;
+  font-weight: 780 !important;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.86),
+    0 14px 38px rgba(53, 144, 255, .17),
+    0 0 52px rgba(40, 215, 255, .06) !important;
+}
+
+.premiumLoginForm button:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.92),
+    0 20px 50px rgba(53, 144, 255, .25),
+    0 0 70px rgba(40, 215, 255, .11) !important;
+}
+
+.premiumLoginError {
+  border: 1px solid rgba(255, 118, 137, .22) !important;
+  background: linear-gradient(110deg, rgba(111,31,47,.18), rgba(33,10,18,.32)) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.035);
+}
+
+@media (max-width: 980px) {
+  .premiumLoginVisual {
+    min-height: 54vh;
+    background-size: cover, cover, 1120px auto;
+    background-position: center, center, 54% 47%;
+  }
+  .premiumLoginHero { margin: 56px 0 26px; padding: 30px; }
+  .premiumLoginHero h1 { font-size: clamp(52px, 13vw, 82px) !important; }
+}
+
+@media (max-width: 640px) {
+  .premiumLoginVisual { min-height: 48vh; padding: 22px !important; }
+  .premiumLoginHero { padding: 24px; border-radius: 25px; }
+  .premiumLoginHero::before { font-size: 8px; line-height: 1.5; }
+  .premiumLoginHero p { font-size: 14px !important; }
+  .premiumLoginMeta { display: none !important; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .premiumLoginHero { animation: cinematicHero 900ms cubic-bezier(.16,1,.3,1) both; }
+  .premiumLoginCard { animation: cinematicCard 850ms 80ms cubic-bezier(.16,1,.3,1) both; }
+  .premiumLoginBrand { animation: cinematicBrand 650ms 160ms cubic-bezier(.16,1,.3,1) both; }
+}
+
+@keyframes cinematicHero {
+  from { opacity: 0; transform: translate3d(-18px, 14px, 0) scale(.985); filter: blur(5px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes cinematicCard {
+  from { opacity: 0; transform: translate3d(18px, 10px, 0) scale(.985); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes cinematicBrand {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
