@@ -12,48 +12,37 @@ const actionInbox: NavItem = { href: '/owner/attention', label: 'Action Inbox', 
 const spaces: NavSpace[] = [
   { id: 'command', href: '/owner', label: 'Command', icon: '⌂', hint: 'Money, risk and next actions' },
   {
-    id: 'acquisition', href: '/owner/deal-factory', label: 'Acquisition', icon: '↗', hint: 'Source and verify opportunities',
+    id: 'find', href: '/owner/deal-factory', label: 'Find Deals', icon: '↗', hint: 'Source, qualify and verify opportunities',
     children: [
       { href: '/owner/acquisition', label: 'Prospects' },
       { href: '/owner/lead-verification', label: 'Verification' },
-      { href: '/owner/properties', label: 'Property Workspace' },
+      { href: '/owner/properties', label: 'Property Evidence' },
     ],
   },
   {
-    id: 'deals', href: '/owner/real-deals', label: 'Deals', icon: '$', hint: 'Verified economics and exit execution',
+    id: 'deal-room', href: '/owner/real-deals', label: 'Deal Room', icon: '$', hint: 'Economics, gates, contracts and execution',
     children: [
       { href: '/owner/deal-intelligence', label: 'Underwriting' },
-      { href: '/owner/disposition', label: 'Disposition' },
+      { href: '/owner/deals', label: 'Contracts & Dossier' },
     ],
   },
   {
-    id: 'communications', href: '/owner/phone-os', label: 'Communications', icon: '☎', hint: 'Seller calls, conversations and campaigns',
+    id: 'sellers', href: '/owner/phone-os', label: 'Sellers', icon: '☎', hint: 'Qualification, conversations and follow-up',
     children: [
-      { href: '/owner/communications', label: 'Seller Conversations' },
+      { href: '/owner/communications', label: 'Conversations' },
       { href: '/owner/sms-acquisition', label: 'Campaigns' },
     ],
   },
-  { id: 'buyers', href: '/owner/buyer-intake', label: 'Buyers', icon: '◎', hint: 'Buy boxes and proof of funds' },
   {
-    id: 'closing', href: '/owner/closing', label: 'Closing', icon: '□', hint: 'Title, assignment and funding',
+    id: 'buyers', href: '/owner/buyer-intake', label: 'Buyers', icon: '◎', hint: 'Buyer coverage, proof of funds and disposition',
+    children: [{ href: '/owner/disposition', label: 'Disposition' }],
+  },
+  {
+    id: 'closing', href: '/owner/closing', label: 'Closing', icon: '□', hint: 'Title, assignment, funding and close',
     children: [{ href: '/owner/title-companies', label: 'Title Companies' }],
   },
   {
-    id: 'intelligence', href: '/owner/markets', label: 'Intelligence', icon: '⌖', hint: 'Markets and source reliability',
-    children: [{ href: '/owner/live-data', label: 'Data Sources' }],
-  },
-  {
-    id: 'ai', href: '/owner/jobs', label: 'AI', icon: 'AI', hint: 'Agent workforce and research tools',
-    children: [{ href: '/owner/copilot', label: 'Wholesale Copilot' }],
-  },
-  {
-    id: 'system', href: '/owner/system-health', label: 'System', icon: '●', hint: 'Integrations, audit and security',
-    children: [
-      { href: '/owner/integrations', label: 'Integrations' },
-      { href: '/owner/audit', label: 'Audit Trail' },
-      { href: '/owner/security', label: 'Admin & Security' },
-    ],
-  },
+    id: 'control', href: '/owner/system-health', label: 'Control', icon: '●', hint: 'System health and owner diagnostics' },
 ];
 
 function routeIsActive(pathname: string, href: string) {
@@ -85,14 +74,14 @@ export default function OwnerNavigation() {
     </header>
     {open ? <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} /> : null}
     <aside id="owner-navigation" className={`ownerNav ownerNavV3 ${open ? 'open' : ''}`}>
-      <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale Operating System</small></div></Link>
+      <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Deal Operating System</small></div></Link>
 
       <Link href={actionInbox.href} className={routeIsActive(pathname, actionInbox.href) ? 'ownerNavUtility active' : 'ownerNavUtility'} onClick={() => setOpen(false)}>
         <i aria-hidden="true">!</i><span><b>{actionInbox.label}</b><small>{actionInbox.hint}</small></span><em>→</em>
       </Link>
 
-      <nav aria-label="Owner workspace" className="ownerNavSpaces">
-        <span className="ownerNavSectionLabel">Operating spaces</span>
+      <nav aria-label="Deal workflow" className="ownerNavSpaces">
+        <span className="ownerNavSectionLabel">Deal workflow</span>
         {spaces.map(space => {
           const active = spaceIsActive(pathname, space);
           const showChildren = Boolean(space.children?.length) && (expanded === space.id || active);

@@ -11,6 +11,7 @@ const labels: Record<string, string> = {
   '/owner/attention': 'Action Inbox',
   '/owner/acquisition': 'Prospects',
   '/owner/real-deals': 'Real Deals',
+  '/owner/deals': 'Contracts & Dossier',
   '/owner/buyer-intake': 'Buyers',
   '/owner/properties': 'Property Workspace',
   '/owner/phone-os': 'Phone OS',
