@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from 'react';
 type NavItem = { href: string; label: string; hint?: string };
 type NavSpace = { id: string; href: string; label: string; icon: string; hint: string; children?: NavItem[] };
 
+const actionInbox: NavItem = { href: '/owner/attention', label: 'Action Inbox', hint: 'Approvals + blockers' };
+
 const spaces: NavSpace[] = [
   { id: 'command', href: '/owner', label: 'Command', icon: '⌂', hint: 'Money, risk and next actions' },
   {
@@ -85,8 +87,8 @@ export default function OwnerNavigation() {
     <aside id="owner-navigation" className={`ownerNav ownerNavV3 ${open ? 'open' : ''}`}>
       <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Wholesale Operating System</small></div></Link>
 
-      <Link href="/owner/attention" className={routeIsActive(pathname, '/owner/attention') ? 'ownerNavUtility active' : 'ownerNavUtility'} onClick={() => setOpen(false)}>
-        <i aria-hidden="true">!</i><span><b>Action Inbox</b><small>Approvals + blockers</small></span><em>→</em>
+      <Link href={actionInbox.href} className={routeIsActive(pathname, actionInbox.href) ? 'ownerNavUtility active' : 'ownerNavUtility'} onClick={() => setOpen(false)}>
+        <i aria-hidden="true">!</i><span><b>{actionInbox.label}</b><small>{actionInbox.hint}</small></span><em>→</em>
       </Link>
 
       <nav aria-label="Owner workspace" className="ownerNavSpaces">
