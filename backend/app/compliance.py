@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -17,17 +18,17 @@ router = APIRouter(prefix="/compliance", tags=["communication compliance"])
 ALLOWED_CHANNELS = {"live_call", "automated_call", "sms", "email"}
 CONSENT_REQUIRED = {"automated_call", "sms"}
 CALL_CHANNELS = {"live_call", "automated_call"}
-
-# Channels the 8am-9pm restriction applies to, in the recipient's own local
-# time. SMS belongs here: the quiet-hours rule covers text messages exactly as
-# it covers calls, and a message sent at 3am is a per-message violation whether
-# it rang or buzzed. This set previously held only the call channels, so every
-# text bypassed the check entirely.
 QUIET_HOURS_CHANNELS = {"live_call", "automated_call", "sms"}
 
 DNC_MAX_AGE_DAYS = 31
 CALL_START_HOUR = 8
 CALL_END_HOUR = 21
+TEXAS_SOLICITATION_COMPLIANCE_ENV = "TEXAS_TELEPHONE_SOLICITATION_COMPLIANCE_CONFIRMED"
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _env_true(name: str) -> bool:
+    return str(os.getenv(name) or "").strip().lower() in _TRUE_VALUES
 
 
 def normalize_phone(value: str) -> str:
@@ -92,20 +93,20 @@ def evaluate_contact(db: Session, principal: Principal, lead: Lead, channel: str
     reasons: list[str] = []
     evidence: dict = {"state": state, "policy": "fail_closed"}
 
-    # Texas is not categorically excluded. Texas Business & Commerce Code
-    # Chapter 304 expressly covers telephone calls/text transmissions and the
-    # Texas No-Call list, so Texas phone/SMS outreach must pass the same fresh
-    # national/state DNC evidence gate below. Automated calls and SMS remain
-    # consent-gated. Chapter 302 registration/exemption questions are business-
-    # specific and must be handled as an organizational compliance prerequisite,
-    # not by silently disabling every Texas lead, including email.
+    # Texas is supported, but phone/SMS outreach remains fail-closed until the
+    # business has documented the Chapter 302 registration/exemption analysis.
+    # This avoids both a blanket Texas prohibition and an unsafe allow-all.
     if state == "TX":
+        texas_confirmed = _env_true(TEXAS_SOLICITATION_COMPLIANCE_ENV)
         evidence["texas_policy"] = {
-            "status": "state_specific_rules_apply",
+            "status": "confirmed" if texas_confirmed else "confirmation_required",
             "dnc_evidence_required_for_phone_or_sms": True,
             "automated_call_and_sms_require_written_consent": True,
             "telephone_solicitation_registration_or_exemption_must_be_validated_by_business": True,
         }
+        if channel in CALL_CHANNELS or channel == "sms":
+            if not texas_confirmed:
+                reasons.append("texas_telephone_solicitation_compliance_unconfirmed")
 
     suppression = _active_suppression(db, principal.organization_id, channel, normalized)
     if suppression:
