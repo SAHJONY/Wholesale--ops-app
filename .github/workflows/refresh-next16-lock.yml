@@ -21,7 +21,7 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Regenerate root workspace lockfile
+      - name: Regenerate root workspace lockfile for stable Next.js 16
         run: npm install --package-lock-only --ignore-scripts
       - name: Commit lockfile
         shell: bash
