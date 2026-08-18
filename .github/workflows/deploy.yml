@@ -1,53 +1,20 @@
 name: Deploy
 
-# Merging is not shipping, and this repository learned that the hard way.
-#
-# The backend Vercel project deploys from the CLI, so merging to main never
-# touched it: production sat five merges behind for ten days while raising a
-# crash that had already been fixed and merged. The frontend project does have a
-# GitHub integration, but it fired a production deployment for only two of the
-# six merges that followed, so it cannot be relied on either.
-#
-# This makes deployment a property of the repository rather than of whoever
-# remembered to run a command. It also fixes the ordering: migrations run before
-# the code that depends on them, and the backend deployment is verified by
-# asking the running service which commit it reports.
-#
-# Required secrets (Settings -> Secrets and variables -> Actions):
-#   VERCEL_TOKEN            - a Vercel access token with deploy rights
-#   PRODUCTION_DATABASE_URL - optional; when set, migrations run before deploy
-#
-# The org and project IDs below are identifiers, not credentials; they are
-# useless without the token, so they stay in plain sight to keep setup to one
-# secret.
-#
-# A merge with no VERCEL_TOKEN skips with a warning rather than failing, so
-# adding this file does not turn the repository red before deployment is set up.
-# A run started by hand is held to a different standard: dispatching this
-# workflow is an explicit request to deploy, so skipping fails the run. Reporting
-# success for a deploy that shipped nothing is the failure that hid ten days of
-# drift, and it should not be reproducible in thirty seconds.
-#
-# The secrets context is not available to step-level `if`, so each job lifts the
-# presence of a secret into a job-level env flag and branches on that.
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  # Never let two deployments race; a later merge must win, not whichever build
-  # happens to finish last.
   group: deploy-production
   cancel-in-progress: false
 
 env:
+  PRODUCTION_SCOPE: personal-d82253df
   BACKEND_ORG_ID: team_cBnqjnHgvjedvtvr13Dhdkxf
   BACKEND_PROJECT_ID: prj_CITxlhXdjtdjWcw9KJAWqvkkD0t8
-  FRONTEND_ORG_ID: team_Me3fB0D0J6He10CgJlJ44Xaq
-  FRONTEND_PROJECT_ID: prj_9kGGPvXomtn9ZMscOcsapPQMlWkV
   BACKEND_HEALTH_URL: https://backend-pi-opal-65.vercel.app/health
+  FRONTEND_PROJECT_NAME: wholesale-ops-app
 
 jobs:
   migrate:
@@ -58,26 +25,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Report which secrets reached this run
-        # Lengths only, never values. "Secrets and variables" has three separate
-        # stores behind identical-looking buttons -- Actions, Codespaces and
-        # Dependabot -- and a secret in the wrong one is invisible here while
-        # looking present in the UI. A length of 0 says the workflow cannot see
-        # it, which is the difference between a setup problem and a code problem
-        # and takes one line to establish instead of an afternoon.
+      - name: Report deployment prerequisites
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
-          echo "VERCEL_TOKEN            length ${#VERCEL_TOKEN}"
+          echo "VERCEL_TOKEN length ${#VERCEL_TOKEN}"
           echo "PRODUCTION_DATABASE_URL length ${#PRODUCTION_DATABASE_URL}"
-          echo "0 means this workflow cannot see it. Check Settings -> Secrets and"
-          echo "variables -> Actions -> Repository secrets, not the Codespaces or"
-          echo "Dependabot tab and not the Variables tab."
 
-      - name: Skip when no database is configured
+      - name: Skip migration when no production database URL is configured
         if: env.HAS_DATABASE == 'no'
-        run: echo "::notice::PRODUCTION_DATABASE_URL is not set. Skipping migrations; any new tables will be reported missing rather than created."
+        run: echo "::notice::PRODUCTION_DATABASE_URL is not configured; schema migration is skipped."
 
       - uses: actions/setup-python@v5
         if: env.HAS_DATABASE == 'yes'
@@ -86,46 +44,35 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
-      - name: Upgrade schema to head
+      - name: Upgrade production schema to head
         if: env.HAS_DATABASE == 'yes'
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           APP_URL: https://www.sahjony.com
         run: |
+          set -euo pipefail
           pip install -r requirements.txt
-          # Report the starting revision before changing anything, so a failed
-          # run says what state the database was left in.
           alembic current
           alembic upgrade head
           alembic current
 
   backend:
-    name: Deploy the backend
+    name: Deploy canonical backend production
     needs: migrate
     runs-on: ubuntu-latest
     env:
       HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' && 'yes' || 'no' }}
-      MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'yes' || 'no' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Skip without a token
+      - name: Require Vercel deployment token
         if: env.HAS_TOKEN == 'no'
         run: |
-          echo "::warning::VERCEL_TOKEN is not set, so the backend was not deployed."
-          echo "::warning::Production keeps serving whatever commit it already had."
-          if [ "$MANUAL_RUN" = "yes" ]; then
-            # A merge that skips is tolerable: the repository should not go red
-            # for everyone before deployment is set up. A run someone started by
-            # hand is different -- it is an explicit request to deploy, and
-            # reporting success for a run that shipped nothing is the same
-            # failure that hid ten days of drift, just faster.
-            echo "::error::This deploy was started by hand, so not deploying is a failure rather than a skip."
-            exit 1
-          fi
+          echo "::error::VERCEL_TOKEN is not available. Refusing to report a successful production release without deploying."
+          exit 1
 
-      - name: Deploy
+      - name: Deploy backend
         if: env.HAS_TOKEN == 'yes'
         working-directory: backend
         env:
@@ -134,110 +81,139 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           SMARTY_AUTH_ID: ${{ secrets.SMARTY_AUTH_ID }}
           SMARTY_AUTH_TOKEN: ${{ secrets.SMARTY_AUTH_TOKEN }}
+        shell: bash
         run: |
+          set -euo pipefail
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-          # Actions secrets are visible only inside a workflow run; they are not
-          # runtime variables for the deployed service. Smarty's pair was added
-          # to Actions and to the frontend Vercel project, neither of which the
-          # Python backend can read, so property data stayed unconfigured while
-          # the credentials looked present in two places. Passing them at deploy
-          # time is what puts them in front of the code that reads them.
-          #
-          # Both halves or neither. A lone auth-id cannot authenticate, and
-          # shipping one would turn a missing secret into what looks like a
-          # provider outage at the first lookup.
           provider_env=()
           if [ -n "$SMARTY_AUTH_ID" ] && [ -n "$SMARTY_AUTH_TOKEN" ]; then
             provider_env+=(--env "SMARTY_AUTH_ID=$SMARTY_AUTH_ID")
             provider_env+=(--env "SMARTY_AUTH_TOKEN=$SMARTY_AUTH_TOKEN")
-            echo "Passing the Smarty secret key pair to this deployment."
           elif [ -n "$SMARTY_AUTH_ID" ] || [ -n "$SMARTY_AUTH_TOKEN" ]; then
-            echo "::warning::Only one half of the Smarty pair is set, so it is being withheld and property data stays unconfigured. Set both SMARTY_AUTH_ID and SMARTY_AUTH_TOKEN."
-          else
-            echo "::notice::No Smarty credentials in Actions secrets; property data stays unconfigured unless ATTOM_API_KEY is set on the project."
+            echo "::warning::Only one Smarty credential is configured; neither will be injected."
           fi
 
-          # Vercel populates VERCEL_GIT_COMMIT_SHA only for Git-integration
-          # builds, never for a CLI deploy, so the commit is passed in by hand.
-          # Without it the running service cannot name its own revision, and the
-          # check below has nothing to compare and can only ever fail.
           vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
             --env GIT_COMMIT_SHA="$GITHUB_SHA" \
             --build-env GIT_COMMIT_SHA="$GITHUB_SHA" \
             "${provider_env[@]}"
 
-      - name: Confirm production is running this commit
+      - name: Verify backend commit
         if: env.HAS_TOKEN == 'yes'
+        shell: bash
         run: |
-          # A green deploy step only means Vercel accepted the build. The claim
-          # worth making is that the running service reports this commit, which
-          # is exactly the check whose absence hid the ten-day drift.
-          #
-          # The two failure signals are not equally diagnostic, so they are not
-          # treated alike. Reporting no commit at all means the deploy did not
-          # take, because the deploy step above stamps GIT_COMMIT_SHA and the
-          # service reads it -- so a silent service is running code that never
-          # received the stamp. Reporting a different commit is ambiguous and
-          # only warns; failing the run on the ambiguous case would produce red
-          # builds that are not real, and a check that cries wolf gets switched
-          # off.
-          #
-          # This check spent seven hours failing every deploy it was added to,
-          # because it demanded a commit nothing had stamped: the empty answer
-          # was read as stale code when it only ever meant the CLI does not set
-          # VERCEL_GIT_COMMIT_SHA. The stamp is what makes silence diagnostic.
-          reported=""
-          for attempt in 1 2 3 4 5 6; do
-            reported=$(curl -sS --max-time 20 "$BACKEND_HEALTH_URL" \
-              | python3 -c "import sys,json;print(json.load(sys.stdin).get('deployed',{}).get('commit') or '')" 2>/dev/null || true)
+          set -euo pipefail
+          for attempt in {1..12}; do
+            reported="$(curl -fsS --max-time 20 "$BACKEND_HEALTH_URL" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('deployed',{}).get('commit') or '')" \
+              2>/dev/null || true)"
             if [ "$reported" = "$GITHUB_SHA" ]; then
-              echo "Backend is running $GITHUB_SHA."
+              echo "Backend verified at $reported"
               exit 0
             fi
-            echo "Attempt $attempt: backend reports '${reported:-nothing}', expected $GITHUB_SHA. Retrying."
-            sleep 15
+            echo "Attempt $attempt: backend reports '${reported:-nothing}', expected '$GITHUB_SHA'"
+            sleep 10
           done
-
-          if [ -z "$reported" ]; then
-            echo "::error::Backend reports no commit, so it is running code from before revision reporting existed. The deploy did not take."
-            exit 1
-          fi
-          echo "::warning::Backend reports $reported, not $GITHUB_SHA. Either the deploy did not take, or the CLI did not record git metadata. Check /owner/system-health, which compares the two services directly."
+          echo "::error::Backend did not converge to $GITHUB_SHA"
+          exit 1
 
   frontend:
-    name: Deploy the frontend
+    name: Deploy canonical frontend production
     needs: backend
     runs-on: ubuntu-latest
     env:
       HAS_TOKEN: ${{ secrets.VERCEL_TOKEN != '' && 'yes' || 'no' }}
-      MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && 'yes' || 'no' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Skip without a token
+      - name: Require Vercel deployment token
         if: env.HAS_TOKEN == 'no'
         run: |
-          echo "::warning::VERCEL_TOKEN is not set, so the frontend was not deployed."
-          if [ "$MANUAL_RUN" = "yes" ]; then
-            echo "::error::This deploy was started by hand, so not deploying is a failure rather than a skip."
-            exit 1
-          fi
+          echo "::error::VERCEL_TOKEN is not available. Frontend production cannot be published."
+          exit 1
 
-      - name: Deploy
+      - name: Link canonical frontend project
         if: env.HAS_TOKEN == 'yes'
         env:
-          VERCEL_ORG_ID: ${{ env.FRONTEND_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.FRONTEND_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
         run: |
-          # Built remotely rather than with --prebuilt so the build matches what
-          # the project's own settings produce, root vercel.json included.
+          set -euo pipefail
           npm install --global vercel@latest
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          # Stamped for the same reason as the backend, so /api/version can name
-          # this side of the comparison instead of reporting unknown.
-          vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
+          vercel link --yes \
+            --project "$FRONTEND_PROJECT_NAME" \
+            --scope "$PRODUCTION_SCOPE" \
+            --token="$VERCEL_TOKEN"
+          vercel pull --yes \
+            --environment=production \
+            --scope "$PRODUCTION_SCOPE" \
+            --token="$VERCEL_TOKEN"
+
+      - name: Deploy frontend
+        id: deploy
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_URL="$(vercel deploy --prod --yes \
+            --project "$FRONTEND_PROJECT_NAME" \
+            --scope "$PRODUCTION_SCOPE" \
+            --token="$VERCEL_TOKEN" \
             --env GIT_COMMIT_SHA="$GITHUB_SHA" \
-            --build-env GIT_COMMIT_SHA="$GITHUB_SHA"
+            --build-env GIT_COMMIT_SHA="$GITHUB_SHA")"
+          echo "Production deployment: $DEPLOYMENT_URL"
+          case "$DEPLOYMENT_URL" in
+            https://*) ;;
+            *) echo "::error::Vercel did not return a production deployment URL"; exit 1 ;;
+          esac
+          echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Verify complete production release
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..18}; do
+            code="$(curl -sS -o /tmp/login.html -w '%{http_code}' "$DEPLOYMENT_URL/login" || true)"
+            if [ "$code" = "200" ] && grep -q "SAHJONY WHOLESALE OS" /tmp/login.html; then
+              break
+            fi
+            if [ "$attempt" = "18" ]; then
+              echo "::error::Frontend login smoke test never became healthy"
+              exit 1
+            fi
+            sleep 5
+          done
+
+          VERSION_JSON="$(curl -fsS "$DEPLOYMENT_URL/api/version")"
+          python3 - "$GITHUB_SHA" "$VERSION_JSON" <<'PY'
+          import json
+          import sys
+
+          expected = sys.argv[1]
+          payload = json.loads(sys.argv[2])
+          frontend = payload.get("frontend_commit")
+          backend = payload.get("backend_commit")
+          status = payload.get("status")
+
+          errors = []
+          if frontend != expected:
+              errors.append(f"frontend={frontend!r}")
+          if backend != expected:
+              errors.append(f"backend={backend!r}")
+          if status != "in_sync":
+              errors.append(f"status={status!r}")
+          if errors:
+              raise SystemExit(
+                  "Production release is not synchronized: " + ", ".join(errors)
+                  + f"; expected commit {expected}"
+              )
+          print(f"Production verified in_sync at {expected}")
+          PY
