@@ -23,6 +23,7 @@ from app.county_verification import router as county_verification_router
 from app.crm import router as crm_router
 from app.data_intake import router as data_intake_router
 from app.database import Base, engine
+from app.deal_dossier import router as deal_dossier_router
 from app.deal_execution import router as deal_execution_router
 from app.deal_intelligence import router as deal_intelligence_router
 from app.deal_rehearsal import router as test_deal_router
@@ -162,6 +163,7 @@ app.include_router(phone_os_automation_router)
 app.include_router(agentic_voice_router)
 app.include_router(voice_intelligence_router)
 app.include_router(realtime_voice_orchestrator_router)
+app.include_router(deal_dossier_router)
 app.include_router(deal_execution_router)
 app.include_router(closing_command_router)
 app.include_router(title_company_matching_router)
