@@ -116,6 +116,7 @@ def test_owner_navigation_exposes_canonical_workspaces_and_allowlists_transition
     transitional_hidden_routes = {
         "/owner/activate",
         "/owner/deals",
+        "/owner/nationwide-acquisition",
         "/owner/provider-activation",
         "/owner/public-data",
         "/owner/sessions",
