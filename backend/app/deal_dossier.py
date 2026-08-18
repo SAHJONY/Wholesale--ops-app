@@ -9,6 +9,15 @@ from .models import Deal, Lead, Property
 router = APIRouter(prefix="/deal-dossier", tags=["deal dossier"])
 
 
+def _json_object(value):
+    """Return mapping-compatible JSON while preserving non-object evidence safely."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        return {"signals": value}
+    return {}
+
+
 @router.get("/{deal_id}")
 def get_deal_dossier(
     deal_id: int,
@@ -31,8 +40,9 @@ def get_deal_dossier(
         raise HTTPException(422, "Deal is missing its property")
     lead = db.get(Lead, prop.lead_id) if prop.lead_id else None
 
-    metadata = deal.metadata_json or {}
-    distress = prop.distress_signals or {}
+    metadata = _json_object(deal.metadata_json)
+    distress = _json_object(prop.distress_signals)
+    arv_support = _json_object(metadata.get("arv_support"))
 
     return {
         "deal": {
@@ -87,7 +97,7 @@ def get_deal_dossier(
             "communication_gate": metadata.get("communication_gate") or {},
             "hard_blockers": metadata.get("hard_blockers") or [],
             "underwriting": metadata.get("preferred_underwriting_scenario") or {},
-            "arv_status": (metadata.get("arv_support") or {}).get("status"),
+            "arv_status": arv_support.get("status"),
             "repair_status": metadata.get("repair_status"),
             "buyer_verification": metadata.get("buyer_verification") or {},
             "completion_state": metadata.get("completion_state"),
