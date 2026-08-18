@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../owner.module.css';
 
 const API_URL = '/api/backend';
-const SESSION_STORAGE = 'sahjony_owner_session';
 const SIGN_IN_URL = '/owner-access';
 
 type Deal = { id:number; property_id:number; stage:string; target_contract_price?:number; target_buyer_price?:number; projected_assignment_fee?:number; next_action?:string };
@@ -12,14 +11,27 @@ type Packet = { id:number; deal_id:number; packet_type:string; status:string; si
 type DocumentItem = { id:number; deal_id:number; packet_id?:number; document_type:string; status:string; storage_key?:string; source:string };
 type Readiness = { selected_provider:string; provider_configured:boolean; docuseal_configured:boolean; docusign_configured:boolean; document_storage:boolean };
 type Snapshot = { deals:Deal[]; packets:Packet[]; documents:DocumentItem[]; readiness:Readiness };
+type JsonMap = Record<string, unknown>;
+type Dossier = {
+  deal:{id:number;property_id:number;stage:string;strategy?:string;target_contract_price?:number|null;target_buyer_price?:number|null;projected_assignment_fee?:number|null;probability_to_close?:number|null;risk_score?:number|null;next_action?:string|null;metadata:JsonMap};
+  property:{id:number;lead_id?:number|null;address:string;city:string;state:string;zip_code:string;property_type?:string|null;bedrooms?:number|null;bathrooms?:number|null;sqft?:number|null;asking_price?:number|null;arv?:number|null;repairs?:number|null;mao?:number|null;latitude?:number|null;longitude?:number|null;distress_signals:JsonMap};
+  lead?:{id:number;seller_name:string;phone:string;email?:string|null;source:string;status:string;motivation_score:number;distress_score:number;equity_score:number;timeline_days?:number|null;notes?:string|null}|null;
+  dossier:{auction_date?:string|null;owner_research?:JsonMap;deed_research?:JsonMap;communication_gate?:JsonMap;hard_blockers?:unknown[];underwriting?:JsonMap;arv_status?:string|null;repair_status?:string|null;buyer_verification?:JsonMap;completion_state?:string|null;owner_conflict?:JsonMap;tax_account?:string|null;parcel_id?:string|null;legal_description?:string|null;hoa_mandatory?:boolean|null};
+};
 
 const emptySnapshot: Snapshot = { deals:[], packets:[], documents:[], readiness:{selected_provider:'docuseal',provider_configured:false,docuseal_configured:false,docusign_configured:false,document_storage:false} };
-function money(value?:number) { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value || 0); }
+function money(value?:number|null) { return value == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value); }
+function text(value:unknown, fallback='—') { return value === null || value === undefined || value === '' ? fallback : String(value); }
+function numberValue(map:JsonMap|undefined, key:string) { const value=map?.[key]; return typeof value==='number'?value:null; }
+function stringValue(map:JsonMap|undefined, key:string) { const value=map?.[key]; return typeof value==='string'?value:null; }
+function boolLabel(value:unknown) { return value===true?'Yes':value===false?'No':'Unverified'; }
 
 export default function DealExecutionCenter() {
   const [token,setToken] = useState('');
   const [snapshot,setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [dealId,setDealId] = useState<number | null>(null);
+  const [dossier,setDossier] = useState<Dossier|null>(null);
+  const [dossierLoading,setDossierLoading] = useState(false);
   const [approvalMap,setApprovalMap] = useState<Record<number,number>>({});
   const [notice,setNotice] = useState('');
   const [error,setError] = useState('');
@@ -29,7 +41,6 @@ export default function DealExecutionCenter() {
   const selectedDeal = useMemo(() => snapshot.deals.find(d => d.id === dealId) || snapshot.deals[0], [snapshot.deals,dealId]);
 
   const redirectToSignIn = useCallback(() => {
-
     setToken('');
     setAuthenticated(false);
     window.location.replace(SIGN_IN_URL);
@@ -59,10 +70,20 @@ export default function DealExecutionCenter() {
 
   useEffect(()=>{
     const stored='cookie-session';
-    if (!stored) { redirectToSignIn(); return; }
     setToken(stored);
     void load(stored);
-  },[load,redirectToSignIn]);
+  },[load]);
+
+  useEffect(()=>{
+    if (!authenticated || !selectedDeal) { setDossier(null); return; }
+    let cancelled=false;
+    setDossierLoading(true);
+    void request(`/deal-dossier/${selectedDeal.id}`)
+      .then(data=>{ if(!cancelled) setDossier(data as Dossier); })
+      .catch(err=>{ if(!cancelled) setError(err instanceof Error?err.message:'Unable to load deal dossier'); })
+      .finally(()=>{ if(!cancelled) setDossierLoading(false); });
+    return ()=>{ cancelled=true; };
+  },[authenticated,selectedDeal,request]);
 
   async function prepare(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); if(!selectedDeal) return;
@@ -107,8 +128,15 @@ export default function DealExecutionCenter() {
 
   if (!authenticated) return <main className={styles.setup}><section className={styles.setupCard}><span className={styles.eyebrow}>DEAL EXECUTION</span><h1>{loading ? 'Checking owner session…' : 'Owner session required'}</h1><p>{error || 'Redirecting to secure owner sign-in.'}</p><a className={styles.linkButton} href={SIGN_IN_URL}>Sign in</a></section></main>;
 
+  const uw=dossier?.dossier.underwriting;
+  const owner=dossier?.dossier.owner_research;
+  const deed=dossier?.dossier.deed_research;
+  const gate=dossier?.dossier.communication_gate;
+  const buyers=dossier?.dossier.buyer_verification;
+  const blockers=(dossier?.dossier.hard_blockers||[]).map(String);
+
   return <main className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>DEAL EXECUTION</span><h1>Contracts & Closing Center</h1><p>Prepare approved templates, control signatures, and move deals into closing.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/closing">Closing Command</a><a className={styles.linkButton} href="/owner">Control Plane</a><a className={styles.linkButton} href="/owner/communications">Communications</a></div></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>DEAL EXECUTION</span><h1>Contracts & Closing Center</h1><p>Full acquisition dossier, underwriting scenarios, verification gates, contracts, and closing.</p></div><div className={styles.actions}><button onClick={()=>void load()} disabled={loading}>Refresh</button><a className={styles.linkButton} href="/owner/closing">Closing Command</a><a className={styles.linkButton} href="/owner">Control Plane</a><a className={styles.linkButton} href="/owner/communications">Communications</a></div></header>
     {notice&&<div className={styles.notice}>{notice}</div>}{error&&<div className={styles.error}>{error}</div>}
 
     <section className={styles.metrics}>
@@ -119,25 +147,57 @@ export default function DealExecutionCenter() {
       <article><span>Secure storage</span><strong>{snapshot.readiness.document_storage?'Ready':'Missing'}</strong></article>
     </section>
 
+    <section className={styles.cardWide}>
+      <div className={styles.cardHeader}><div><span className={styles.eyebrow}>DEAL DOSSIER</span><h2>{dossier?`Deal #${dossier.deal.id} · ${dossier.property.address}`:'Loading selected deal…'}</h2></div><select value={selectedDeal?.id||''} onChange={e=>setDealId(Number(e.target.value))}>{snapshot.deals.map(d=><option key={d.id} value={d.id}>Deal #{d.id} · {d.stage}</option>)}</select></div>
+      {dossierLoading?<p>Loading verified and provisional deal evidence…</p>:dossier?<div className={styles.list}>
+        <div><span><b>Property</b><small>{dossier.property.address}, {dossier.property.city}, {dossier.property.state} {dossier.property.zip_code}</small><small>{text(dossier.property.property_type)} · {text(dossier.property.bedrooms)} bd · {text(dossier.property.bathrooms)} ba · {text(dossier.property.sqft)} sqft</small></span><strong>{dossier.deal.stage}</strong></div>
+        <div><span><b>Owner / seller candidate</b><small>{dossier.lead?.seller_name||text(owner?.leading_candidate)}</small><small>{dossier.lead?.phone||text(owner?.phone)} · status: {text(owner?.status,'not verified')}</small></span><strong>{boolLabel(gate?.seller_authority_verified)}</strong></div>
+        <div><span><b>Foreclosure & title</b><small>Auction candidate: {text(dossier.dossier.auction_date)} · tax account {text(dossier.dossier.tax_account)}</small><small>Parcel {text(dossier.dossier.parcel_id)} · deed/grantee verified: {boolLabel(deed?.grantee_verified ?? deed?.current_grantee_verified)}</small></span><strong>{dossier.dossier.owner_conflict?.status?String(dossier.dossier.owner_conflict.status):'Review'}</strong></div>
+        <div><span><b>Legal</b><small>{text(dossier.dossier.legal_description)}</small><small>HOA mandatory: {boolLabel(dossier.dossier.hoa_mandatory)}</small></span><strong>{text(dossier.dossier.arv_status,'provisional')}</strong></div>
+      </div>:<p>No dossier is available for the selected deal.</p>}
+    </section>
+
+    {dossier&&<section className={styles.grid}>
+      <article className={styles.card}><span className={styles.eyebrow}>UNDERWRITING</span><h2>Scenario vs. verified ledger</h2><div className={styles.list}>
+        <div><span><b>ARV</b><small>{text(dossier.dossier.arv_status,'status unknown')}</small></span><strong>{money(dossier.property.arv)}</strong></div>
+        <div><span><b>Repair reserve</b><small>{text(dossier.dossier.repair_status,'not verified')}</small></span><strong>{money(numberValue(uw,'repair_reserve'))}</strong></div>
+        <div><span><b>Aggressive opening</b><small>Scenario only — not an authorized offer</small></span><strong>{money(numberValue(uw,'opening_offer'))}</strong></div>
+        <div><span><b>MAO / hard walkaway</b><small>Scenario only until repairs/title clear</small></span><strong>{money(numberValue(uw,'mao'))}</strong></div>
+        <div><span><b>Buyer target</b><small>Disposition target — no buyer acceptance implied</small></span><strong>{money(numberValue(uw,'buyer_target'))}</strong></div>
+        <div><span><b>Assignment target</b><small>Scenario, not booked revenue</small></span><strong>{money(numberValue(uw,'assignment_fee'))}</strong></div>
+        <div><span><b>Verified repairs / MAO</b><small>Property ledger values</small></span><strong>{money(dossier.property.repairs)} / {money(dossier.property.mao)}</strong></div>
+        <div><span><b>Contract / booked fee</b><small>Deal ledger values</small></span><strong>{money(dossier.deal.target_contract_price)} / {money(dossier.deal.projected_assignment_fee)}</strong></div>
+      </div></article>
+
+      <article className={styles.card}><span className={styles.eyebrow}>VERIFICATION GATES</span><h2>What must clear before outreach</h2><div className={styles.list}>
+        <div><span><b>Seller identity</b><small>Leading candidate: {text(owner?.leading_candidate)}</small></span><strong>{boolLabel(gate?.seller_identity_verified)}</strong></div>
+        <div><span><b>Seller authority</b><small>Must match deed/title evidence</small></span><strong>{boolLabel(gate?.seller_authority_verified)}</strong></div>
+        <div><span><b>Texas outreach compliance</b><small>Automated outreach remains fail-closed</small></span><strong>{boolLabel(gate?.texas_outreach_compliance_cleared)}</strong></div>
+        <div><span><b>Offer authorized</b><small>No contract packet should use provisional seller data</small></span><strong>{boolLabel(gate?.offer_authorized)}</strong></div>
+        <div><span><b>Buyer coverage</b><small>{text(buyers?.public_activity_confirmed, '0')} public candidates · {text(buyers?.deal_ready_buyers,'0')} deal-ready</small></span><strong>{text(buyers?.pof_verified,'0')} POF</strong></div>
+        <div><span><b>Hard blockers</b><small>{blockers.length?blockers.join(' · '):'None recorded'}</small></span><strong>{blockers.length}</strong></div>
+      </div><p><b>Next action:</b> {dossier.deal.next_action||'No next action recorded.'}</p></article>
+    </section>}
+
     <section className={styles.grid}>
       <article className={styles.card}>
-        <div className={styles.cardHeader}><div><span className={styles.eyebrow}>PREPARE</span><h2>Contract packet</h2></div><select value={selectedDeal?.id||''} onChange={e=>setDealId(Number(e.target.value))}>{snapshot.deals.map(d=><option key={d.id} value={d.id}>Deal #{d.id} · {d.stage}</option>)}</select></div>
+        <div className={styles.cardHeader}><div><span className={styles.eyebrow}>PREPARE</span><h2>Contract packet</h2></div></div>
         {selectedDeal?<form onSubmit={prepare} className={styles.activationForm}>
           <select name="packet_type" defaultValue="purchase_agreement"><option value="purchase_agreement">Purchase agreement</option><option value="assignment_agreement">Assignment agreement</option></select>
           <select name="signature_provider" defaultValue={snapshot.readiness.selected_provider||'docuseal'}><option value="docuseal">DocuSeal</option><option value="docusign">DocuSign fallback</option></select>
-          <input name="signer_name" placeholder="Signer legal name" required />
-          <input name="signer_email" type="email" placeholder="Signer email" required />
+          <input name="signer_name" placeholder="Verified signer legal name" required />
+          <input name="signer_email" type="email" placeholder="Verified signer email" required />
           <label>Contract price<input name="contract_price" type="number" defaultValue={selectedDeal.target_contract_price||''} required /></label>
           <label>Assignment fee<input name="assignment_fee" type="number" defaultValue={selectedDeal.projected_assignment_fee||''} /></label>
           <label>Earnest money<input name="earnest_money" type="number" defaultValue="100" /></label>
           <label>Closing days<input name="closing_days" type="number" defaultValue="30" /></label>
           <input name="buyer_name" defaultValue="Juan Gonzalez" placeholder="Buyer name" />
           <button disabled={loading}>Prepare and request approval</button>
-          <small>Only attorney-approved state templates configured for the selected provider can be used.</small>
+          <small>Use only deed/title-verified signer information and attorney-approved state templates. Provisional owner candidates are never auto-filled.</small>
         </form>:<p>No active deals. Return to the Control Plane, import existing records, or qualify a lead with ARV and repairs to create a deal.</p>}
       </article>
 
-      <article className={styles.card}><span className={styles.eyebrow}>DEALS</span><h2>Execution queue</h2><div className={styles.list}>{snapshot.deals.length?snapshot.deals.map(d=><div key={d.id}><span><b>Deal #{d.id} · {d.stage}</b><small>Contract {money(d.target_contract_price)} · Buyer {money(d.target_buyer_price)} · Fee {money(d.projected_assignment_fee)}</small><small>{d.next_action||'No next action'}</small></span><button onClick={()=>void initializeClosing(d.id)} disabled={loading}>Initialize closing</button></div>):<p>No workspace deals found. This is now a real zero count, not an authentication fallback.</p>}</div></article>
+      <article className={styles.card}><span className={styles.eyebrow}>DEALS</span><h2>Execution queue</h2><div className={styles.list}>{snapshot.deals.length?snapshot.deals.map(d=><div key={d.id}><span><b>Deal #{d.id} · {d.stage}</b><small>Contract {money(d.target_contract_price)} · Buyer {money(d.target_buyer_price)} · Fee {money(d.projected_assignment_fee)}</small><small>{d.next_action||'No next action'}</small></span><button onClick={()=>{setDealId(d.id);void initializeClosing(d.id);}} disabled={loading}>Initialize closing</button></div>):<p>No workspace deals found. This is now a real zero count, not an authentication fallback.</p>}</div></article>
     </section>
 
     <section className={styles.cardWide}><div className={styles.cardHeader}><div><span className={styles.eyebrow}>PACKETS</span><h2>Signature workflow</h2></div><strong>{snapshot.packets.length}</strong></div><div className={styles.list}>{snapshot.packets.length?snapshot.packets.map(p=><div key={p.id}><span><b>Packet #{p.id} · {p.packet_type.replaceAll('_',' ')}</b><small>Deal #{p.deal_id} · {p.signer_name||'No signer'} · {p.status} · {p.provider||snapshot.readiness.selected_provider}</small><small>{p.provider_reference?`Reference ${p.provider_reference}`:p.error||'Not sent'}</small></span><span className={styles.decisionButtons}>{p.status==='pending_approval'&&approvalMap[p.id]&&<><button onClick={()=>void decide(p.id,'approved')} disabled={loading}>Approve</button><button onClick={()=>void decide(p.id,'rejected')} disabled={loading}>Reject</button></>}<button onClick={()=>void send(p.id)} disabled={loading||p.status==='sent'||p.status==='completed'}>Send</button></span></div>):<p>No contract packets prepared.</p>}</div></section>
