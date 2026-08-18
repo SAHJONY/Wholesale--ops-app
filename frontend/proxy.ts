@@ -8,7 +8,7 @@ function safeOwnerReturnTo(value: string | null, fallback = '/owner') {
   return value.startsWith('/owner/') && !value.startsWith('//') ? value : fallback;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (pathname === '/') {

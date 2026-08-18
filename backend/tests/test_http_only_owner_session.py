@@ -17,16 +17,16 @@ def test_owner_access_gateway_sets_secure_http_only_cookie():
     assert "action === 'logout'" in source
 
 
-def test_owner_middleware_protects_all_owner_routes():
-    source = read("frontend/middleware.ts")
+def test_owner_proxy_protects_all_owner_routes():
+    source = read("frontend/proxy.ts")
     assert "'/owner/:path*'" in source
     assert "request.cookies.get(SESSION_COOKIE)" in source
     assert "url.pathname = '/login'" in source
     assert "returnTo" in source
 
 
-def test_owner_middleware_injects_cookie_only_into_same_origin_api_requests():
-    source = read("frontend/middleware.ts")
+def test_owner_proxy_injects_cookie_only_into_same_origin_api_requests():
+    source = read("frontend/proxy.ts")
     assert "pathname.startsWith('/api/')" in source
     assert "headers.set('authorization', `Bearer ${session}`)" in source
     assert "'/api/:path*'" in source
