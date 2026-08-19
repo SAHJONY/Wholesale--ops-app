@@ -25,8 +25,8 @@ PROVIDERS = [
     },
     {
         "id": "batchdata", "name": "BatchData Contact Enrichment API", "category": "contact_and_monitoring", "tier": "primary",
-        "env": ["BATCHDATA_API_KEY", "BATCHDATA_SKIPTRACE_URL"],
-        "optional_env": ["BATCHDATA_AUTH_HEADER", "BATCHDATA_AUTH_SCHEME"],
+        "env": ["BATCHDATA_API_KEY"],
+        "optional_env": ["BATCHDATA_SKIPTRACE_URL", "BATCHDATA_AUTH_HEADER", "BATCHDATA_AUTH_SCHEME"],
         "capabilities": ["skip_trace", "phones", "emails", "property_search", "liens", "permits", "monitoring"],
         "authority": "aggregated_property_and_contact_data",
         "verification": "right_party_confirmation_plus_fresh_dnc_opt_out_and_quiet_hour_screening",
@@ -38,11 +38,11 @@ PROVIDERS = [
         "authority": "government_source", "verification": "authoritative_when_current_and_jurisdiction_matches",
     },
     {
-        "id": "google_maps", "name": "Google Maps and Street View", "category": "geospatial_and_visual", "tier": "primary",
+        "id": "google_maps", "name": "Google Maps and Street View", "category": "geospatial_and_visual", "tier": "optional",
         "env": ["GOOGLE_MAPS_API_KEY"],
         "capabilities": ["geocoding", "street_view", "maps", "distance", "visual_condition_support"],
         "authority": "geospatial_imagery",
-        "verification": "imagery_date_must_be_displayed; no_condition_claim_without_human_review",
+        "verification": "optional_visual_support_only; imagery_date_must_be_displayed; no_condition_claim_without_human_review",
     },
     {
         "id": "google_calendar", "name": "Google Calendar", "category": "seller_scheduling", "tier": "optional",
@@ -69,7 +69,7 @@ PROVIDERS = [
     {
         "id": "docuseal", "name": "DocuSeal eSignature", "category": "contracts", "tier": "primary",
         "env": ["DOCUSEAL_URL", "DOCUSEAL_API_KEY"],
-        "any_of_env": ["DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_GA"],
+        "any_of_env": ["DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_GA", "DOCUSEAL_TEMPLATE_PURCHASE_AGREEMENT_TX"],
         "optional_env": ["DOCUSEAL_TEMPLATE_ASSIGNMENT_AGREEMENT", "DOCUSEAL_SELLER_ROLE_NAME", "DOCUSEAL_COMPLETED_REDIRECT_URL", "DOCUSEAL_REPLY_TO", "DOCUSEAL_BCC_COMPLETED"],
         "capabilities": ["submissions", "esignature", "prefill", "webhooks", "signed_documents", "self_hosting"],
         "authority": "agreement_execution", "verification": "attorney_approved_state_template_and_owner_approval",
@@ -77,7 +77,7 @@ PROVIDERS = [
     {
         "id": "docusign", "name": "DocuSign eSignature (fallback)", "category": "contracts", "tier": "optional",
         "env": ["DOCUSIGN_ACCOUNT_ID", "DOCUSIGN_ACCESS_TOKEN"],
-        "any_of_env": ["DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_GA"],
+        "any_of_env": ["DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_FL", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_GA", "DOCUSIGN_TEMPLATE_PURCHASE_AGREEMENT_TX"],
         "optional_env": ["DOCUSIGN_BASE_PATH", "DOCUSIGN_TEMPLATE_ASSIGNMENT_AGREEMENT", "DOCUSIGN_SELLER_ROLE_NAME"],
         "capabilities": ["envelopes", "esignature", "audit_certificate", "webhooks"],
         "authority": "agreement_execution", "verification": "fallback_only_when_selected",
@@ -136,9 +136,9 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "strategy": {
             "property_system_of_record": "Canonical multi-provider facts with county recorder and assessor verification",
-            "contact_enrichment": "BatchData preview/apply with right-party and compliance screening",
+            "contact_enrichment": "BatchData preview/apply with right-party and compliance screening; official skip-trace endpoint is the default and can be overridden by environment",
             "public_data": "Official government and open-data feeds with provenance, licensing, retention, and confidence metadata",
-            "visual_inspection": "Google Street View with imagery date and human confirmation",
+            "visual_inspection": "Google Street View is optional support; dated imagery and human confirmation are required before condition claims",
             "seller_scheduling": "Google Calendar OAuth with explicit seller time, free/busy verification, and owner-triggered booking",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
             "outbound_policy": "Bland phone-only inbound and compliant outbound voice; SMS disabled until owner re-enables it by policy change",
@@ -161,10 +161,18 @@ def integration_readiness(principal: Principal = Depends(get_principal)):
     public_blocked = [provider for provider in public_enabled if provider["state"] == "enabled_missing_endpoint"]
     bland = next((provider for provider in providers if provider["id"] == "bland"), None)
     calendar = next((provider for provider in providers if provider["id"] == "google_calendar"), None)
+    property_ready = any(
+        provider["id"] in {"attom", "smarty"} and provider["state"] in ready_states
+        for provider in providers
+    )
+    live_acquisition_blockers = [
+        provider for provider in blocking
+        if provider["id"] not in {"attom", "docuseal", "object_storage", "bland"}
+    ]
     return {
         "organization_id": principal.organization_id,
         "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
-        "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking) and not public_blocked,
+        "ready_for_live_acquisition": property_ready and not live_acquisition_blockers and not public_blocked,
         "ready_for_outbound": bool(bland and bland["state"] in ready_states),
         "outbound_provider": "bland_phone",
         "sms_enabled": False,
