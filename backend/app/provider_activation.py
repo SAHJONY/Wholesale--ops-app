@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import Principal, get_principal, require_role
+from .batchdata_adapter import DEFAULT_BATCHDATA_SKIPTRACE_URL
 from .integrations import PROVIDERS, _provider_status
 
 router = APIRouter(prefix="/provider-activation", tags=["production provider activation"])
@@ -22,7 +23,7 @@ PROVIDER_GUIDANCE = {
     "batchdata": {
         "purpose": "Seller phone and email enrichment with right-party and compliance review.",
         "environment": "production",
-        "validation": "Credential and endpoint format checks; live verification occurs through preview-only skip tracing.",
+        "validation": "API-key readiness plus the official BatchData skip-trace endpoint (environment override supported); live contact lookup remains fail-closed.",
         "priority": 100,
     },
     "smarty": {
@@ -38,10 +39,10 @@ PROVIDER_GUIDANCE = {
         "priority": 100,
     },
     "google_maps": {
-        "purpose": "Geocoding and dated Street View support for visual condition review.",
-        "environment": "production",
-        "validation": "Credential presence; imagery date and human review remain mandatory.",
-        "priority": 70,
+        "purpose": "Optional geocoding and dated Street View support for visual condition review.",
+        "environment": "optional",
+        "validation": "Credential presence when enabled; imagery date and human review remain mandatory.",
+        "priority": 40,
     },
     "fema": {
         "purpose": "Federal flood-zone and special-flood-hazard-area evidence.",
@@ -52,13 +53,13 @@ PROVIDER_GUIDANCE = {
     "bland": {
         "purpose": "Approved inbound and outbound voice operations with outcome capture.",
         "environment": "production",
-        "validation": "API key, signed webhook secret, and at least one Bland business/inbound number; no test call is placed.",
+        "validation": "API key, signed webhook secret, and at least one Bland business/inbound number; no test call is placed by readiness checks.",
         "priority": 90,
     },
     "docuseal": {
         "purpose": "Owner-approved eSignature submissions and signed-document synchronization.",
         "environment": "production",
-        "validation": "URL, API credential, and attorney-approved template readiness; no submission is created.",
+        "validation": "URL, API credential, and attorney-approved template readiness; no submission is created by readiness checks.",
         "priority": 90,
     },
     "docusign": {
@@ -80,6 +81,10 @@ URL_ENV = {
     "docuseal": "DOCUSEAL_URL",
 }
 
+DEFAULT_URLS = {
+    "batchdata": DEFAULT_BATCHDATA_SKIPTRACE_URL,
+}
+
 
 def _safe_host_check(url_value: str) -> dict:
     parsed = urlparse(url_value)
@@ -96,9 +101,10 @@ def _activation_item(provider: dict) -> dict:
     status = _provider_status(provider)
     guidance = PROVIDER_GUIDANCE.get(provider["id"], {})
     url_env = URL_ENV.get(provider["id"])
-    url_check = None
-    if url_env and (os.getenv(url_env) or "").strip():
-        url_check = _safe_host_check(str(os.getenv(url_env)))
+    url_value = (os.getenv(url_env) or "").strip() if url_env else ""
+    if not url_value:
+        url_value = DEFAULT_URLS.get(provider["id"], "")
+    url_check = _safe_host_check(url_value) if url_value else None
     ready_states = {"configured", "available_public_or_manual"}
     selected_signature = str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
     required_now = provider.get("tier") in {"primary", "required", "authoritative_verification", "authoritative_public"}
