@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.BACKEND_URL ||
-  'https://backend-pi-opal-65.vercel.app';
+  'http://localhost:8000';
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function proxy(
