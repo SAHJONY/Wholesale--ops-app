@@ -1,4 +1,4 @@
-"""Add SAHJONY SMS appointment and follow-up tables.
+"""Add SAHJONY SMS conversation, appointment and follow-up tables.
 
 Revision ID: 20260808_0010
 Revises: 20260807_0009
@@ -17,7 +17,10 @@ down_revision: Union[str, Sequence[str], None] = "20260807_0009"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-TABLES = frozenset({"sms_appointment_requests", "sms_follow_up_jobs"})
+# sms_appointment_requests and sms_follow_up_jobs both reference
+# sms_conversation_states, so the conversation state table must be part of the
+# same migration for a clean database to upgrade successfully.
+TABLES = frozenset({"sms_conversation_states", "sms_appointment_requests", "sms_follow_up_jobs"})
 
 
 def _tables():
