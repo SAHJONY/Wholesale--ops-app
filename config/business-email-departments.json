@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "company": "SAHJONY CAPITAL LLC",
+  "domain": "sahjonycapitalllc.com",
+  "default_department": "acquisitions",
+  "default_sender": "acquisitions@sahjonycapitalllc.com",
+  "default_reply_to": "acquisitions@sahjonycapitalllc.com",
+  "policy": {
+    "business_email_only": true,
+    "personal_email_fallback_allowed": false,
+    "cross_business_sender_allowed": false,
+    "require_configured_mailbox_before_send": true,
+    "fail_closed_when_sender_unavailable": true
+  },
+  "departments": {
+    "acquisitions": {
+      "email": "acquisitions@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Acquisitions",
+      "purpose": ["seller outreach", "agent outreach", "foreclosure leads", "offer negotiation", "seller follow-up", "property acquisition"]
+    },
+    "dispositions": {
+      "email": "dispositions@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Dispositions",
+      "purpose": ["cash buyers", "investor marketing", "buyer matching", "assignment sales", "proof of funds follow-up"]
+    },
+    "title_closing": {
+      "email": "title@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Title & Closing",
+      "purpose": ["title companies", "escrow", "closing coordination", "payoffs", "lien clearance", "deed and vesting verification"]
+    },
+    "underwriting": {
+      "email": "underwriting@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Underwriting",
+      "purpose": ["comps", "ARV", "rehab estimates", "MAO review", "deal analysis", "due diligence"]
+    },
+    "compliance": {
+      "email": "compliance@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Compliance",
+      "purpose": ["consent", "DNC", "communication approvals", "legal review", "suppression requests", "audit evidence"]
+    },
+    "operations": {
+      "email": "operations@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Operations",
+      "purpose": ["vendors", "integrations", "workflow exceptions", "provider support", "internal operations"]
+    },
+    "support": {
+      "email": "support@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Support",
+      "purpose": ["general inbound", "application support", "account support", "routing unknown requests"]
+    },
+    "executive": {
+      "email": "executive@sahjonycapitalllc.com",
+      "display_name": "SAHJONY Executive Office",
+      "purpose": ["owner escalations", "executive approvals", "strategic partners", "high-risk exceptions"]
+    }
+  },
+  "routing": [
+    {"match": ["seller", "agent", "foreclosure", "probate", "pre-foreclosure", "offer", "acquisition"], "department": "acquisitions"},
+    {"match": ["buyer", "cash buyer", "investor", "assignment", "dispo", "proof of funds"], "department": "dispositions"},
+    {"match": ["title", "escrow", "closing", "payoff", "lien", "deed", "vesting"], "department": "title_closing"},
+    {"match": ["ARV", "MAO", "comps", "rehab", "underwrite", "due diligence"], "department": "underwriting"},
+    {"match": ["DNC", "consent", "compliance", "legal", "suppression", "audit"], "department": "compliance"},
+    {"match": ["vendor", "integration", "provider", "workflow", "operations"], "department": "operations"},
+    {"match": ["support", "help", "account"], "department": "support"},
+    {"match": ["executive", "owner approval", "escalation"], "department": "executive"}
+  ]
+}
