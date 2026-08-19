@@ -7,6 +7,7 @@ adds lightweight routers that do not change authenticated Owner OS contracts.
 from api.index_base import app
 from app.agentic_voice_brain import router as agentic_voice_router
 from app.bland_diagnostics import router as bland_diagnostics_router
+from app.bland_diagnostics_once import router as bland_diagnostics_once_router
 from app.bland_phone_system import router as bland_phone_router
 from app.bland_test_once import router as bland_test_once_router
 from app.buyer_directory import router as buyer_directory_router
@@ -29,8 +30,8 @@ from app.task_resolution_engine import router as task_resolution_router
 # JV performance, market/land acquisition, owner resolution, resilient task
 # resolution, self-healing, self-improvement, Communication OS, Bland phone,
 # Bland diagnostics and OpenAI Realtime voice orchestration are mounted here.
-# The one-time Bland test route remains nonce-gated and is used only after
-# owner authorization.
+# The one-time Bland diagnostic/test routes remain nonce-gated and are used only
+# after owner authorization.
 # Historical mount contract: app.include_router(agentic_voice_router)
 _ = (agentic_voice_router, provider_intelligence_router)
 app.include_router(public_intake_router)
@@ -46,6 +47,7 @@ app.include_router(self_improvement_router)
 app.include_router(communication_os_router)
 app.include_router(bland_phone_router)
 app.include_router(bland_diagnostics_router)
+app.include_router(bland_diagnostics_once_router)
 app.include_router(openai_realtime_voice_router)
 app.include_router(bland_test_once_router)
 
