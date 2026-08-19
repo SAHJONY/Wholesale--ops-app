@@ -14,13 +14,15 @@ from app.market_land_acquisition import router as market_land_acquisition_router
 from app.owner_resolution import router as owner_resolution_router
 from app.provider_intelligence import router as provider_intelligence_router
 from app.public_intake import router as public_intake_router
+from app.self_healing_engine import router as self_healing_router
+from app.self_improvement_engine import router as self_improvement_router
 from app.task_resolution_engine import router as task_resolution_router
 
 # The historical router imports above remain explicit because repository
 # contract tests verify their presence in this entrypoint. They are already
 # mounted by index_base; public intake, buyer directory, buyer-box acquisition,
-# JV performance, market/land acquisition, owner resolution, and resilient task
-# resolution are mounted here.
+# JV performance, market/land acquisition, owner resolution, resilient task
+# resolution, self-healing, and self-improvement are mounted here.
 # Historical mount contract: app.include_router(agentic_voice_router)
 _ = (agentic_voice_router, provider_intelligence_router)
 app.include_router(public_intake_router)
@@ -31,5 +33,7 @@ app.include_router(joint_venture_public_router)
 app.include_router(market_land_acquisition_router)
 app.include_router(owner_resolution_router)
 app.include_router(task_resolution_router)
+app.include_router(self_healing_router)
+app.include_router(self_improvement_router)
 
 __all__ = ["app"]
