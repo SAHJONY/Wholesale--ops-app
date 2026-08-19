@@ -61,6 +61,10 @@ def _business_number() -> str | None:
     return _clean_env("BLAND_DEFAULT_FROM_NUMBER") or _clean_env("BLAND_DEFAULT_CALLER_ID") or None
 
 
+def _inbound_number() -> str | None:
+    return _clean_env("BLAND_INBOUND_NUMBER") or None
+
+
 def _webhook_url() -> str | None:
     return _clean_env("BLAND_PHONE_WEBHOOK_URL") or None
 
@@ -117,13 +121,15 @@ def _webhook_signature(request: Request) -> str | None:
 def _safe_task(lead: Lead) -> str:
     name = str(lead.seller_name or "there").strip()
     return (
-        f"You are the automated acquisitions assistant for SAHJONY. Speak naturally and professionally with {name}. "
-        "At the start, identify SAHJONY and disclose that you are an automated assistant. "
-        "Your purpose is to understand whether the person wants to discuss selling the property and, if they do, capture only explicit Motivation, Timeline, Condition, and Price. "
-        "Never invent ownership, liens, ARV, repairs, title status, legal outcomes, or contract terms. "
+        f"You are the automated acquisitions assistant for SAHJONY, a real-estate investment company. Speak naturally and professionally with {name}. "
+        "At the start, identify SAHJONY and clearly disclose that you are an automated voice assistant. "
+        "Ask permission to continue before discussing the property. Follow the caller's language in English or Spanish. "
+        "If the person wants to discuss selling, qualify the four pillars in a conversational order: Motivation, Timeline, Condition, and Price. "
+        "Capture only facts the person explicitly states. Never invent ownership, liens, ARV, repairs, title status, legal outcomes, buyer interest, consent, or contract terms. "
         "Never make a binding offer or promise a price. Never pressure the person. "
         "If they ask not to be called, acknowledge it, end the sales conversation, and mark opt-out in the call outcome. "
-        "If they request a human, have legal/title complexity, or want to negotiate binding terms, escalate to the configured human acquisitions number."
+        "If they request a human, have legal/title complexity, or want to negotiate binding terms, escalate to the configured human acquisitions number. "
+        "Do not send SMS and do not record the call."
     )
 
 
@@ -156,6 +162,30 @@ def _called_recently(db: Session, organization_id: int, contact: str) -> bool:
         VoiceCall.contact == contact,
         VoiceCall.created_at >= threshold,
     )) is not None
+
+
+def _phone_digits(value: str | None) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())[-10:]
+
+
+def _extract_phone_inventory(payload: Any) -> set[str]:
+    found: set[str] = set()
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in {"phone_number", "number", "inbound_number", "outbound_number"} and isinstance(item, str):
+                    digits = _phone_digits(item)
+                    if digits:
+                        found.add(digits)
+                elif isinstance(item, (dict, list)):
+                    walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(payload)
+    return found
 
 
 async def _send_call(lead: Lead, organization_id: int, contact: str, decision: ComplianceDecision) -> dict[str, Any]:
@@ -197,6 +227,8 @@ async def _send_call(lead: Lead, organization_id: int, contact: str, decision: C
         payload = {"message": response.text[:1000]}
     if response.status_code >= 400 or str(payload.get("status") or "").lower() == "error":
         raise HTTPException(502, f"Bland rejected the call: {payload.get('message') or response.status_code}")
+    if not str(payload.get("call_id") or "").strip():
+        raise HTTPException(502, "Bland did not return a call_id; call dispatch is not considered successful")
     return payload
 
 
@@ -205,6 +237,7 @@ def readiness(principal: Principal = Depends(get_principal), db: Session = Depen
     configured = {
         "api_key": bool(_clean_env("BLAND_AI_API_KEY")),
         "business_phone_number": bool(_business_number()),
+        "inbound_phone_number": bool(_inbound_number()),
         "webhook_url": bool(_webhook_url()),
         "webhook_signing_secret": bool(_webhook_secret()),
         "inbound_organization_id": bool(_clean_env("BLAND_INBOUND_ORGANIZATION_ID")),
@@ -219,7 +252,7 @@ def readiness(principal: Principal = Depends(get_principal), db: Session = Depen
         VoiceCall.organization_id == principal.organization_id, VoiceCall.direction == "outbound")) or 0)
     return {
         "provider": PROVIDER,
-        "mode": "voice_only",
+        "mode": "voice_only_bland_phone_service",
         "canonical_env": {
             "api_key": "BLAND_AI_API_KEY",
             "webhook_secret": "BLAND_AI_WEBHOOK_SECRET",
@@ -230,16 +263,85 @@ def readiness(principal: Principal = Depends(get_principal), db: Session = Depen
             "webhook_url": "BLAND_PHONE_WEBHOOK_URL",
         },
         "configured": configured,
-        "inbound_ready": all((configured["api_key"], configured["business_phone_number"], configured["webhook_url"], configured["webhook_signing_secret"], configured["inbound_organization_id"], configured["inbound_enabled"])),
+        "inbound_ready": all((configured["api_key"], configured["inbound_phone_number"], configured["webhook_url"], configured["webhook_signing_secret"], configured["inbound_organization_id"], configured["inbound_enabled"])),
         "outbound_ready": all((configured["api_key"], configured["business_phone_number"], configured["autonomous_outbound_enabled"])),
         "production_evidence": {"inbound_calls": inbound_count, "outbound_calls": outbound_count},
         "production_proven": inbound_count > 0 and outbound_count > 0,
         "policy": {
-            "inbound": "24/7 autonomous reception",
+            "inbound": "24/7 autonomous reception after provider authentication and number verification",
             "outbound": "autonomous only after fresh allowed call-compliance decision and suppression check",
             "sms": "disabled until owner re-enables",
             "recording": "disabled",
+            "binding_terms": "human escalation required",
         },
+    }
+
+
+@router.get("/provider-readiness")
+async def provider_readiness(principal: Principal = Depends(get_principal)):
+    """Read-only Bland production probe. Never places a call or reveals secrets."""
+    del principal
+    api_key = _api_key()
+    headers = {"authorization": api_key, "Accept": "application/json"}
+    async with httpx.AsyncClient(timeout=20) as client:
+        me = await client.get("https://api.bland.ai/v1/me", headers=headers)
+        try:
+            me_payload = me.json()
+        except ValueError:
+            me_payload = None
+
+        if not (200 <= me.status_code < 300):
+            return {
+                "provider": PROVIDER,
+                "authenticated": False,
+                "root_cause": "provider_rejected_api_key" if me.status_code in {401, 403} else "provider_account_probe_failed",
+                "me_http_status": me.status_code,
+                "inbound_inventory_verified": False,
+                "outbound_inventory_verified": False,
+                "ready": False,
+                "call_placed": False,
+                "sms_sent": 0,
+                "recording": False,
+                "secret_values_exposed": False,
+            }
+
+        inbound_response = await client.get("https://api.bland.ai/v1/inbound", headers=headers)
+        outbound_response = await client.get("https://api.bland.ai/v1/outbound", headers=headers)
+
+    try:
+        inbound_payload = inbound_response.json()
+    except ValueError:
+        inbound_payload = None
+    try:
+        outbound_payload = outbound_response.json()
+    except ValueError:
+        outbound_payload = None
+
+    inbound_inventory = _extract_phone_inventory(inbound_payload)
+    outbound_inventory = _extract_phone_inventory(outbound_payload)
+    configured_inbound = _phone_digits(_inbound_number())
+    configured_outbound = _phone_digits(_business_number())
+    inbound_match = bool(configured_inbound and configured_inbound in inbound_inventory)
+    outbound_match = bool(configured_outbound and configured_outbound in outbound_inventory)
+    webhook_ready = bool(_webhook_url() and _webhook_secret())
+    org_ready = bool(_clean_env("BLAND_INBOUND_ORGANIZATION_ID"))
+
+    return {
+        "provider": PROVIDER,
+        "authenticated": True,
+        "root_cause": None if inbound_match and outbound_match and webhook_ready and org_ready else "configuration_mismatch",
+        "me_http_status": me.status_code,
+        "inbound_inventory_http_status": inbound_response.status_code,
+        "outbound_inventory_http_status": outbound_response.status_code,
+        "inbound_inventory_verified": inbound_match,
+        "outbound_inventory_verified": outbound_match,
+        "webhook_configured": webhook_ready,
+        "organization_id_configured": org_ready,
+        "ready": bool(inbound_match and outbound_match and webhook_ready and org_ready),
+        "call_placed": False,
+        "sms_sent": 0,
+        "recording": False,
+        "secret_values_exposed": False,
     }
 
 
