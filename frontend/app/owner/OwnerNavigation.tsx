@@ -33,6 +33,7 @@ const spaces: NavSpace[] = [
   {
     id: 'sellers', href: '/owner/phone-os', label: 'Sellers', icon: '☎', hint: 'Qualification, conversations and follow-up',
     children: [
+      { href: '/owner/communications/os', label: 'Communication OS', hint: 'Readiness, personas, languages + conversion' },
       { href: '/owner/communications', label: 'Conversations' },
       { href: '/owner/sms-acquisition', label: 'Campaigns' },
     ],
