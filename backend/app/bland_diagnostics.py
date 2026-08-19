@@ -120,7 +120,7 @@ async def run_diagnostics(principal: Principal = Depends(require_role("manager")
                 "config": config,
                 "provider": {"me": me_probe},
                 "recommended_action": (
-                    "Generate or copy a fresh active API key from the same Bland organization, replace only "
+                    "Generate or copy a fresh active API key from JUAN's Personal Org, replace only "
                     "BLAND_AI_API_KEY in Vercel, redeploy, and rerun this diagnostic."
                 ),
                 "secret_values_exposed": False,
@@ -138,8 +138,16 @@ async def run_diagnostics(principal: Principal = Depends(require_role("manager")
                 "call_placed": False,
             }
 
+        memberships_response, memberships_payload = await _get(client, "/orgs/self/memberships", api_key)
         inbound_response, inbound_payload = await _get(client, "/inbound", api_key)
         outbound_response, outbound_payload = await _get(client, "/outbound", api_key)
+
+    memberships: list[dict[str, Any]] = []
+    if isinstance(memberships_payload, dict) and isinstance(memberships_payload.get("data"), list):
+        memberships = [item for item in memberships_payload["data"] if isinstance(item, dict)]
+    membership_ids = {str(item.get("org_id") or "") for item in memberships}
+    membership_names = [str(item.get("org_display_name") or "") for item in memberships if item.get("org_display_name")]
+    configured_org_match = org_id in membership_ids if org_id else False
 
     inbound_numbers = []
     if isinstance(inbound_payload, dict) and isinstance(inbound_payload.get("inbound_numbers"), list):
@@ -162,12 +170,12 @@ async def run_diagnostics(principal: Principal = Depends(require_role("manager")
     selected_inbound = inbound_by_number.get(inbound_number) if inbound_number else None
     checks = {
         "account_authenticated": True,
-        "account_status": me_payload.get("status") if isinstance(me_payload, dict) else None,
-        "balance_available": (
-            (me_payload.get("billing") or {}).get("current_balance")
-            if isinstance(me_payload, dict) and isinstance(me_payload.get("billing"), dict)
-            else None
+        "account_status_active": (
+            str(me_payload.get("status") or "").lower() == "active"
+            if isinstance(me_payload, dict)
+            else False
         ),
+        "configured_org_membership_match": configured_org_match,
         "configured_from_number_authorized_outbound": from_number in outbound_set if from_number else False,
         "configured_inbound_number_exists": inbound_number in inbound_by_number if inbound_number else False,
         "configured_inbound_webhook_matches": (
@@ -181,27 +189,46 @@ async def run_diagnostics(principal: Principal = Depends(require_role("manager")
     }
 
     failures = [name for name, passed in checks.items() if passed is False]
-    root_cause = "configuration_mismatch" if failures else None
+    if not configured_org_match and org_id and memberships:
+        root_cause = "api_key_org_mismatch"
+        action = (
+            "The API key authenticates but BLAND_INBOUND_ORGANIZATION_ID is not one of the key's Bland memberships. "
+            "Use the Organization ID from JUAN's Personal Org or generate a key while that organization is selected."
+        )
+    elif failures:
+        root_cause = "configuration_mismatch"
+        action = "Correct the failed checks and rerun diagnostics before placing another call."
+    else:
+        root_cause = None
+        action = "Provider authentication and phone configuration are healthy; a controlled owner test call can be attempted next."
+
     return {
         "status": "healthy" if not failures else "degraded",
         "root_cause": root_cause,
         "config": config,
         "provider": {
             "me": me_probe,
+            "memberships": _safe_response(memberships_response),
             "inbound": _safe_response(inbound_response),
             "outbound": _safe_response(outbound_response),
         },
         "checks": checks,
         "failed_checks": failures,
+        "account": {
+            "status": me_payload.get("status") if isinstance(me_payload, dict) else None,
+            "balance_available": (
+                (me_payload.get("billing") or {}).get("current_balance")
+                if isinstance(me_payload, dict) and isinstance(me_payload.get("billing"), dict)
+                else None
+            ),
+            "organization_memberships": membership_names,
+            "configured_org_match": configured_org_match,
+        },
         "inventory": {
             "inbound_numbers": [_masked_number(number) for number in inbound_by_number],
             "outbound_numbers": [_masked_number(number) for number in sorted(outbound_set)],
         },
-        "recommended_action": (
-            "Correct the failed checks and rerun diagnostics before placing another call."
-            if failures else
-            "Provider authentication and phone configuration are healthy; a controlled owner test call can be attempted next."
-        ),
+        "recommended_action": action,
         "secret_values_exposed": False,
         "call_placed": False,
     }
