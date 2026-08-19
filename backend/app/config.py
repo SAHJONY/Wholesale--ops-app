@@ -3,6 +3,10 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+CANONICAL_APP_URL = "https://wholesale-ops-b89j9ebuu-juan-gonzalezs-projects-94b6dfe9.vercel.app"
+CANONICAL_API_URL = f"{CANONICAL_APP_URL}/api/backend"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -34,7 +38,11 @@ class Settings(BaseSettings):
     smarty_auth_id: str | None = None
     smarty_auth_token: str | None = None
     google_maps_api_key: str | None = None
-    app_url: str = "http://localhost:3000"
+    # External/canonical production origins. Vercel's BACKEND_INTERNAL_URL
+    # remains the service-to-service transport and must not be replaced with
+    # this public URL, which would create a self-proxy loop.
+    app_url: str = CANONICAL_APP_URL
+    public_api_url: str = CANONICAL_API_URL
 
 
 settings = Settings()
