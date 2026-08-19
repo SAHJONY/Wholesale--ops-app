@@ -15,7 +15,8 @@ const spaces: NavSpace[] = [
     id: 'find', href: '/owner/deal-factory', label: 'Find Deals', icon: '↗', hint: 'Source, qualify and verify opportunities',
     children: [
       { href: '/owner/market-intelligence', label: 'Market Intelligence', hint: 'Nationwide cash-buyer heat map' },
-      { href: '/owner/acquisition', label: 'Prospects' },
+      { href: '/owner/acquisition', label: 'Off-Market Prospects' },
+      { href: '/owner/market-leads', label: 'Market Leads + Lots', hint: 'On-market motivated listings + vacant land' },
       { href: '/owner/owner-resolution', label: 'Owner Resolution', hint: 'Owner + contact evidence desk' },
       { href: '/owner/lead-verification', label: 'Verification' },
       { href: '/owner/properties', label: 'Property Evidence' },
