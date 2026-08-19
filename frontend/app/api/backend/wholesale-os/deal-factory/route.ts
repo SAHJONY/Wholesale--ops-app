@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+// Production must use the Vercel service binding. BACKEND_URL is an explicit
+// local/staging override only; never silently fall back to a retired backend.
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:8000';
 
 type RealDeal = {
   property_id?: number;
