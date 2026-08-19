@@ -2,16 +2,17 @@ import "./globals.css";
 import "./premium.css";
 import "./cinematic-login-v2.css";
 import "./premium-ux-v3.css";
+import "./public-site.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: {
-    default: "SAHJONY Wholesale Ops",
-    template: "%s · SAHJONY Wholesale Ops",
+    default: "SAHJONY Real Estate Operations",
+    template: "%s · SAHJONY",
   },
   description:
-    "Supervised autonomous residential and commercial wholesale real estate operations.",
-  applicationName: "SAHJONY Wholesale Ops",
+    "SAHJONY real estate operations for property owners, cash buyers, brokers, and transaction partners.",
+  applicationName: "SAHJONY Real Estate Operations",
   formatDetection: { telephone: false, address: false, email: false },
 };
 
