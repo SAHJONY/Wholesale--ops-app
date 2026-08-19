@@ -4,6 +4,7 @@ import "./cinematic-login-v2.css";
 import "./premium-ux-v3.css";
 import "./public-site.css";
 import type { Metadata, Viewport } from "next";
+import GlobalLanguageTranslation from "./components/GlobalLanguageTranslation";
 
 export const metadata: Metadata = {
   title: {
@@ -25,8 +26,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        {children}
+        <GlobalLanguageTranslation />
+      </body>
     </html>
   );
 }
