@@ -14,6 +14,7 @@ const spaces: NavSpace[] = [
   {
     id: 'find', href: '/owner/deal-factory', label: 'Find Deals', icon: '↗', hint: 'Source, qualify and verify opportunities',
     children: [
+      { href: '/owner/market-intelligence', label: 'Market Intelligence', hint: 'Nationwide cash-buyer heat map' },
       { href: '/owner/acquisition', label: 'Prospects' },
       { href: '/owner/lead-verification', label: 'Verification' },
       { href: '/owner/properties', label: 'Property Evidence' },
