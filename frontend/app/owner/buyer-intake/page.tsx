@@ -3,7 +3,7 @@
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
-const API='/api/buyer-intake';
+const API='/api/backend/buyer-intake';
 const SESSION='sahjony_owner_session';
 
 type Preview={total_rows:number;accepted_count:number;duplicate_count:number;rejected_count:number;verified_pof_count:number;accepted:any[];duplicates:any[];rejected:any[]};
