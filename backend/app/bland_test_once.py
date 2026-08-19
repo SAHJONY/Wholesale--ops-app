@@ -19,9 +19,22 @@ AUTH_ACTIVITY = "bland_test_authorization"
 
 
 def _api_key() -> str:
-    value = str(os.getenv("BLAND_AI_API_KEY") or "").strip()
+    """Return the Bland credential without common copy/paste wrappers.
+
+    Vercel stores environment-variable values literally. A key pasted as
+    '"key"' or 'Bearer key' therefore reaches Bland with those characters and
+    is rejected with 401 even though the secret is present. We normalize only
+    transport wrappers; the underlying credential is never logged or returned.
+    """
+    value = str(os.getenv("BLAND_AI_API_KEY") or os.getenv("BLAND_API_KEY") or "").strip()
     if not value:
-        raise HTTPException(503, "BLAND_AI_API_KEY is not configured")
+        raise HTTPException(503, "Bland API key is not configured")
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1].strip()
+    if value.lower().startswith("bearer "):
+        value = value[7:].strip()
+    if not value:
+        raise HTTPException(503, "Bland API key is empty after normalization")
     return value
 
 
@@ -86,7 +99,12 @@ async def run_once(nonce: str = Query(min_length=20, max_length=200), db: Sessio
     except ValueError:
         result = {"message": response.text[:500]}
     if response.status_code >= 400 or str(result.get("status") or "").lower() == "error":
-        raise HTTPException(502, f"Bland test call rejected: {result.get('message') or response.status_code}")
+        error_code = None
+        errors = result.get("errors") if isinstance(result, dict) else None
+        if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+            error_code = errors[0].get("error")
+        detail = result.get("message") if isinstance(result, dict) else None
+        raise HTTPException(502, f"Bland test call rejected: {error_code or detail or response.status_code}")
 
     call_id = str(result.get("call_id") or "").strip() or None
     meta["status"] = "consumed"
