@@ -25,6 +25,7 @@ const spaces: NavSpace[] = [
     children: [
       { href: '/owner/deal-intelligence', label: 'Underwriting' },
       { href: '/owner/deals', label: 'Contracts & Dossier' },
+      { href: '/owner/joint-ventures', label: 'Joint Ventures', hint: 'Wholesaler JV intake + disposition' },
     ],
   },
   {
