@@ -33,6 +33,23 @@ type BuyerDirectory = {
   };
 };
 
+type MarketSnapshot = {
+  persisted?: boolean;
+  generated_at?: string;
+  markets_considered?: number;
+  markets_ranked?: number;
+  high_confidence_markets?: number;
+  top_markets?: Array<{
+    zip_code: string;
+    states?: string[];
+    cities?: string[];
+    composite_score?: number;
+    confidence?: string;
+    cash_buyers?: number;
+    distress_facts?: number;
+  }>;
+};
+
 // Scores are normalized acquisition-priority indexes (0-100), not literal percentages.
 // External benchmark inputs are refreshed through the operating workflow; live buyer-network
 // counts below come from the authenticated SAHJONY buyer directory at render time.
@@ -61,18 +78,36 @@ const markets: Market[] = [
 ];
 
 function meter(value: number) { return `${Math.max(0, Math.min(100, value))}%`; }
+function refreshLabel(value?: string) {
+  if (!value) return 'Awaiting first production cycle';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  });
+}
 
 export default function MarketIntelligencePage() {
   const [query, setQuery] = useState('');
   const [tier, setTier] = useState('ALL');
   const [buyers, setBuyers] = useState<BuyerDirectory | null>(null);
+  const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch('/api/backend/buyer-directory', { cache: 'no-store', headers: { Authorization: 'Bearer cookie-session' } })
-      .then(async response => response.ok ? response.json() as Promise<BuyerDirectory> : null)
-      .then(data => { if (!cancelled && data) setBuyers(data); })
-      .catch(() => undefined);
+    const request = async <T,>(path: string): Promise<T | null> => {
+      const response = await fetch(`/api/backend${path}`, { cache: 'no-store', headers: { Authorization: 'Bearer cookie-session' } });
+      return response.ok ? response.json() as Promise<T> : null;
+    };
+    void Promise.all([
+      request<BuyerDirectory>('/buyer-directory'),
+      request<MarketSnapshot>('/scheduled/market-intelligence'),
+    ]).then(([buyerData, snapshotData]) => {
+      if (cancelled) return;
+      if (buyerData) setBuyers(buyerData);
+      if (snapshotData) setSnapshot(snapshotData);
+    }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
 
@@ -92,15 +127,15 @@ export default function MarketIntelligencePage() {
         <p>Pensacola stays pinned. The national board ranks wholesaler disposition liquidity, cash-buyer demand, institutional / hedge-fund activity and affordability, then overlays SAHJONY&apos;s live verified buyer network.</p>
       </div>
       <div className={styles.heroCard}>
-        <small>SEARCH MODE</small><strong>Nationwide</strong><span>Morning operating cycle · 8:00 AM CT</span>
+        <small>SEARCH MODE</small><strong>Nationwide</strong><span>Last internal refresh · {refreshLabel(snapshot?.generated_at)}</span>
       </div>
     </header>
 
     <section className={styles.kpis}>
-      <article><span>Markets tracked</span><strong>{markets.length}</strong><small>National acquisition radar</small></article>
+      <article><span>Markets tracked</span><strong>{markets.length}</strong><small>{snapshot?.markets_ranked ?? 0} internal ZIP markets ranked</small></article>
       <article><span>Pinned market</span><strong>Pensacola</strong><small>Escambia County, Florida</small></article>
       <article><span>SAHJONY buyers</span><strong>{buyerSummary.total_buyers ?? '—'}</strong><small>{buyerSummary.proof_of_funds_verified ?? 0} current POF verified</small></article>
-      <article><span>Cash-buyer evidence</span><strong>{buyerSummary.cash_evidence_confirmed_candidates ?? '—'}</strong><small>{intelligence.configured_sources ?? 0} public deed sources configured</small></article>
+      <article><span>Cash-buyer evidence</span><strong>{buyerSummary.cash_evidence_confirmed_candidates ?? '—'}</strong><small>{snapshot?.high_confidence_markets ?? 0} high-confidence ZIP markets · {intelligence.configured_sources ?? 0} deed sources</small></article>
     </section>
 
     <section className={styles.controls}>
@@ -127,7 +162,7 @@ export default function MarketIntelligencePage() {
     <section className={styles.method}>
       <div><span>RANKING LOGIC</span><h2>Cash buyers first. Hedge funds are a demand signal, not the strategy.</h2></div>
       <p>The score prioritizes active investor purchases, local disposition depth, attainable basis and distress-to-ARV spread. Institutional and fund activity increases the score where it adds real ZIP-level demand, but local and small investors remain the primary disposition engine.</p>
-      <p>Live buyer counts come from SAHJONY&apos;s authenticated buyer directory and public-deed buyer intelligence. External market benchmarks are evidence inputs and should be refreshed as new ATTOM, Realtor.com, local deed and buyer-network data arrives.</p>
+      <p>The external nationwide benchmark and the internal SAHJONY ZIP ranking are intentionally separate. Every 8:00 AM operating cycle persists the internal buyer/property/distress snapshot; external market benchmarks move only when new evidence justifies a change.</p>
       <p className={styles.disclaimer}>Indexes are acquisition-priority signals, not literal cash-purchase percentages or guarantees of assignment liquidity. Every property still requires source-backed comps, title review, rehab validation and buyer-specific buy-box confirmation before contracting.</p>
     </section>
   </main>;
