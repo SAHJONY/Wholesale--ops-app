@@ -8,6 +8,7 @@ pydantic-settings==2.7.0
 httpx==0.28.1
 python-multipart==0.0.20
 pytest==8.3.4
+svix>=1.75.0,<2.0.0
 
 # app/decision_intelligence.py imports this lazily and degrades to its
 # deterministic path if the import fails, so the API boots without it. It is
