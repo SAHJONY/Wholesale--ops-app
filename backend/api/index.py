@@ -8,6 +8,7 @@ from api.index_base import app
 from app.agentic_voice_brain import router as agentic_voice_router
 from app.buyer_directory import router as buyer_directory_router
 from app.buyer_first_acquisition import router as buyer_first_acquisition_router
+from app.communication_os import router as communication_os_router
 from app.joint_venture_engine import router as joint_venture_router
 from app.joint_venture_public import router as joint_venture_public_router
 from app.market_land_acquisition import router as market_land_acquisition_router
@@ -22,7 +23,7 @@ from app.task_resolution_engine import router as task_resolution_router
 # contract tests verify their presence in this entrypoint. They are already
 # mounted by index_base; public intake, buyer directory, buyer-box acquisition,
 # JV performance, market/land acquisition, owner resolution, resilient task
-# resolution, self-healing, and self-improvement are mounted here.
+# resolution, self-healing, self-improvement and Communication OS are mounted here.
 # Historical mount contract: app.include_router(agentic_voice_router)
 _ = (agentic_voice_router, provider_intelligence_router)
 app.include_router(public_intake_router)
@@ -35,5 +36,6 @@ app.include_router(owner_resolution_router)
 app.include_router(task_resolution_router)
 app.include_router(self_healing_router)
 app.include_router(self_improvement_router)
+app.include_router(communication_os_router)
 
 __all__ = ["app"]
