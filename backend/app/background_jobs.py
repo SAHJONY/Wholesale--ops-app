@@ -44,6 +44,7 @@ SUPPORTED_JOB_TYPES = {
     "acquisition_lead",
     "autonomous_property_acquisition",
     "autonomous_cash_buyer_intelligence",
+    "buyer_box_match_refresh",
     "sms_due_followups",
 }
 STALE_LOCK_MINUTES = 20
@@ -52,8 +53,8 @@ _TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
 def _buyer_first_mode() -> bool:
-    # Buyer-first is the current owner-directed operating phase. It defaults
-    # ON so a missing env cannot silently restart nationwide property mining.
+    # Buyer-first now means buyer demand receives higher queue priority. It
+    # never pauses general lead/property acquisition.
     return str(os.getenv("BUYER_FIRST_MODE", "true")).strip().lower() in _TRUE_VALUES
 
 
@@ -122,6 +123,18 @@ def _recover_stale_jobs(db: Session, organization_id: int, now: datetime) -> int
     return len(rows)
 
 
+def _refresh_buyer_box_lane(db: Session, principal: Principal, limit: int = 100) -> dict:
+    from .buyer_first_acquisition import refresh_buyer_box_matches
+
+    result = refresh_buyer_box_matches(db, principal, limit=limit, create_tasks=True)
+    return {
+        "matches": len(result.get("matches") or []),
+        "fast_track_count": int(result.get("fast_track_count") or 0),
+        "pof_verified_buyer_matches": int(result.get("pof_verified_buyer_matches") or 0),
+        "policy": result.get("policy"),
+    }
+
+
 async def _execute_job(db: Session, principal: Principal, job: BackgroundJob) -> dict:
     if job.job_type == "process_events":
         limit = max(1, min(200, int(job.payload_json.get("limit") or 50)))
@@ -133,22 +146,26 @@ async def _execute_job(db: Session, principal: Principal, job: BackgroundJob) ->
             from .acquisition_worker import _process_one
         except Exception as exc:
             raise RuntimeError(f"Acquisition worker unavailable: {type(exc).__name__}: {exc}") from exc
-        return await _process_one(db, principal, lead, force=bool(job.payload_json.get("force")))
+        result = await _process_one(db, principal, lead, force=bool(job.payload_json.get("force")))
+        return {**result, "buyer_box_refresh": _refresh_buyer_box_lane(db, principal, 100)}
     if job.job_type == "autonomous_property_acquisition":
-        if _buyer_first_mode():
-            raise RuntimeError("Autonomous property acquisition is paused while BUYER_FIRST_MODE is active")
         from .autonomous_property_acquisition import run_autonomous_property_acquisition
-        return await run_autonomous_property_acquisition(db, principal)
+        result = await run_autonomous_property_acquisition(db, principal)
+        return {**result, "buyer_box_refresh": _refresh_buyer_box_lane(db, principal, 150)}
     if job.job_type == "autonomous_cash_buyer_intelligence":
         from .autonomous_cash_buyer_intelligence import run_autonomous_cash_buyer_intelligence
         max_sources = max(1, min(10, int(job.payload_json.get("max_sources") or 3)))
         max_rows = max(1, min(5000, int(job.payload_json.get("max_rows") or 1000)))
-        return await run_autonomous_cash_buyer_intelligence(
+        result = await run_autonomous_cash_buyer_intelligence(
             db,
             principal,
             max_sources=max_sources,
             max_rows=max_rows,
         )
+        return {**result, "buyer_box_refresh": _refresh_buyer_box_lane(db, principal, 150)}
+    if job.job_type == "buyer_box_match_refresh":
+        limit = max(1, min(500, int(job.payload_json.get("limit") or 150)))
+        return _refresh_buyer_box_lane(db, principal, limit)
     if job.job_type == "sms_due_followups":
         from .sms_scheduling import prepare_due_followups
         limit = max(1, min(25, int(job.payload_json.get("limit") or 25)))
@@ -261,7 +278,9 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             "stale_lock_minutes": STALE_LOCK_MINUTES,
             "stale_running_jobs": stale,
             "buyer_first_mode": _buyer_first_mode(),
-            "property_acquisition_paused": _buyer_first_mode(),
+            "property_acquisition_paused": False,
+            "parallel_acquisition": True,
+            "buyer_box_fast_lane": True,
         },
         "jobs": [_serialize(job) for job in rows],
     }
@@ -272,8 +291,6 @@ def enqueue(payload: dict, principal: Principal = Depends(require_role("manager"
     job_type = str(payload.get("job_type") or "").strip()
     if job_type not in SUPPORTED_JOB_TYPES:
         raise HTTPException(422, "Unsupported job type")
-    if job_type == "autonomous_property_acquisition" and _buyer_first_mode():
-        raise HTTPException(409, "Property acquisition is paused while BUYER_FIRST_MODE is active")
     job = BackgroundJob(
         organization_id=principal.organization_id,
         job_type=job_type,
@@ -306,28 +323,30 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
             results.append({"organization_id": organization.id, "status": "skipped", "reason": "active owner not found"})
             continue
         try:
-            if not _buyer_first_mode():
-                from .autonomous_property_acquisition import acquisition_feed_status
-                feed = acquisition_feed_status()
-                pending_feed_job = db.scalar(select(BackgroundJob.id).where(
-                    BackgroundJob.organization_id == organization.id,
-                    BackgroundJob.job_type == "autonomous_property_acquisition",
-                    BackgroundJob.status.in_(["queued", "retry", "running"]),
+            # General distressed-property acquisition never pauses. Buyer-first
+            # mode changes queue priority and targeting, not whether supply is
+            # sourced. The acquisition worker remains review-only.
+            from .autonomous_property_acquisition import acquisition_feed_status
+            feed = acquisition_feed_status()
+            pending_feed_job = db.scalar(select(BackgroundJob.id).where(
+                BackgroundJob.organization_id == organization.id,
+                BackgroundJob.job_type == "autonomous_property_acquisition",
+                BackgroundJob.status.in_(["queued", "retry", "running"]),
+            ))
+            if feed["enabled"] and feed["configured"] and feed["secure"] and not pending_feed_job:
+                db.add(BackgroundJob(
+                    organization_id=organization.id,
+                    job_type="autonomous_property_acquisition",
+                    status="queued",
+                    priority=90 if _buyer_first_mode() else 70,
+                    payload_json={"review_only": True, "mode": "continuous_general_acquisition"},
+                    created_by_user_id=principal.user_id,
                 ))
-                if feed["enabled"] and feed["configured"] and feed["secure"] and not pending_feed_job:
-                    db.add(BackgroundJob(
-                        organization_id=organization.id,
-                        job_type="autonomous_property_acquisition",
-                        status="queued",
-                        priority=70,
-                        payload_json={"review_only": True},
-                        created_by_user_id=principal.user_id,
-                    ))
-                    db.commit()
+                db.commit()
 
-            # Cash Buyer Intelligence is the primary autonomous workload in
-            # BUYERS FIRST mode. It runs only from configured public deed feeds
-            # and promotes only repeated buyers with explicit cash evidence.
+            # Cash Buyer Intelligence runs in parallel and receives the highest
+            # priority in buyer-first mode. Only explicit historical cash
+            # evidence can promote a candidate; current POF is never inferred.
             from .distress_ingest import load_jurisdictions
             buyer_sources = [source for source in load_jurisdictions() if source.category == "cash_purchase_deed"]
             pending_buyer_job = db.scalar(select(BackgroundJob.id).where(
@@ -342,6 +361,22 @@ async def scheduled(authorization: str | None = Header(default=None), db: Sessio
                     status="queued",
                     priority=95 if _buyer_first_mode() else 72,
                     payload_json={"max_sources": 10, "max_rows": 5000} if _buyer_first_mode() else {"max_sources": 3, "max_rows": 1000},
+                    created_by_user_id=principal.user_id,
+                ))
+                db.commit()
+
+            pending_match_job = db.scalar(select(BackgroundJob.id).where(
+                BackgroundJob.organization_id == organization.id,
+                BackgroundJob.job_type == "buyer_box_match_refresh",
+                BackgroundJob.status.in_(["queued", "retry", "running"]),
+            ))
+            if not pending_match_job:
+                db.add(BackgroundJob(
+                    organization_id=organization.id,
+                    job_type="buyer_box_match_refresh",
+                    status="queued",
+                    priority=92 if _buyer_first_mode() else 75,
+                    payload_json={"limit": 250},
                     created_by_user_id=principal.user_id,
                 ))
                 db.commit()
@@ -387,8 +422,6 @@ def retry(job_id: int, principal: Principal = Depends(require_role("manager")), 
         raise HTTPException(404, "Job not found")
     if job.status not in {"failed", "dead_letter"}:
         raise HTTPException(409, "Only failed or dead-letter jobs can be retried")
-    if job.job_type == "autonomous_property_acquisition" and _buyer_first_mode():
-        raise HTTPException(409, "Property acquisition is paused while BUYER_FIRST_MODE is active")
     job.status = "retry"
     job.available_at = datetime.now(timezone.utc)
     job.failed_at = None

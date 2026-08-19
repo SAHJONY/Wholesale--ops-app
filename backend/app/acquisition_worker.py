@@ -129,8 +129,9 @@ def _ensure_county_case(db: Session, organization_id: int, lead: Lead, evidence:
 async def _process_one(db: Session, principal: Principal, lead: Lead, force: bool = False) -> dict:
     if not lead.property:
         raise HTTPException(404, "Lead property not found")
-    if str(lead.property.state or "").upper() == "TX":
-        raise HTTPException(422, "Texas is excluded from SAHJONY acquisition workflows")
+    # Texas is a live acquisition market. Enrichment and underwriting may run
+    # here; seller outreach remains controlled by the existing owner/seller-
+    # authority, DNC/consent, and communications compliance gates.
     run = _get_or_create_run(db, principal.organization_id, lead)
     if run.status == "completed" and not force:
         return {"lead_id": lead.id, "run_id": run.id, "status": "already_completed", "result": run.result_json}
@@ -154,8 +155,6 @@ async def _process_one(db: Session, principal: Principal, lead: Lead, force: boo
     try:
         evidence = await lookup_property(address1, address2)
         ingestion = ingest_provider_facts(
-            # Record the provider that actually answered, so provenance survives
-            # a switch between property-data providers.
             db, principal.organization_id, "property", lead.property.id,
             str(evidence.get("provider") or "attom"), _attom_facts(evidence),
             confidence=float(evidence.get("confidence") or 0),
@@ -244,6 +243,8 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
             "attom": bool(os.getenv("ATTOM_API_KEY")),
             "batchdata": bool(os.getenv("BATCHDATA_API_KEY") and os.getenv("BATCHDATA_SKIPTRACE_URL")),
         },
+        "texas_acquisition_supported": True,
+        "texas_outreach_still_compliance_gated": True,
         "runs": [{
             "id": row.id, "lead_id": row.lead_id, "property_id": row.property_id,
             "status": row.status, "current_step": row.current_step, "attempts": row.attempts,
