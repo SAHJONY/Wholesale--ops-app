@@ -18,24 +18,28 @@ router = APIRouter(prefix="/internal/bland-test", tags=["Bland one-time test"])
 AUTH_ACTIVITY = "bland_test_authorization"
 
 
-def _api_key() -> str:
-    """Return the Bland credential without common copy/paste wrappers.
-
-    Vercel stores environment-variable values literally. A key pasted as
-    '"key"' or 'Bearer key' therefore reaches Bland with those characters and
-    is rejected with 401 even though the secret is present. We normalize only
-    transport wrappers; the underlying credential is never logged or returned.
-    """
-    value = str(os.getenv("BLAND_AI_API_KEY") or os.getenv("BLAND_API_KEY") or "").strip()
-    if not value:
-        raise HTTPException(503, "Bland API key is not configured")
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+def _clean_env(name: str) -> str:
+    value = str(os.getenv(name) or "").strip()
+    if len(value) >= 2 and value[0] in {'\"', "'", "“", "‘"} and value[-1] in {'\"', "'", "”", "’"}:
         value = value[1:-1].strip()
+    return value
+
+
+def _api_key() -> str:
+    """Return the canonical Bland credential without copy/paste wrappers."""
+    value = _clean_env("BLAND_AI_API_KEY")
+    if not value:
+        raise HTTPException(503, "BLAND_AI_API_KEY is not configured")
     if value.lower().startswith("bearer "):
         value = value[7:].strip()
     if not value:
-        raise HTTPException(503, "Bland API key is empty after normalization")
+        raise HTTPException(503, "BLAND_AI_API_KEY is empty after normalization")
     return value
+
+
+def _from_number() -> str | None:
+    # Canonical name first; legacy caller-ID is tolerated only during migration.
+    return _clean_env("BLAND_DEFAULT_FROM_NUMBER") or _clean_env("BLAND_DEFAULT_CALLER_ID") or None
 
 
 def _nonce_hash(value: str) -> str:
@@ -84,7 +88,7 @@ async def run_once(nonce: str = Query(min_length=20, max_length=200), db: Sessio
             "purpose": "voice_integration_validation",
         },
     }
-    from_number = str(os.getenv("BLAND_DEFAULT_FROM_NUMBER") or os.getenv("BLAND_DEFAULT_CALLER_ID") or "").strip()
+    from_number = _from_number()
     if from_number:
         body["from"] = from_number
 
