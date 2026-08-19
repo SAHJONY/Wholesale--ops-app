@@ -34,6 +34,13 @@
   },
   "rewrites": [
     {
+      "source": "/api/backend/wholesale-os/:path*",
+      "destination": {
+        "service": "backend",
+        "path": "/wholesale-os/:path*"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"
