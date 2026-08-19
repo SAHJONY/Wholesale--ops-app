@@ -32,6 +32,25 @@ The latest autonomous property-acquisition job (`background_jobs.id=2`) also com
 
 Operational interpretation: the job scheduler and worker lifecycle are functioning; the principal failure is upstream public-source acquisition, not queue execution.
 
+## Outcome Optimizer — operating control
+
+A new read-only Outcome Optimizer has been added to convert technical execution metrics into an explicit wholesale outcome funnel. The runtime endpoints are `/outcome-optimizer/snapshot` and `/outcome-optimizer/plan`.
+
+The optimizer scores collector success, source-backed candidate production, provider readiness, buyer inventory, buyer-box matches, documentary POF matches, fast-track underwriting matches, durable-job completion, retries and dead letters. It ranks remediation by expected operating impact instead of treating a technically completed cron as a successful business outcome.
+
+Current target thresholds used by the operating skill are:
+- collector success at or above 80%;
+- provider readiness at or above 80%;
+- zero critical acquisition dependencies blocked;
+- at least 10 POF-verified buyer matches;
+- at least 3 fast-track underwriting matches;
+- durable background-job completion at or above 95%;
+- after collector recovery, at least 20 source-backed review candidates per operating day.
+
+These are operating targets, not revenue guarantees. The optimizer remains read-only and may not send outreach, make offers, execute contracts, mutate secrets, purchase providers, infer ownership, or infer POF.
+
+Based on the latest persisted evidence, the optimizer is expected to rank the current constraints in roughly this order once live: public-source collector failure, low provider readiness, zero POF-backed buyer matches, and zero fast-track underwriting matches. That ordering must be confirmed by the production endpoint rather than assumed from documentation.
+
 ## Cron operating assessment
 
 - Cron routing is present and persisted executions prove the scheduled layer is running.
@@ -60,9 +79,10 @@ Campaign Manager historically sent `recipient_timezone`, while execution only re
 ## Follow-on architecture work
 The side-table tenancy model remains structurally fragile. A future controlled migration should place `organization_id` directly on tenant-owned core entities or force all access through a tenant-aware repository layer. Capability-based authorization should also supplement the current rank-based role helper.
 
-Cron-specific follow-on work:
+Cron- and outcome-specific follow-on work:
 - repair or replace the failing public-source collectors used by `autonomous_property_acquisition`;
 - raise provider readiness beyond the current 3/18 ready state;
+- use Outcome Optimizer ranking as the remediation queue once the production endpoint is live;
 - add explicit cron execution telemetry that records scheduled time, start time, completion time, latency, HTTP result and deployment revision;
 - distinguish cron-triggered background jobs from manually enqueued jobs in persisted job metadata;
 - keep acquisition and buyer evidence fail-closed when source authority, ownership, POF or property facts are not verified.
@@ -79,7 +99,8 @@ Cron-specific follow-on work:
 - provider readiness is tied to implemented adapters;
 - deploy revision reporting exists;
 - cron endpoints require `CRON_SECRET` and fail closed;
-- durable jobs recover stale locks, retry with backoff, and move exhausted jobs to dead letter.
+- durable jobs recover stale locks, retry with backoff, and move exhausted jobs to dead letter;
+- Outcome Optimizer is read-only and cannot weaken verification gates to improve metrics.
 
 ## Release gate
-Before any claim of full autonomous production readiness: run targeted tests, full backend regression, frontend build/typecheck, migration single-head check, guard-coverage audit, tenant-isolation tests, cron execution validation, provider readiness validation, public-source acquisition verification, and release gate. Scheduled execution alone is not evidence that upstream data acquisition or provider integrations are healthy.
+Before any claim of full autonomous production readiness: run targeted tests, full backend regression, frontend build/typecheck, migration single-head check, guard-coverage audit, tenant-isolation tests, cron execution validation, provider readiness validation, public-source acquisition verification, Outcome Optimizer production validation, and release gate. Scheduled execution alone is not evidence that upstream data acquisition or provider integrations are healthy.
