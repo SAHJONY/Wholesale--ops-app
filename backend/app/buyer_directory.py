@@ -1,15 +1,39 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal
 from .auth_models import WorkspaceEntity
+from .cash_buyer_models import CashBuyerCandidate
 from .database import get_db
+from .distress_ingest import load_jurisdictions
 from .models import Buyer
 
 router = APIRouter(prefix="/buyer-directory", tags=["buyer directory"])
+
+
+def _buyer_intelligence_status() -> dict:
+    try:
+        sources = [source for source in load_jurisdictions() if source.category == "cash_purchase_deed"]
+        states = sorted({source.state for source in sources})
+        counties = sorted({f"{source.county}, {source.state}" for source in sources})
+        return {
+            "configured_sources": len(sources),
+            "states": states,
+            "counties": counties,
+            "ready": bool(sources),
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "configured_sources": 0,
+            "states": [],
+            "counties": [],
+            "ready": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
 
 @router.get("")
@@ -18,18 +42,51 @@ def directory(principal: Principal = Depends(get_principal), db: Session = Depen
         WorkspaceEntity.organization_id == principal.organization_id,
         WorkspaceEntity.entity_type == "buyer",
     )).all())
-    if not buyer_ids:
-        return {"count": 0, "buyers": []}
+    buyers = []
+    if buyer_ids:
+        buyers = db.scalars(
+            select(Buyer).where(Buyer.id.in_(buyer_ids)).order_by(
+                Buyer.proof_of_funds_verified.desc(),
+                Buyer.reliability_score.desc(),
+                Buyer.name.asc(),
+            )
+        ).all()
 
-    buyers = db.scalars(
-        select(Buyer).where(Buyer.id.in_(buyer_ids)).order_by(
-            Buyer.proof_of_funds_verified.desc(),
-            Buyer.reliability_score.desc(),
-            Buyer.name.asc(),
-        )
-    ).all()
+    candidate_count = db.scalar(select(func.count(CashBuyerCandidate.id)).where(
+        CashBuyerCandidate.organization_id == principal.organization_id,
+    )) or 0
+    cash_confirmed_candidates = db.scalar(select(func.count(CashBuyerCandidate.id)).where(
+        CashBuyerCandidate.organization_id == principal.organization_id,
+        CashBuyerCandidate.cash_evidence == "confirmed",
+    )) or 0
+    promoted_candidates = db.scalar(select(func.count(CashBuyerCandidate.id)).where(
+        CashBuyerCandidate.organization_id == principal.organization_id,
+        CashBuyerCandidate.promoted_buyer_id.is_not(None),
+    )) or 0
+
+    localized = sum(1 for buyer in buyers if buyer.zip_codes)
+    national_or_unscoped = sum(1 for buyer in buyers if not buyer.zip_codes)
+    pof_verified = sum(1 for buyer in buyers if buyer.proof_of_funds_verified)
+
     return {
         "count": len(buyers),
+        "summary": {
+            "total_buyers": len(buyers),
+            "localized_buyers": localized,
+            "national_or_unscoped_buyers": national_or_unscoped,
+            "proof_of_funds_verified": pof_verified,
+            "cash_buyer_candidates": int(candidate_count),
+            "cash_evidence_confirmed_candidates": int(cash_confirmed_candidates),
+            "autonomously_promoted_candidates": int(promoted_candidates),
+        },
+        "operating_mode": {
+            "mode": "buyers_first",
+            "strategy": "reverse_deals",
+            "scope": "nationwide",
+            "lead_acquisition_phase": "paused_until_buyer_network_ready",
+            "pof_policy": "documentary_verification_only_never_infer",
+        },
+        "buyer_intelligence": _buyer_intelligence_status(),
         "buyers": [
             {
                 "id": buyer.id,
