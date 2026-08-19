@@ -28,35 +28,45 @@ SUPPORTED_CHANNEL = "automated_call"
 PROVIDER = "bland"
 
 
+def _clean_env(name: str) -> str:
+    value = str(os.getenv(name) or "").strip()
+    if len(value) >= 2 and value[0] in {'\"', "'", "“", "‘"} and value[-1] in {'\"', "'", "”", "’"}:
+        value = value[1:-1].strip()
+    return value
+
+
 def _enabled(name: str, default: bool = False) -> bool:
-    raw = str(os.getenv(name) or "").strip().lower()
+    raw = _clean_env(name).lower()
     if not raw:
         return default
     return raw in {"1", "true", "yes", "on", "enabled"}
 
 
 def _api_key() -> str:
-    value = str(os.getenv("BLAND_AI_API_KEY") or "").strip()
+    value = _clean_env("BLAND_AI_API_KEY")
+    if value.lower().startswith("bearer "):
+        value = value[7:].strip()
     if not value:
         raise HTTPException(503, "BLAND_AI_API_KEY is not configured")
     return value
 
 
+def _webhook_secret() -> str:
+    return _clean_env("BLAND_AI_WEBHOOK_SECRET")
+
+
 def _business_number() -> str | None:
-    return str(
-        os.getenv("BLAND_BUSINESS_PHONE_NUMBER")
-        or os.getenv("BLAND_DEFAULT_FROM_NUMBER")
-        or os.getenv("BLAND_DEFAULT_CALLER_ID")
-        or ""
-    ).strip() or None
+    # BLAND_DEFAULT_FROM_NUMBER is canonical. BLAND_DEFAULT_CALLER_ID is a
+    # temporary backwards-compatible fallback while Vercel is normalized.
+    return _clean_env("BLAND_DEFAULT_FROM_NUMBER") or _clean_env("BLAND_DEFAULT_CALLER_ID") or None
 
 
 def _webhook_url() -> str | None:
-    return str(os.getenv("BLAND_PHONE_WEBHOOK_URL") or "").strip() or None
+    return _clean_env("BLAND_PHONE_WEBHOOK_URL") or None
 
 
 def _default_org_id() -> int:
-    raw = str(os.getenv("BLAND_DEFAULT_ORGANIZATION_ID") or "1").strip()
+    raw = _clean_env("BLAND_INBOUND_ORGANIZATION_ID") or "1"
     return int(raw) if raw.isdigit() and int(raw) > 0 else 1
 
 
@@ -84,11 +94,24 @@ def _find_lead_by_phone(db: Session, organization_id: int, phone: str) -> Lead |
 
 
 def _verify_signature(raw: bytes, signature: str | None) -> bool:
-    secret = str(os.getenv("BLAND_WEBHOOK_SECRET") or "").strip()
+    secret = _webhook_secret()
     if not secret or not signature:
         return False
     expected = hmac.new(secret.encode("utf-8"), raw, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature.strip())
+
+
+def _webhook_signature(request: Request) -> str | None:
+    configured = _clean_env("BLAND_AI_WEBHOOK_SIGNATURE_HEADER")
+    if configured:
+        candidate = request.headers.get(configured)
+        if candidate:
+            return candidate
+    for header in ("x-webhook-signature", "x-bland-signature", "x-signature", "signature"):
+        candidate = request.headers.get(header)
+        if candidate:
+            return candidate
+    return None
 
 
 def _safe_task(lead: Lead) -> str:
@@ -158,7 +181,7 @@ async def _send_call(lead: Lead, organization_id: int, contact: str, decision: C
     if webhook:
         body["webhook"] = webhook
         body["webhook_events"] = [{"type": "call"}]
-    transfer = str(os.getenv("VOICE_HUMAN_TRANSFER_TARGET") or "").strip()
+    transfer = _clean_env("VOICE_HUMAN_TRANSFER_TARGET")
     if transfer:
         body["transfer_phone_number"] = transfer
 
@@ -180,10 +203,11 @@ async def _send_call(lead: Lead, organization_id: int, contact: str, decision: C
 @router.get("/readiness")
 def readiness(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)):
     configured = {
-        "api_key": bool(os.getenv("BLAND_AI_API_KEY")),
+        "api_key": bool(_clean_env("BLAND_AI_API_KEY")),
         "business_phone_number": bool(_business_number()),
         "webhook_url": bool(_webhook_url()),
-        "webhook_signing_secret": bool(os.getenv("BLAND_WEBHOOK_SECRET")),
+        "webhook_signing_secret": bool(_webhook_secret()),
+        "inbound_organization_id": bool(_clean_env("BLAND_INBOUND_ORGANIZATION_ID")),
         "inbound_enabled": _enabled("BLAND_INBOUND_ENABLED", True),
         "autonomous_outbound_enabled": _enabled("BLAND_AUTONOMOUS_OUTBOUND_ENABLED", False),
         "sms_enabled": False,
@@ -196,8 +220,17 @@ def readiness(principal: Principal = Depends(get_principal), db: Session = Depen
     return {
         "provider": PROVIDER,
         "mode": "voice_only",
+        "canonical_env": {
+            "api_key": "BLAND_AI_API_KEY",
+            "webhook_secret": "BLAND_AI_WEBHOOK_SECRET",
+            "webhook_signature_header": "BLAND_AI_WEBHOOK_SIGNATURE_HEADER",
+            "organization_id": "BLAND_INBOUND_ORGANIZATION_ID",
+            "from_number": "BLAND_DEFAULT_FROM_NUMBER",
+            "inbound_number": "BLAND_INBOUND_NUMBER",
+            "webhook_url": "BLAND_PHONE_WEBHOOK_URL",
+        },
         "configured": configured,
-        "inbound_ready": all((configured["api_key"], configured["business_phone_number"], configured["webhook_url"], configured["webhook_signing_secret"], configured["inbound_enabled"])),
+        "inbound_ready": all((configured["api_key"], configured["business_phone_number"], configured["webhook_url"], configured["webhook_signing_secret"], configured["inbound_organization_id"], configured["inbound_enabled"])),
         "outbound_ready": all((configured["api_key"], configured["business_phone_number"], configured["autonomous_outbound_enabled"])),
         "production_evidence": {"inbound_calls": inbound_count, "outbound_calls": outbound_count},
         "production_proven": inbound_count > 0 and outbound_count > 0,
@@ -295,7 +328,7 @@ async def run_autopilot(
 @router.post("/webhooks/call")
 async def bland_call_webhook(request: Request, db: Session = Depends(get_db)):
     raw = await request.body()
-    if not _verify_signature(raw, request.headers.get("x-webhook-signature")):
+    if not _verify_signature(raw, _webhook_signature(request)):
         raise HTTPException(401, "Invalid Bland webhook signature")
     try:
         payload = json.loads(raw.decode("utf-8"))
