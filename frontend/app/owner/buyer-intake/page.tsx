@@ -3,6 +3,7 @@
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import styles from '../owner.module.css';
 
+// Keep Buyer Intake on the canonical Vercel Services backend; do not restore the retired standalone backend proxy.
 const API='/api/backend/buyer-intake';
 const SESSION='sahjony_owner_session';
 
