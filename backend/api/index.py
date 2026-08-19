@@ -13,6 +13,8 @@ from app.bland_test_once import router as bland_test_once_router
 from app.buyer_directory import router as buyer_directory_router
 from app.buyer_first_acquisition import router as buyer_first_acquisition_router
 from app.communication_os import router as communication_os_router
+from app.integration_hub import router as integration_hub_router
+from app.integration_reliability import router as integration_reliability_router
 from app.joint_venture_engine import router as joint_venture_router
 from app.joint_venture_public import router as joint_venture_public_router
 from app.market_land_acquisition import router as market_land_acquisition_router
@@ -24,6 +26,7 @@ from app.public_intake import router as public_intake_router
 from app.self_healing_engine import router as self_healing_router
 from app.self_improvement_engine import router as self_improvement_router
 from app.task_resolution_engine import router as task_resolution_router
+from app.wholesale_skill_engine import router as wholesale_skill_engine_router
 
 # The historical router imports above remain explicit because repository
 # contract tests verify their presence in this entrypoint. They are already
@@ -53,5 +56,13 @@ app.include_router(bland_diagnostics_router)
 app.include_router(bland_diagnostics_once_router)
 app.include_router(openai_realtime_voice_router)
 app.include_router(bland_test_once_router)
+
+# Vercel Services currently preserves the public request path when traffic is
+# rewritten to the backend service. Mount authenticated compatibility aliases
+# so Owner OS requests remain valid without weakening the canonical backend
+# routes. These aliases execute the exact same router handlers and auth gates.
+app.include_router(wholesale_skill_engine_router, prefix="/api/backend")
+app.include_router(integration_hub_router, prefix="/api")
+app.include_router(integration_reliability_router, prefix="/api")
 
 __all__ = ["app"]
