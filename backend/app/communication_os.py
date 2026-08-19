@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal, require_role
@@ -13,16 +13,12 @@ from .auth_models import CrmActivity, WorkspaceEntity
 from .database import get_db
 from .models import Lead
 from .outbound_models import OutboundRequest
-from .sms_campaign_models import SmsAppointmentRequest, SmsCampaign
+from .sms_campaign_models import SmsCampaign
 from .sms_models import SmsMessage
 from .voice_models import VoiceCall
 
 router = APIRouter(prefix="/communication-os", tags=["communication operating system"])
 
-# Communication is language-aware independently of the UI translation layer.
-# A seller/buyer may speak any supported language while addresses, money,
-# legal instrument identifiers, phone numbers and compliance evidence remain
-# verbatim and are never machine-translated as factual records.
 LANGUAGES: dict[str, dict[str, str]] = {
     "en": {"name": "English", "direction": "ltr"},
     "es": {"name": "Español", "direction": "ltr"},
@@ -133,6 +129,12 @@ def _count(db: Session, model, organization_id: int) -> int:
     return int(db.scalar(select(func.count()).select_from(model).where(model.organization_id == organization_id)) or 0)
 
 
+def _appointment_count(db: Session, organization_id: int) -> int:
+    return int(db.execute(text(
+        "SELECT count(*) FROM sms_appointment_requests WHERE organization_id = :organization_id"
+    ), {"organization_id": organization_id}).scalar() or 0)
+
+
 @router.get("/blueprint")
 def blueprint(principal: Principal = Depends(get_principal)):
     return {
@@ -167,7 +169,7 @@ def readiness(principal: Principal = Depends(get_principal), db: Session = Depen
         "voice_calls": _count(db, VoiceCall, principal.organization_id),
         "outbound_requests": _count(db, OutboundRequest, principal.organization_id),
         "sms_campaigns": _count(db, SmsCampaign, principal.organization_id),
-        "appointment_requests": _count(db, SmsAppointmentRequest, principal.organization_id),
+        "appointment_requests": _appointment_count(db, principal.organization_id),
     }
     sms_live = env["bland_api_key"] and env["bland_phone"]
     voice_live = env["bland_api_key"] and env["bland_phone"]
@@ -207,8 +209,7 @@ def scorecard(principal: Principal = Depends(get_principal), db: Session = Depen
     voice_total = _count(db, VoiceCall, principal.organization_id)
     requests_total = _count(db, OutboundRequest, principal.organization_id)
     campaigns_total = _count(db, SmsCampaign, principal.organization_id)
-    appointments_total = _count(db, SmsAppointmentRequest, principal.organization_id)
-
+    appointments_total = _appointment_count(db, principal.organization_id)
     inbound_sms = int(db.scalar(select(func.count()).select_from(SmsMessage).where(
         SmsMessage.organization_id == principal.organization_id, SmsMessage.direction == "inbound")) or 0)
     outbound_sms = int(db.scalar(select(func.count()).select_from(SmsMessage).where(
@@ -217,7 +218,6 @@ def scorecard(principal: Principal = Depends(get_principal), db: Session = Depen
         SmsMessage.organization_id == principal.organization_id, SmsMessage.triggered_opt_out.is_(True))) or 0)
     completed_calls = int(db.scalar(select(func.count()).select_from(VoiceCall).where(
         VoiceCall.organization_id == principal.organization_id, VoiceCall.status.in_(["completed", "ended"]))) or 0)
-
     return {
         "generated_at": datetime.now(timezone.utc),
         "activity": {
@@ -257,7 +257,6 @@ def communication_plan(
     channel = str(payload.get("channel") or "sms").strip().lower()
     if channel not in CHANNELS:
         raise HTTPException(422, "Unsupported communication channel")
-
     plan = {
         "lead_id": lead.id,
         "seller_name": lead.seller_name,
