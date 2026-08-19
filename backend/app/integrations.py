@@ -17,10 +17,6 @@ PROVIDERS = [
         "verification": "county_record_for_contract_critical_facts",
     },
     {
-        # An alternative to ATTOM, not an addition to it. The tier is optional so
-        # a deployment that runs on Smarty is not reported as missing a required
-        # provider; whether property data is satisfied at all is decided by
-        # property_data.property_data_configured(), which accepts either.
         "id": "smarty", "name": "Smarty US Property Data", "category": "property_intelligence", "tier": "optional",
         "env": ["SMARTY_AUTH_ID", "SMARTY_AUTH_TOKEN"], "optional_env": ["SMARTY_LICENSE", "SMARTY_ENRICHMENT_BASE_URL"],
         "capabilities": ["property", "owner", "deeds", "sales", "assessment", "tax", "parcel", "geocode"],
@@ -62,16 +58,13 @@ PROVIDERS = [
         "authority": "federal_public_source", "verification": "insurance_or_survey_confirmation_for_closing",
     },
     {
-        "id": "bland", "name": "Bland AI Messaging + Voice", "category": "omnichannel_communications", "tier": "primary",
-        "env": ["BLAND_AI_API_KEY", "BLAND_WEBHOOK_SIGNING_SECRET"],
-        "any_of_env": ["BLAND_SMS_AGENT_NUMBER", "BLAND_MESSAGING_NUMBER"],
-        "optional_env": ["BLAND_SMS_WEBHOOK_URL", "BLAND_DEFAULT_FROM_NUMBER", "BLAND_DEFAULT_CALLER_ID"],
-        "capabilities": [
-            "inbound_sms", "outbound_sms", "inbound_calls", "outbound_calls",
-            "pathways", "personas", "transcripts", "call_outcomes", "conversation_webhooks",
-        ],
+        "id": "bland", "name": "Bland AI Phone", "category": "voice_communications", "tier": "primary",
+        "env": ["BLAND_AI_API_KEY", "BLAND_AI_WEBHOOK_SECRET"],
+        "any_of_env": ["BLAND_DEFAULT_FROM_NUMBER", "BLAND_INBOUND_NUMBER"],
+        "optional_env": ["BLAND_PHONE_WEBHOOK_URL", "BLAND_AI_WEBHOOK_SIGNATURE_HEADER", "BLAND_INBOUND_ORGANIZATION_ID", "BLAND_INBOUND_AGENT_ID", "BLAND_SELLER_OUTBOUND_AGENT_ID", "BLAND_BUYER_DISPO_AGENT_ID"],
+        "capabilities": ["inbound_calls", "outbound_calls", "pathways", "personas", "transcripts", "call_outcomes", "conversation_webhooks"],
         "authority": "communications",
-        "verification": "a2p_registration_dnc_consent_opt_out_quiet_hours_owner_approval_and_fresh_dispatch_compliance",
+        "verification": "voice_only_dnc_consent_opt_out_quiet_hours_owner_policy_and_fresh_dispatch_compliance",
     },
     {
         "id": "docuseal", "name": "DocuSeal eSignature", "category": "contracts", "tier": "primary",
@@ -148,9 +141,9 @@ def integration_catalog(principal: Principal = Depends(get_principal)):
             "visual_inspection": "Google Street View with imagery date and human confirmation",
             "seller_scheduling": "Google Calendar OAuth with explicit seller time, free/busy verification, and owner-triggered booking",
             "flood_risk": "FEMA NFHL with closing-stage confirmation",
-            "outbound_policy": "Bland-only SMS and voice; no outreach before fresh DNC, consent, opt-out, quiet-hour, and owner-approval checks",
+            "outbound_policy": "Bland phone-only inbound and compliant outbound voice; SMS disabled until owner re-enables it by policy change",
             "contract_policy": "DocuSeal-first provider-neutral signing; no submission before attorney-approved state template and owner approval",
-            "texas_policy": "Excluded from acquisition and outreach workflows",
+            "texas_policy": "Texas acquisition is permitted only through current disclosure and compliance gates; assignment/equitable-interest marketing must accurately disclose the interest being sold and must not misrepresent legal title.",
         },
         "providers": [_provider_status(provider) for provider in PROVIDERS],
         "public_data_providers": public_providers,
@@ -173,7 +166,8 @@ def integration_readiness(principal: Principal = Depends(get_principal)):
         "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
         "ready_for_live_acquisition": all(provider["id"] not in {"attom", "batchdata"} for provider in blocking) and not public_blocked,
         "ready_for_outbound": bool(bland and bland["state"] in ready_states),
-        "outbound_provider": "bland",
+        "outbound_provider": "bland_phone",
+        "sms_enabled": False,
         "ready_for_calendar_booking": bool(calendar and calendar["state"] in ready_states),
         "calendar_provider": "google_calendar",
         "ready_for_contracts": _contracts_ready(providers),
