@@ -16,6 +16,7 @@ const spaces: NavSpace[] = [
     children: [
       { href: '/owner/market-intelligence', label: 'Market Intelligence', hint: 'Nationwide cash-buyer heat map' },
       { href: '/owner/acquisition', label: 'Prospects' },
+      { href: '/owner/owner-resolution', label: 'Owner Resolution', hint: 'Owner + contact evidence desk' },
       { href: '/owner/lead-verification', label: 'Verification' },
       { href: '/owner/properties', label: 'Property Evidence' },
     ],
