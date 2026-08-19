@@ -36,8 +36,19 @@
     {
       "source": "/api/backend/wholesale-os/:path*",
       "destination": {
-        "service": "backend",
-        "path": "/wholesale-os/:path*"
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/api/integration-hub/:path*",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/api/integration-reliability/:path*",
+      "destination": {
+        "service": "backend"
       }
     },
     {
