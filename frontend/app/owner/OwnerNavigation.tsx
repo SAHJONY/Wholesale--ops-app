@@ -31,11 +31,10 @@ const spaces: NavSpace[] = [
     ],
   },
   {
-    id: 'sellers', href: '/owner/phone-os', label: 'Sellers', icon: '☎', hint: 'Qualification, conversations and follow-up',
+    id: 'sellers', href: '/owner/communications', label: 'Phone', icon: '☎', hint: 'Bland AI inbound + compliant autonomous outbound',
     children: [
-      { href: '/owner/communications/os', label: 'Communication OS', hint: 'Readiness, personas, languages + conversion' },
-      { href: '/owner/communications', label: 'Conversations' },
-      { href: '/owner/sms-acquisition', label: 'Campaigns' },
+      { href: '/owner/communications', label: 'Bland Phone System', hint: 'Inbound, outbound, call outcomes + readiness' },
+      { href: '/owner/phone-os', label: 'Seller Conversations', hint: 'Qualification, call memory + follow-up' },
     ],
   },
   {
@@ -80,11 +79,9 @@ export default function OwnerNavigation() {
     {open ? <button className="ownerNavScrim" aria-label="Close navigation" onClick={() => setOpen(false)} /> : null}
     <aside id="owner-navigation" className={`ownerNav ownerNavV3 ${open ? 'open' : ''}`}>
       <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Deal Operating System</small></div></Link>
-
       <Link href={actionInbox.href} className={routeIsActive(pathname, actionInbox.href) ? 'ownerNavUtility active' : 'ownerNavUtility'} onClick={() => setOpen(false)}>
         <i aria-hidden="true">!</i><span><b>{actionInbox.label}</b><small>{actionInbox.hint}</small></span><em>→</em>
       </Link>
-
       <nav aria-label="Deal workflow" className="ownerNavSpaces">
         <span className="ownerNavSectionLabel">Deal workflow</span>
         {spaces.map(space => {
@@ -95,23 +92,16 @@ export default function OwnerNavigation() {
               <Link href={space.href} className="ownerNavSpaceLink" aria-current={routeIsActive(pathname, space.href) ? 'page' : undefined} onClick={() => setOpen(false)} title={space.hint}>
                 <i aria-hidden="true">{space.icon}</i><span><b>{space.label}</b><small>{space.hint}</small></span>
               </Link>
-              {space.children?.length ? <button type="button" className="ownerNavSpaceToggle" aria-label={`${showChildren ? 'Collapse' : 'Expand'} ${space.label}`} aria-expanded={showChildren} onClick={() => setExpanded(current => current === space.id && !active ? null : space.id)}>
-                <span aria-hidden="true">⌄</span>
-              </button> : null}
+              {space.children?.length ? <button type="button" className="ownerNavSpaceToggle" aria-label={`${showChildren ? 'Collapse' : 'Expand'} ${space.label}`} aria-expanded={showChildren} onClick={() => setExpanded(current => current === space.id && !active ? null : space.id)}><span aria-hidden="true">⌄</span></button> : null}
             </div>
-            {showChildren ? <div className="ownerNavChildren">
-              {space.children?.map(item => {
-                const childActive = routeIsActive(pathname, item.href);
-                return <Link key={item.href} href={item.href} className={childActive ? 'active' : ''} aria-current={childActive ? 'page' : undefined} onClick={() => setOpen(false)}>
-                  <span>{item.label}</span><i aria-hidden="true">→</i>
-                </Link>;
-              })}
-            </div> : null}
+            {showChildren ? <div className="ownerNavChildren">{space.children?.map(item => {
+              const childActive = routeIsActive(pathname, item.href);
+              return <Link key={item.href} href={item.href} className={childActive ? 'active' : ''} aria-current={childActive ? 'page' : undefined} onClick={() => setOpen(false)}><span>{item.label}</span><i aria-hidden="true">→</i></Link>;
+            })}</div> : null}
           </section>;
         })}
       </nav>
-
-      <footer><span className="ownerLiveDot"/><div><b>Supervised autonomy</b><small>AI prepares · humans authorize</small></div></footer>
+      <footer><span className="ownerLiveDot"/><div><b>Voice-only autonomy</b><small>Bland inbound 24/7 · outbound after compliance</small></div></footer>
     </aside>
   </>;
 }
