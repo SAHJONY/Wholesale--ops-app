@@ -9,6 +9,7 @@ from app.audit_center import router as audit_router
 from app.auth import router as auth_router
 from app.authorized_acquisition import router as authorized_acquisition_router
 from app.bland_messaging import router as bland_messaging_router
+from app.business_email import router as business_email_router
 from app.buyer_intake import router as buyer_intake_router
 from app.buyer_match_api import router as buyer_match_router
 from app.cash_buyer_discovery import router as cash_buyer_router
@@ -148,6 +149,7 @@ app.include_router(county_verification_router)
 app.include_router(county_queue_router)
 app.include_router(compliance_router)
 app.include_router(outbound_gateway_router)
+app.include_router(business_email_router)
 app.include_router(sms_router)
 app.include_router(sms_agentic_router)
 app.include_router(sms_attribution_router)
