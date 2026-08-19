@@ -11,10 +11,11 @@ function safeOwnerReturnTo(value: string | null, fallback = '/owner') {
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  // The root domain is the public SAHJONY deal-flow front door. Seller,
+  // buyer, partner, and contact routes are intentionally outside this
+  // matcher and therefore remain public. Owner OS routes stay protected.
   if (pathname === '/') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/owner';
-    return NextResponse.redirect(url);
+    return NextResponse.next();
   }
 
   if (pathname.startsWith('/api/') && !pathname.startsWith('/api/owner-access/')) {

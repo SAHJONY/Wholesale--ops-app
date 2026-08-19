@@ -30,3 +30,12 @@ def test_public_front_door_and_audience_routes_are_source_controlled():
     root_source = (app_root / "page.tsx").read_text()
     assert "redirect('/owner')" not in root_source
     assert 'href="/owner-access"' in root_source
+
+
+def test_auth_proxy_allows_public_root_and_still_protects_owner_os():
+    source = (REPO_ROOT / "frontend" / "proxy.ts").read_text()
+    assert "if (pathname === '/')" in source
+    assert "return NextResponse.next();" in source
+    assert "url.pathname = '/owner';" not in source
+    assert "pathname === '/owner' || pathname.startsWith('/owner/')" in source
+    assert "url.pathname = '/login';" in source
