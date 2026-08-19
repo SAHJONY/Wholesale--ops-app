@@ -40,28 +40,50 @@ export default function DealFactoryPage() {
   const [selected, setSelected] = useState<number | null>(null);
 
   const request = useCallback(async (path: string) => {
-    const response = await fetch(`/api/backend${path}`, { cache: 'no-store', headers: { Authorization: 'Bearer cookie-session' } });
+    // Authentication is supplied by frontend/proxy.ts from the secure HttpOnly
+    // owner session cookie. Do not send placeholder bearer tokens from client code.
+    const response = await fetch(`/api/backend${path}`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
       window.location.replace('/login?returnTo=/owner/deal-factory');
       throw new Error('Owner session required');
+    }
+    if (response.status === 404) {
+      throw new Error(`Backend route unavailable: ${path}`);
     }
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
     return data;
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true); setError('');
+    setLoading(true);
+    setError('');
     try {
-      const [factoryData, skillsData] = await Promise.all([
+      const [factoryResult, skillsResult] = await Promise.allSettled([
         request('/wholesale-os/deal-factory') as Promise<FactoryResponse>,
         request('/wholesale-os/skills') as Promise<SkillsResponse>,
       ]);
-      setFactory(factoryData);
-      setSkills(Array.isArray(skillsData.skills) ? skillsData.skills : []);
+
+      if (factoryResult.status === 'rejected') throw factoryResult.reason;
+
+      setFactory(factoryResult.value);
+      if (skillsResult.status === 'fulfilled') {
+        setSkills(Array.isArray(skillsResult.value.skills) ? skillsResult.value.skills : []);
+      } else {
+        // Skills are descriptive enhancements. They must never suppress genuine
+        // deal opportunities when the core Deal Factory endpoint is healthy.
+        setSkills([]);
+      }
     } catch (err) {
+      setFactory(null);
+      setSkills([]);
       setError(err instanceof Error ? err.message : 'Unable to load the Deal Factory');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [request]);
 
   useEffect(() => { void load(); }, [load]);
@@ -92,15 +114,15 @@ export default function DealFactoryPage() {
       </div>
     </header>
 
-    {error && <div className={styles.error}>{error}</div>}
+    {error && <div className={styles.error}><b>Deal Factory data is unavailable.</b> {error}</div>}
 
     <section className={styles.kpis}>
-      <article><span>Prospects analyzed</span><strong>{factory?.summary.prospects || 0}</strong><small>Workspace properties</small></article>
-      <article><span>Individual-owned</span><strong>{factory?.summary.individual_owned || 0}</strong><small>Entity owners excluded from your target</small></article>
-      <article><span>$10K+ screens</span><strong>{factory?.summary.meets_10k_screen || 0}</strong><small>Screening only until verified</small></article>
-      <article className={styles.profit}><span>Visible spread</span><strong>{money(spread)}</strong><small>Across current filtered opportunities</small></article>
-      <article><span>Promotion ready</span><strong>{factory?.summary.promotion_ready || 0}</strong><small>Owner + evidence + economics gate</small></article>
-      <article><span>Verified buyers</span><strong>{factory?.summary.buyers || 0}</strong><small>Buyer network available to match</small></article>
+      <article><span>Prospects analyzed</span><strong>{factory ? factory.summary.prospects : '—'}</strong><small>Workspace properties</small></article>
+      <article><span>Individual-owned</span><strong>{factory ? factory.summary.individual_owned : '—'}</strong><small>Entity owners excluded from your target</small></article>
+      <article><span>$10K+ screens</span><strong>{factory ? factory.summary.meets_10k_screen : '—'}</strong><small>Screening only until verified</small></article>
+      <article className={styles.profit}><span>Visible spread</span><strong>{factory ? money(spread) : '—'}</strong><small>Across current filtered opportunities</small></article>
+      <article><span>Promotion ready</span><strong>{factory ? factory.summary.promotion_ready : '—'}</strong><small>Owner + evidence + economics gate</small></article>
+      <article><span>Verified buyers</span><strong>{factory ? factory.summary.buyers : '—'}</strong><small>Buyer network available to match</small></article>
     </section>
 
     <section className={styles.flowPanel}>
@@ -127,7 +149,8 @@ export default function DealFactoryPage() {
             <span><b>{item.buyers.length}</b><small>matched buyers</small><em>{item.buyers[0]?.response_probability ? `${pct(item.buyers[0].response_probability)} top response` : 'Buyer demand unproven'}</em></span>
             <span><b className={item.decision.ready_for_promotion ? styles.ready : styles.pending}>{item.decision.ready_for_promotion ? 'READY' : 'VERIFY'}</b><small>Risk {item.decision.risk_score}/100</small><em>{item.decision.next_action}</em></span>
           </button>)}
-          {!loading && opportunities.length === 0 && <div className={styles.empty}><b>No opportunities match this filter.</b><span>Ingest or enrich real properties, then refresh the Deal Factory.</span></div>}
+          {!loading && factory && opportunities.length === 0 && <div className={styles.empty}><b>No opportunities match this filter.</b><span>Ingest or enrich real properties, then refresh the Deal Factory.</span></div>}
+          {!loading && !factory && <div className={styles.empty}><b>Deal data could not be loaded.</b><span>Resolve the backend error above; zero opportunities is not being inferred from an unavailable API.</span></div>}
         </div>
       </div>
 
