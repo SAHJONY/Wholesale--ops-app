@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -31,6 +32,17 @@ def _clean_key() -> tuple[str, list[str]]:
         warnings.append("bearer_prefix_present")
         value = value[7:].strip()
     return value, warnings
+
+
+def _key_shape(value: str) -> dict[str, object]:
+    """Return non-secret structural signals only; never return key material."""
+    return {
+        "starts_with_documented_cli_prefix": value.startswith("sk-"),
+        "ascii_printable_only": bool(value) and all(32 <= ord(ch) <= 126 for ch in value),
+        "contains_internal_whitespace": bool(re.search(r"\s", value)),
+        "looks_like_uuid": bool(re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", value)),
+        "looks_like_jwt": value.count(".") == 2 and all(part for part in value.split(".")),
+    }
 
 
 def _nonce_hash(value: str) -> str:
@@ -72,6 +84,7 @@ async def run_once(nonce: str = Query(min_length=20, max_length=200), db: Sessio
             "root_cause": "missing_api_key",
             "api_key_present": False,
             "api_key_format_warnings": key_warnings,
+            "api_key_shape": None,
             "call_placed": False,
             "secret_values_exposed": False,
         }
@@ -120,6 +133,7 @@ async def run_once(nonce: str = Query(min_length=20, max_length=200), db: Sessio
             "api_key_present": True,
             "api_key_length": len(api_key),
             "api_key_format_warnings": key_warnings,
+            "api_key_shape": _key_shape(api_key),
             "me": {
                 "http_status": me_response.status_code,
                 "provider_message": _safe_provider_message(me_payload),
