@@ -37,7 +37,7 @@ function money(value = 0) { return new Intl.NumberFormat('en-US', { style: 'curr
 function label(value = '') { return value.replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase()); }
 function err(error: unknown) { return error instanceof Error ? error.message : 'Data source unavailable'; }
 function location(item: { city?: string; state?: string; address?: string }) { return [item.city, item.state].filter(Boolean).join(', ') || item.address || 'Location pending'; }
-function canonicalClosePercentage(deal: { probability_to_close: number }) { return Math.round(deal.probability_to_close || 0); }
+function percent(numerator: number, denominator: number) { return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0; }
 
 export default function CEOCommandCenter() {
   const [command, setCommand] = useState<CommandCenter | null>(null);
@@ -88,20 +88,23 @@ export default function CEOCommandCenter() {
   const kpi = command?.kpis;
   const verifiedSpread = realDeals.reduce((sum, deal) => sum + Number(deal.underwriting.projected_assignment_fee || 0), 0);
   const candidateSpread = candidates.reduce((sum, deal) => sum + Number(deal.screening.projected_assignment_spread || 0), 0);
-  const healthyAgents = command?.agent_health?.filter(a => ['healthy', 'ok', 'online'].includes(String(a.health).toLowerCase())).length || 0;
+  const healthyAgents = command?.agent_health?.filter(agent => ['healthy', 'ok', 'online'].includes(String(agent.health).toLowerCase())).length || 0;
   const totalAgents = command?.agent_health?.length || 0;
   const blockers = (kpi?.pending_approvals || 0) + (kpi?.failed_tasks || 0);
-  const highestRiskDeal = command?.deal_risk?.[0];
+  const qualifiedCount = grouped.qualified.length + grouped.offer_prepared.length + grouped.offer_sent.length + grouped.negotiating.length + grouped.under_contract.length + grouped.disposition.length + grouped.closing.length + grouped.closed.length;
+  const offerCount = grouped.offer_prepared.length + grouped.offer_sent.length + grouped.negotiating.length + grouped.under_contract.length + grouped.disposition.length + grouped.closing.length + grouped.closed.length;
+  const contractCount = grouped.under_contract.length + grouped.disposition.length + grouped.closing.length + grouped.closed.length;
+  const closedCount = grouped.closed.length;
 
   return <main className={styles.page}>
     <header className={styles.topbar}>
       <div>
-        <span className={styles.eyebrow}>SAHJONY WHOLESALE OS</span>
-        <h1>Command Center</h1>
-        <p>Run the business from verified opportunity to assignment fee. AI prepares the work; you control consequential actions.</p>
+        <span className={styles.eyebrow}>SAHJONY PRIVATE WHOLESALE OS</span>
+        <h1>Owner Command Center</h1>
+        <p>One operating system for sourcing, underwriting, seller conversion, contracts, disposition, title and assignment revenue.</p>
       </div>
       <div className={styles.actions}>
-        <a className={styles.secondary} href="/owner/real-deals">Open Real Deals</a>
+        <a className={styles.secondary} href="/owner/real-deals">Open Deal Room</a>
         <button className={styles.primary} onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh OS'}</button>
       </div>
     </header>
@@ -109,24 +112,32 @@ export default function CEOCommandCenter() {
     {errors.length > 0 && <section className={styles.error}><b>Some operating data is unavailable.</b>{errors.slice(0, 3).map(message => <span key={message}>{message}</span>)}</section>}
 
     <section className={styles.moneyStrip}>
-      <article className={styles.moneyPrimary}><span>VERIFIED DEAL SPREAD</span><strong>{money(verifiedSpread)}</strong><small>{realDeals.length} promoted real deal{realDeals.length === 1 ? '' : 's'}</small></article>
+      <article className={styles.moneyPrimary}><span>VERIFIED ASSIGNMENT SPREAD</span><strong>{money(verifiedSpread)}</strong><small>{realDeals.length} promoted real deal{realDeals.length === 1 ? '' : 's'}</small></article>
       <article><span>SCREENING OPPORTUNITY</span><strong>{money(candidateSpread)}</strong><small>{candidates.length} verified candidate{candidates.length === 1 ? '' : 's'} awaiting promotion</small></article>
-      <article><span>RISK-WEIGHTED REVENUE</span><strong>{money(kpi?.probability_weighted_revenue)}</strong><small>{highestRiskDeal ? `${canonicalClosePercentage(highestRiskDeal)}% close probability on lead risk item` : 'Current active pipeline forecast'}</small></article>
-      <article className={blockers ? styles.needsAttention : ''}><span>NEEDS YOUR ATTENTION</span><strong>{blockers}</strong><small>{kpi?.pending_approvals || 0} approvals · {kpi?.failed_tasks || 0} failed tasks</small></article>
+      <article><span>RISK-WEIGHTED REVENUE</span><strong>{money(kpi?.probability_weighted_revenue)}</strong><small>Probability-adjusted assignment forecast</small></article>
+      <article className={blockers ? styles.needsAttention : ''}><span>OWNER ACTIONS</span><strong>{blockers}</strong><small>{kpi?.pending_approvals || 0} approvals · {kpi?.failed_tasks || 0} failed tasks</small></article>
+    </section>
+
+    <section className={styles.funnelStrip} aria-label="Wholesale conversion funnel">
+      <article><span>Leads</span><strong>{leads.length}</strong><small>Source → qualified {percent(qualifiedCount, leads.length)}%</small></article>
+      <article><span>Qualified</span><strong>{qualifiedCount}</strong><small>Qualified → offer {percent(offerCount, qualifiedCount)}%</small></article>
+      <article><span>Offers</span><strong>{offerCount}</strong><small>Offer → contract {percent(contractCount, offerCount)}%</small></article>
+      <article><span>Contracts</span><strong>{contractCount}</strong><small>Contract → close {percent(closedCount, contractCount)}%</small></article>
+      <article><span>Closed</span><strong>{closedCount}</strong><small>Revenue realized</small></article>
     </section>
 
     <section className={styles.operatingGrid}>
       <article className={`${styles.panel} ${styles.priorityPanel}`}>
-        <div className={styles.panelHeader}><div><span>NEXT BEST ACTION</span><h2>What should happen now?</h2></div><a href="/owner/attention">Action Inbox →</a></div>
+        <div className={styles.panelHeader}><div><span>NEXT BEST ACTION</span><h2>What requires owner attention?</h2></div><a href="/owner/attention">Action Inbox →</a></div>
         <div className={styles.actionQueue}>
           {(command?.approvals || []).slice(0, 3).map(item => <a key={`approval-${item.id}`} href="/owner/attention"><i>!</i><span><b>{label(item.action_type)}</b><small>{item.summary}</small></span><em>Approve / reject</em></a>)}
-          {candidates.slice(0, 3).map(item => <a key={`candidate-${item.property_id}`} href="/owner/real-deals"><i>$</i><span><b>{item.property.address}</b><small>{item.owner.name} · {money(item.screening.projected_assignment_spread)} screening spread</small></span><em>Verify + promote</em></a>)}
+          {candidates.slice(0, 3).map(item => <a key={`candidate-${item.property_id}`} href="/owner/real-deals"><i>$</i><span><b>{item.property.address || `Property #${item.property_id}`}</b><small>{item.owner.name || 'Owner pending'} · {money(item.screening.projected_assignment_spread)} screening spread</small></span><em>Verify + promote</em></a>)}
           {!command?.approvals?.length && !candidates.length && <div className={styles.clearState}><b>No urgent operator action.</b><span>The OS has no pending approvals or verified $10K+ candidates right now.</span></div>}
         </div>
       </article>
 
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><span>REAL DEALS</span><h2>Money-ready opportunities</h2></div><a href="/owner/real-deals">View all →</a></div>
+        <div className={styles.panelHeader}><div><span>DEAL ROOM</span><h2>Money-ready opportunities</h2></div><a href="/owner/real-deals">View all →</a></div>
         <div className={styles.dealStack}>
           {realDeals.slice(0, 4).map(deal => <a href={`/owner/deals?deal=${deal.deal_id}`} key={deal.deal_id}>
             <div><b>{deal.property.address || `Deal #${deal.deal_id}`}</b><small>{deal.owner.name || 'Owner pending'} · {deal.property.city}, {deal.property.state}</small></div>
@@ -138,13 +149,14 @@ export default function CEOCommandCenter() {
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.panelHeader}><div><span>OPERATING FLOW</span><h2>Discover → verify → contract → dispose → close</h2></div><a href="/owner/acquisition">Open prospects →</a></div>
+      <div className={styles.panelHeader}><div><span>BUSINESS OPERATING FLOW</span><h2>Lead → Deal → Seller → Buyer → Closing → Revenue</h2></div><a href="/owner/deal-factory">Open lead engine →</a></div>
       <div className={styles.flow}>
-        <a href="/owner/acquisition"><span>01</span><b>Prospects</b><strong>{leads.length}</strong><small>Raw + contacted opportunities</small></a>
-        <a href="/owner/lead-verification"><span>02</span><b>Verified Candidates</b><strong>{candidates.length}</strong><small>Individual owner + source evidence</small></a>
-        <a href="/owner/real-deals"><span>03</span><b>Real Deals</b><strong>{realDeals.length}</strong><small>$10K+ verified spread</small></a>
-        <a href="/owner/disposition"><span>04</span><b>Disposition</b><strong>{grouped.disposition?.length || 0}</strong><small>Buyer matching + offers</small></a>
-        <a href="/owner/closing"><span>05</span><b>Closing</b><strong>{grouped.closing?.length || 0}</strong><small>Title + assignment + funding</small></a>
+        <a href="/owner/deal-factory"><span>01</span><b>Leads</b><strong>{leads.length}</strong><small>Distress sourcing + verification</small></a>
+        <a href="/owner/real-deals"><span>02</span><b>Deals</b><strong>{realDeals.length}</strong><small>ARV + repairs + MAO + contracts</small></a>
+        <a href="/owner/communications"><span>03</span><b>Sellers</b><strong>{grouped.contacting.length + grouped.negotiating.length}</strong><small>Qualification + negotiation + follow-up</small></a>
+        <a href="/owner/buyer-intake"><span>04</span><b>Buyers</b><strong>{kpi?.qualified_buyers || 0}</strong><small>Buy boxes + POF + matching</small></a>
+        <a href="/owner/closing"><span>05</span><b>Closing</b><strong>{grouped.closing.length}</strong><small>Title + assignment + funding</small></a>
+        <a href="/owner/closing"><span>06</span><b>Revenue</b><strong>{money(kpi?.projected_assignment_revenue)}</strong><small>Projected assignment fees</small></a>
       </div>
     </section>
 
@@ -153,18 +165,18 @@ export default function CEOCommandCenter() {
         <div className={styles.panelHeader}><div><span>VERIFIED CANDIDATES</span><h2>Best screening opportunities</h2></div><a href="/owner/real-deals">Review candidates →</a></div>
         <div className={styles.candidateTable}>
           {candidates.slice(0, 6).map(item => <a key={item.property_id} href="/owner/real-deals">
-            <span><b>{item.property.address}</b><small>{item.owner.name} · {location(item.property)}</small></span>
+            <span><b>{item.property.address || `Property #${item.property_id}`}</b><small>{item.owner.name || 'Owner pending'} · {location(item.property)}</small></span>
             <span><small>Ask</small><b>{money(item.property.asking_price)}</b></span>
             <span><small>ARV</small><b>{money(item.property.arv)}</b></span>
             <span><small>Spread</small><b className={styles.profit}>{money(item.screening.projected_assignment_spread)}</b></span>
           </a>)}
-          {!candidates.length && <div className={styles.clearState}><b>No verified candidates pass the current gate.</b><span>Prospects need individual-owner evidence, economics, and at least $10K screening spread.</span></div>}
+          {!candidates.length && <div className={styles.clearState}><b>No verified candidates pass the current gate.</b><span>Prospects need individual-owner evidence, economics and at least $10K screening spread.</span></div>}
         </div>
       </article>
 
       <article className={styles.panel}>
         <div className={styles.panelHeader}><div><span>AI WORKFORCE</span><h2>Automation health</h2></div><a href="/owner/jobs">Inspect agents →</a></div>
-        <div className={styles.agentSummary}><strong>{healthyAgents}/{totalAgents || 0}</strong><span>agents healthy</span></div>
+        <div className={styles.agentSummary}><strong>{healthyAgents}/{totalAgents}</strong><span>agents healthy</span></div>
         <div className={styles.agentList}>
           {(command?.agent_health || []).slice(0, 5).map(agent => <div key={`${agent.name}-${agent.role}`}><i className={['healthy','ok','online'].includes(String(agent.health).toLowerCase()) ? styles.live : styles.warn}/><span><b>{agent.name}</b><small>{agent.last_status || agent.role || agent.status}</small></span></div>)}
           {!totalAgents && <div className={styles.clearState}><b>No agent telemetry.</b><span>Open AI Workforce for diagnostics.</span></div>}
