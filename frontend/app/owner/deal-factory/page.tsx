@@ -40,16 +40,22 @@ export default function DealFactoryPage() {
   const [selected, setSelected] = useState<number | null>(null);
 
   const request = useCallback(async (path: string) => {
-    // Authentication is supplied by frontend/proxy.ts from the secure HttpOnly
-    // owner session cookie. Do not send placeholder bearer tokens from client code.
     const response = await fetch(`/api/backend${path}`, {
       cache: 'no-store',
       credentials: 'same-origin',
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
-      window.location.replace('/login?returnTo=/owner/deal-factory');
-      throw new Error('Owner session required');
+      const sessionResponse = await fetch('/api/owner-access/session', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const session = await sessionResponse.json().catch(() => ({}));
+      if (!sessionResponse.ok || !session.authenticated) {
+        window.location.replace('/login?returnTo=/owner/deal-factory');
+        throw new Error('Owner session required');
+      }
+      throw new Error('Your owner session is valid, but the Leads backend rejected this request. Refresh once; if it persists, review backend authentication health.');
     }
     if (response.status === 404) {
       throw new Error(`Backend route unavailable: ${path}`);
@@ -73,8 +79,6 @@ export default function DealFactoryPage() {
       if (skillsResult.status === 'fulfilled') {
         setSkills(Array.isArray(skillsResult.value.skills) ? skillsResult.value.skills : []);
       } else {
-        // Skills are descriptive enhancements. They must never suppress genuine
-        // deal opportunities when the core Deal Factory endpoint is healthy.
         setSkills([]);
       }
     } catch (err) {
