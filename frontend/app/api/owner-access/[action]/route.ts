@@ -91,12 +91,16 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
     });
 
     const text = await upstream.text();
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': upstream.headers.get('content-type') || 'application/json',
+      ...NO_STORE_HEADERS,
+    };
+    const retryAfter = upstream.headers.get('retry-after');
+    if (retryAfter) responseHeaders['Retry-After'] = retryAfter;
+
     const response = new NextResponse(text || null, {
       status: upstream.status,
-      headers: {
-        'Content-Type': upstream.headers.get('content-type') || 'application/json',
-        ...NO_STORE_HEADERS,
-      },
+      headers: responseHeaders,
     });
 
     if (action === 'login' && upstream.ok) {
