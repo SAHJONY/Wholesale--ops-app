@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './v2.module.css';
 
@@ -48,11 +49,16 @@ export default function CEOCommandCenter() {
   const [errors, setErrors] = useState<string[]>([]);
 
   const request = useCallback(async (path: string) => {
-    const response = await fetch(`/api/backend${path}`, { cache: 'no-store', headers: { Authorization: 'Bearer cookie-session' } });
+    const response = await fetch(`/api/backend${path}`, { cache: 'no-store', credentials: 'same-origin' });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
-      window.location.replace(SIGN_IN);
-      throw new Error('Owner session required');
+      const sessionResponse = await fetch('/api/owner-access/session', { cache: 'no-store', credentials: 'same-origin' });
+      const session = await sessionResponse.json().catch(() => ({}));
+      if (!sessionResponse.ok || !session.authenticated) {
+        window.location.replace(SIGN_IN);
+        throw new Error('Owner session required');
+      }
+      throw new Error('Your owner session is valid, but this workspace service rejected the request. Stay on this page and review System Health if the problem persists.');
     }
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `${path} failed (${response.status})`);
     return data;
@@ -104,7 +110,7 @@ export default function CEOCommandCenter() {
         <p>One operating system for sourcing, underwriting, seller conversion, contracts, disposition, title and assignment revenue.</p>
       </div>
       <div className={styles.actions}>
-        <a className={styles.secondary} href="/owner/real-deals">Open Deal Room</a>
+        <Link className={styles.secondary} href="/owner/real-deals">Open Deal Room</Link>
         <button className={styles.primary} onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh OS'}</button>
       </div>
     </header>
@@ -128,54 +134,54 @@ export default function CEOCommandCenter() {
 
     <section className={styles.operatingGrid}>
       <article className={`${styles.panel} ${styles.priorityPanel}`}>
-        <div className={styles.panelHeader}><div><span>NEXT BEST ACTION</span><h2>What requires owner attention?</h2></div><a href="/owner/attention">Action Inbox →</a></div>
+        <div className={styles.panelHeader}><div><span>NEXT BEST ACTION</span><h2>What requires owner attention?</h2></div><Link href="/owner/attention">Action Inbox →</Link></div>
         <div className={styles.actionQueue}>
-          {(command?.approvals || []).slice(0, 3).map(item => <a key={`approval-${item.id}`} href="/owner/attention"><i>!</i><span><b>{label(item.action_type)}</b><small>{item.summary}</small></span><em>Approve / reject</em></a>)}
-          {candidates.slice(0, 3).map(item => <a key={`candidate-${item.property_id}`} href="/owner/real-deals"><i>$</i><span><b>{item.property.address || `Property #${item.property_id}`}</b><small>{item.owner.name || 'Owner pending'} · {money(item.screening.projected_assignment_spread)} screening spread</small></span><em>Verify + promote</em></a>)}
+          {(command?.approvals || []).slice(0, 3).map(item => <Link key={`approval-${item.id}`} href="/owner/attention"><i>!</i><span><b>{label(item.action_type)}</b><small>{item.summary}</small></span><em>Approve / reject</em></Link>)}
+          {candidates.slice(0, 3).map(item => <Link key={`candidate-${item.property_id}`} href="/owner/real-deals"><i>$</i><span><b>{item.property.address || `Property #${item.property_id}`}</b><small>{item.owner.name || 'Owner pending'} · {money(item.screening.projected_assignment_spread)} screening spread</small></span><em>Verify + promote</em></Link>)}
           {!command?.approvals?.length && !candidates.length && <div className={styles.clearState}><b>No urgent operator action.</b><span>The OS has no pending approvals or verified $10K+ candidates right now.</span></div>}
         </div>
       </article>
 
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><span>DEAL ROOM</span><h2>Money-ready opportunities</h2></div><a href="/owner/real-deals">View all →</a></div>
+        <div className={styles.panelHeader}><div><span>DEAL ROOM</span><h2>Money-ready opportunities</h2></div><Link href="/owner/real-deals">View all →</Link></div>
         <div className={styles.dealStack}>
-          {realDeals.slice(0, 4).map(deal => <a href={`/owner/deals?deal=${deal.deal_id}`} key={deal.deal_id}>
+          {realDeals.slice(0, 4).map(deal => <Link href={`/owner/deals?deal=${deal.deal_id}`} key={deal.deal_id}>
             <div><b>{deal.property.address || `Deal #${deal.deal_id}`}</b><small>{deal.owner.name || 'Owner pending'} · {deal.property.city}, {deal.property.state}</small></div>
             <div className={styles.dealMoney}><strong>{money(deal.underwriting.projected_assignment_fee)}</strong><small>{label(deal.stage)}</small></div>
-          </a>)}
+          </Link>)}
           {!realDeals.length && <div className={styles.clearState}><b>No promoted real deals yet.</b><span>Verified candidates will appear here after manager promotion.</span></div>}
         </div>
       </article>
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.panelHeader}><div><span>BUSINESS OPERATING FLOW</span><h2>Lead → Deal → Seller → Buyer → Closing → Revenue</h2></div><a href="/owner/deal-factory">Open lead engine →</a></div>
+      <div className={styles.panelHeader}><div><span>BUSINESS OPERATING FLOW</span><h2>Lead → Deal → Seller → Buyer → Closing → Revenue</h2></div><Link href="/owner/deal-factory">Open lead engine →</Link></div>
       <div className={styles.flow}>
-        <a href="/owner/deal-factory"><span>01</span><b>Leads</b><strong>{leads.length}</strong><small>Distress sourcing + verification</small></a>
-        <a href="/owner/real-deals"><span>02</span><b>Deals</b><strong>{realDeals.length}</strong><small>ARV + repairs + MAO + contracts</small></a>
-        <a href="/owner/communications"><span>03</span><b>Sellers</b><strong>{grouped.contacting.length + grouped.negotiating.length}</strong><small>Qualification + negotiation + follow-up</small></a>
-        <a href="/owner/buyer-intake"><span>04</span><b>Buyers</b><strong>{kpi?.qualified_buyers || 0}</strong><small>Buy boxes + POF + matching</small></a>
-        <a href="/owner/closing"><span>05</span><b>Closing</b><strong>{grouped.closing.length}</strong><small>Title + assignment + funding</small></a>
-        <a href="/owner/closing"><span>06</span><b>Revenue</b><strong>{money(kpi?.projected_assignment_revenue)}</strong><small>Projected assignment fees</small></a>
+        <Link href="/owner/deal-factory"><span>01</span><b>Leads</b><strong>{leads.length}</strong><small>Distress sourcing + verification</small></Link>
+        <Link href="/owner/real-deals"><span>02</span><b>Deals</b><strong>{realDeals.length}</strong><small>ARV + repairs + MAO + contracts</small></Link>
+        <Link href="/owner/communications"><span>03</span><b>Sellers</b><strong>{grouped.contacting.length + grouped.negotiating.length}</strong><small>Qualification + negotiation + follow-up</small></Link>
+        <Link href="/owner/buyer-intake"><span>04</span><b>Buyers</b><strong>{kpi?.qualified_buyers || 0}</strong><small>Buy boxes + POF + matching</small></Link>
+        <Link href="/owner/closing"><span>05</span><b>Closing</b><strong>{grouped.closing.length}</strong><small>Title + assignment + funding</small></Link>
+        <Link href="/owner/closing"><span>06</span><b>Revenue</b><strong>{money(kpi?.projected_assignment_revenue)}</strong><small>Projected assignment fees</small></Link>
       </div>
     </section>
 
     <section className={styles.lowerGrid}>
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><span>VERIFIED CANDIDATES</span><h2>Best screening opportunities</h2></div><a href="/owner/real-deals">Review candidates →</a></div>
+        <div className={styles.panelHeader}><div><span>VERIFIED CANDIDATES</span><h2>Best screening opportunities</h2></div><Link href="/owner/real-deals">Review candidates →</Link></div>
         <div className={styles.candidateTable}>
-          {candidates.slice(0, 6).map(item => <a key={item.property_id} href="/owner/real-deals">
+          {candidates.slice(0, 6).map(item => <Link key={item.property_id} href="/owner/real-deals">
             <span><b>{item.property.address || `Property #${item.property_id}`}</b><small>{item.owner.name || 'Owner pending'} · {location(item.property)}</small></span>
             <span><small>Ask</small><b>{money(item.property.asking_price)}</b></span>
             <span><small>ARV</small><b>{money(item.property.arv)}</b></span>
             <span><small>Spread</small><b className={styles.profit}>{money(item.screening.projected_assignment_spread)}</b></span>
-          </a>)}
+          </Link>)}
           {!candidates.length && <div className={styles.clearState}><b>No verified candidates pass the current gate.</b><span>Prospects need individual-owner evidence, economics and at least $10K screening spread.</span></div>}
         </div>
       </article>
 
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><span>AI WORKFORCE</span><h2>Automation health</h2></div><a href="/owner/jobs">Inspect agents →</a></div>
+        <div className={styles.panelHeader}><div><span>AI WORKFORCE</span><h2>Automation health</h2></div><Link href="/owner/jobs">Inspect agents →</Link></div>
         <div className={styles.agentSummary}><strong>{healthyAgents}/{totalAgents}</strong><span>agents healthy</span></div>
         <div className={styles.agentList}>
           {(command?.agent_health || []).slice(0, 5).map(agent => <div key={`${agent.name}-${agent.role}`}><i className={['healthy','ok','online'].includes(String(agent.health).toLowerCase()) ? styles.live : styles.warn}/><span><b>{agent.name}</b><small>{agent.last_status || agent.role || agent.status}</small></span></div>)}
