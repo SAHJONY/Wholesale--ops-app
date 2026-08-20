@@ -4,6 +4,7 @@ const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.BACKEND_URL ||
   'http://localhost:8000';
+const SESSION_COOKIE = 'sahjony_owner_session';
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function proxy(
@@ -17,7 +18,9 @@ async function proxy(
   const { path } = await context.params;
   const backendPath = `/${path.map(segment => encodeURIComponent(segment)).join('/')}`;
   const query = request.nextUrl.search;
-  const authorization = request.headers.get('authorization');
+  const explicitAuthorization = request.headers.get('authorization');
+  const session = request.cookies.get(SESSION_COOKIE)?.value || '';
+  const authorization = explicitAuthorization || (session ? `Bearer ${session}` : '');
   const contentType = request.headers.get('content-type');
   const body = request.method === 'GET' ? undefined : await request.text();
 
