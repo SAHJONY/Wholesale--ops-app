@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import math
 import os
 import secrets
 import smtplib
@@ -169,6 +170,15 @@ def _send_reset_email(email: str, code: str) -> None:
     raise HTTPException(502, "Unable to send password-reset email")
 
 
+def _lockout_response(locked_until: datetime, now: datetime) -> HTTPException:
+    retry_after = max(1, math.ceil((locked_until - now).total_seconds()))
+    return HTTPException(
+        429,
+        "Account temporarily locked. Use password recovery or try again when the countdown ends.",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 @router.post("/set-password")
 def set_password(
     payload: dict,
@@ -321,12 +331,23 @@ def login(payload: dict, db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(401, "Password login is not configured for this account")
     if record.locked_until and record.locked_until > now:
-        raise HTTPException(429, "Account temporarily locked. Try again later.")
+        raise _lockout_response(record.locked_until, now)
     if not _verify_password(password, record.password_hash):
         record.failed_attempts += 1
         if record.failed_attempts >= 5:
             record.locked_until = now + timedelta(minutes=15)
             record.failed_attempts = 0
+            membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
+            if membership:
+                db.add(CrmActivity(
+                    organization_id=membership.organization_id,
+                    user_id=user.id,
+                    activity_type="human_login_locked",
+                    summary="Human login temporarily locked after repeated invalid passwords",
+                    metadata_json={"email": user.email, "lock_minutes": 15},
+                ))
+            db.commit()
+            raise _lockout_response(record.locked_until, now)
         db.commit()
         raise HTTPException(401, "Invalid email or password")
 
