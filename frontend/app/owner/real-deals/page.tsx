@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './real-deals.module.css';
 
@@ -70,12 +71,20 @@ export default function RealDealsPage() {
   const request = useCallback(async (path: string) => {
     const response = await fetch(`/api/backend${path}`, {
       cache: 'no-store',
-      headers: { Authorization: 'Bearer cookie-session' },
+      credentials: 'same-origin',
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
-      window.location.replace(SIGN_IN);
-      throw new Error('Owner session required');
+      const sessionResponse = await fetch('/api/owner-access/session', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const session = await sessionResponse.json().catch(() => ({}));
+      if (!sessionResponse.ok || !session.authenticated) {
+        window.location.replace(SIGN_IN);
+        throw new Error('Owner session required');
+      }
+      throw new Error('Your owner session is valid, but the Deal Room service rejected this request. Stay on this page and review System Health if the problem persists.');
     }
     if (!response.ok) {
       throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
@@ -155,7 +164,7 @@ export default function RealDealsPage() {
           </p>
         </div>
         <div className={styles.heroActions}>
-          <a href="/owner">CEO Command</a>
+          <Link href="/owner">CEO Command</Link>
           <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh deals'}</button>
         </div>
       </header>
@@ -225,7 +234,7 @@ export default function RealDealsPage() {
 
                 <footer>
                   <span>{item.deal.next_action || 'Continue source-backed verification.'}</span>
-                  <a href={`/owner/deals?deal=${item.deal.id}`}>Open Deal Room →</a>
+                  <Link href={`/owner/deals?deal=${item.deal.id}`}>Open Deal Room →</Link>
                 </footer>
               </article>
             );
@@ -268,7 +277,7 @@ export default function RealDealsPage() {
                 <div><span>Assignment</span><b className={styles.profit}>{money(deal.underwriting.projected_assignment_fee)}</b></div>
                 <div><span>Risk</span><b>{Math.round(Number(deal.underwriting.risk_score || 0))}</b></div>
               </div>
-              <footer><span>{deal.next_action || 'Continue deal execution.'}</span><a href={`/owner/deals?deal=${deal.deal_id}`}>Open Deal Room →</a></footer>
+              <footer><span>{deal.next_action || 'Continue deal execution.'}</span><Link href={`/owner/deals?deal=${deal.deal_id}`}>Open Deal Room →</Link></footer>
             </article>
           ))}
           {!loading && !verifiedDeals.length && (
