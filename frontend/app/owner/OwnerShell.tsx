@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import OwnerNavigation from './OwnerNavigation';
@@ -7,7 +8,7 @@ import OwnerNavigation from './OwnerNavigation';
 const labels: Record<string, string> = {
   '/owner': 'Command Center',
   '/owner/copilot': 'Wholesale Copilot',
-  '/owner/deal-factory': 'Lead Sourcing',
+  '/owner/deal-factory': 'Leads Command Center',
   '/owner/attention': 'Action Inbox',
   '/owner/acquisition': 'Lead Pipeline',
   '/owner/real-deals': 'Deal Room',
@@ -15,10 +16,10 @@ const labels: Record<string, string> = {
   '/owner/buyer-intake': 'Buyer Network',
   '/owner/properties': 'Property Evidence',
   '/owner/phone-os': 'Seller Conversations',
-  '/owner/communications': 'Bland Phone System',
+  '/owner/communications': 'Seller Command',
   '/owner/sms-acquisition': 'SMS Campaigns',
   '/owner/disposition': 'Disposition',
-  '/owner/closing': 'Closing Pipeline',
+  '/owner/closing': 'Closing Command',
   '/owner/title-companies': 'Title Companies',
   '/owner/deal-intelligence': 'Underwriting',
   '/owner/lead-verification': 'Lead Verification',
@@ -32,6 +33,7 @@ const labels: Record<string, string> = {
   '/owner/system-health': 'System Health',
   '/owner/audit': 'Audit Trail',
   '/owner/security': 'Admin & Security',
+  '/owner/joint-ventures': 'Joint Ventures',
 };
 
 type WorkspaceHealth = 'checking' | 'live' | 'degraded' | 'offline';
@@ -97,9 +99,9 @@ export default function OwnerShell({ children }: { children: React.ReactNode }) 
       <OwnerNavigation />
       <header className="ownerTopRail" aria-label="Workspace status">
         <div className="ownerTopRailPath"><small>SAHJONY / PRIVATE WHOLESALE OS</small><strong>{label}</strong></div>
-        <a href="/owner/system-health" className={`ownerTopRailStatus ${health}`} title={healthDetail} aria-label={`Workspace status: ${healthLabel(health)}. ${healthDetail}`}>
+        <Link href="/owner/system-health" className={`ownerTopRailStatus ${health}`} title={healthDetail} aria-label={`Workspace status: ${healthLabel(health)}. ${healthDetail}`}>
           <i aria-hidden="true"/><span>{healthLabel(health)} workspace</span>
-        </a>
+        </Link>
       </header>
     </> : null}
     <div className="ownerAppContent">{children}</div>
