@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import OwnerNavigation from './OwnerNavigation';
 
 const labels: Record<string, string> = {
@@ -56,10 +56,30 @@ function healthLabel(health: WorkspaceHealth) {
 
 export default function OwnerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const showNavigation = pathname === '/owner' || pathname.startsWith('/owner/');
   const label = currentLabel(pathname);
   const [health, setHealth] = useState<WorkspaceHealth>('checking');
   const [healthDetail, setHealthDetail] = useState('Verifying frontend/backend synchronization');
+
+  useEffect(() => {
+    if (!showNavigation) return;
+    const handleOwnerLink = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
+      const href = anchor.getAttribute('href');
+      if (!href || !href.startsWith('/owner')) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      event.preventDefault();
+      router.push(`${url.pathname}${url.search}${url.hash}`);
+    };
+    document.addEventListener('click', handleOwnerLink);
+    return () => document.removeEventListener('click', handleOwnerLink);
+  }, [router, showNavigation]);
 
   useEffect(() => {
     if (!showNavigation) return;
