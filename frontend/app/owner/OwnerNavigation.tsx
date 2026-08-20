@@ -33,7 +33,6 @@ const spaces: NavSpace[] = [
   {
     id: 'sellers', href: '/owner/communications', label: 'Sellers', icon: '☎', hint: 'Conversations, qualification and follow-up',
     children: [
-      { href: '/owner/communications', label: 'Bland Phone System', hint: 'Inbound/outbound voice operations and readiness' },
       { href: '/owner/phone-os', label: 'Seller Conversations', hint: 'Motivation, timeline, condition, price and memory' },
       { href: '/owner/sms-acquisition', label: 'SMS Campaigns', hint: 'Supervised seller follow-up campaigns' },
     ],
@@ -41,14 +40,12 @@ const spaces: NavSpace[] = [
   {
     id: 'buyers', href: '/owner/buyer-intake', label: 'Buyers', icon: '◎', hint: 'Cash buyers, buying boxes, POF and disposition',
     children: [
-      { href: '/owner/buyer-intake', label: 'Buyer Network', hint: 'Buyer profiles, proof of funds and buy boxes' },
       { href: '/owner/disposition', label: 'Disposition', hint: 'Deal matching, buyer offers and assignment spread' },
     ],
   },
   {
     id: 'closing', href: '/owner/closing', label: 'Closing', icon: '□', hint: 'Title, assignment, funding and revenue realization',
     children: [
-      { href: '/owner/closing', label: 'Closing Pipeline', hint: 'Title, EMD, funding and closing status' },
       { href: '/owner/title-companies', label: 'Title Companies', hint: 'Wholesale-friendly closing partners' },
     ],
   },
@@ -58,6 +55,7 @@ const controls: NavItem[] = [
   { href: '/owner/system-health', label: 'System Health', hint: 'Production readiness and diagnostics' },
   { href: '/owner/jobs', label: 'AI Workforce', hint: 'Agent health and task execution' },
   { href: '/owner/integrations', label: 'Integrations', hint: 'Providers and credentials status' },
+  { href: '/owner/live-data', label: 'Data Sources', hint: 'Source coverage, freshness and provider evidence' },
   { href: '/owner/audit', label: 'Audit Trail', hint: 'Consequential action history' },
   { href: '/owner/security', label: 'Security', hint: 'Owner access and controls' },
 ];
@@ -118,7 +116,7 @@ export default function OwnerNavigation() {
         <section className="ownerNavSpace ownerNavControlSpace">
           <div className="ownerNavSpaceRow">
             <button type="button" className="ownerNavSpaceLink ownerNavControlToggle" onClick={() => setControlsOpen(value => !value)} aria-expanded={controlsOpen}>
-              <i aria-hidden="true">●</i><span><b>Control</b><small>System, agents, integrations and security</small></span>
+              <i aria-hidden="true">●</i><span><b>Control</b><small>System, agents, integrations, data and security</small></span>
             </button>
             <button type="button" className="ownerNavSpaceToggle" aria-label={`${controlsOpen ? 'Collapse' : 'Expand'} Control`} aria-expanded={controlsOpen} onClick={() => setControlsOpen(value => !value)}><span aria-hidden="true">⌄</span></button>
           </div>
