@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './deal-factory.module.css';
 
@@ -84,7 +85,7 @@ export default function DealFactoryPage() {
     } catch (err) {
       setFactory(null);
       setSkills([]);
-      setError(err instanceof Error ? err.message : 'Unable to load the Deal Factory');
+      setError(err instanceof Error ? err.message : 'Unable to load the Leads Command Center');
     } finally {
       setLoading(false);
     }
@@ -107,18 +108,18 @@ export default function DealFactoryPage() {
   return <main className={styles.page}>
     <header className={styles.hero}>
       <div>
-        <span>SAHJONY WHOLESALE OS · NATIONWIDE DEAL FACTORY</span>
-        <h1>Find, verify and analyze real wholesale opportunities from source-backed data.</h1>
+        <span>SAHJONY WHOLESALE OS · LEADS COMMAND CENTER</span>
+        <h1>Source, verify and rank wholesale opportunities in one lead workspace.</h1>
         <p>Every opportunity is separated into verified facts, screening economics, missing evidence and human-controlled next actions. No invented comps. No guessed owners. No autonomous contracts.</p>
       </div>
       <div className={styles.actions}>
-        <a href="/owner/live-data">Review data sources</a>
-        <a href="/owner/deal-intelligence">Underwrite with comps</a>
-        <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh Deal Factory'}</button>
+        <Link href="/owner/live-data">Review data sources</Link>
+        <Link href="/owner/deal-intelligence">Underwrite with comps</Link>
+        <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh Leads'}</button>
       </div>
     </header>
 
-    {error && <div className={styles.error}><b>Deal Factory data is unavailable.</b> {error}</div>}
+    {error && <div className={styles.error}><b>Lead intelligence is unavailable.</b> {error}</div>}
 
     <section className={styles.kpis}>
       <article><span>Prospects analyzed</span><strong>{factory ? factory.summary.prospects : '—'}</strong><small>Workspace properties</small></article>
@@ -153,8 +154,8 @@ export default function DealFactoryPage() {
             <span><b>{item.buyers.length}</b><small>matched buyers</small><em>{item.buyers[0]?.response_probability ? `${pct(item.buyers[0].response_probability)} top response` : 'Buyer demand unproven'}</em></span>
             <span><b className={item.decision.ready_for_promotion ? styles.ready : styles.pending}>{item.decision.ready_for_promotion ? 'READY' : 'VERIFY'}</b><small>Risk {item.decision.risk_score}/100</small><em>{item.decision.next_action}</em></span>
           </button>)}
-          {!loading && factory && opportunities.length === 0 && <div className={styles.empty}><b>No opportunities match this filter.</b><span>Ingest or enrich real properties, then refresh the Deal Factory.</span></div>}
-          {!loading && !factory && <div className={styles.empty}><b>Deal data could not be loaded.</b><span>Resolve the backend error above; zero opportunities is not being inferred from an unavailable API.</span></div>}
+          {!loading && factory && opportunities.length === 0 && <div className={styles.empty}><b>No opportunities match this filter.</b><span>Ingest or enrich real properties, then refresh the Leads Command Center.</span></div>}
+          {!loading && !factory && <div className={styles.empty}><b>Lead data could not be loaded.</b><span>Resolve the backend error above; zero opportunities is not being inferred from an unavailable API.</span></div>}
         </div>
       </div>
 
@@ -183,7 +184,7 @@ export default function DealFactoryPage() {
 
           <section><h3>Buyer matches</h3><div className={styles.buyers}>{selectedDeal.buyers.length ? selectedDeal.buyers.slice(0, 4).map((buyer, index) => <div key={`${buyer.buyer_id}-${index}`}><b>{buyer.name || `Buyer #${buyer.buyer_id}`}</b><span>{pct(buyer.response_probability)} response probability</span><small>{(buyer.reasons || []).slice(0, 2).join(' · ') || 'Buy-box model match'}</small></div>) : <p>No buyer demand verified yet.</p>}</div></section>
 
-          <div className={styles.detailActions}><a href="/owner/real-deals">Open Real Deals</a><a href="/owner/deal-intelligence">Run comp underwriting</a><a href="/owner/buyer-intake">Review buyers</a></div>
+          <div className={styles.detailActions}><Link href="/owner/real-deals">Open Real Deals</Link><Link href="/owner/deal-intelligence">Run comp underwriting</Link><Link href="/owner/buyer-intake">Review buyers</Link></div>
         </> : <div className={styles.placeholder}><b>Select an opportunity.</b><span>You will see owner, deed, economics, evidence gaps, distress and buyer demand here.</span></div>}
       </aside>
     </section>
