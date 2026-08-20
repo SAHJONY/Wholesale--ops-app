@@ -11,6 +11,12 @@ function safeReturnTo() {
   return value.startsWith('/owner') && !value.startsWith('//') ? value : DEFAULT_DESTINATION;
 }
 
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
 export default function UnifiedLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +24,7 @@ export default function UnifiedLoginPage() {
   const [systemOnline, setSystemOnline] = useState<boolean | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
   const destination = useMemo(() => safeReturnTo(), []);
 
   useEffect(() => {
@@ -48,8 +55,17 @@ export default function UnifiedLoginPage() {
     return () => { cancelled = true; };
   }, [destination]);
 
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = window.setInterval(() => {
+      setRetryAfter(value => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryAfter > 0]);
+
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (retryAfter > 0) return;
     setLoading(true);
     setError('');
     try {
@@ -64,6 +80,14 @@ export default function UnifiedLoginPage() {
       let data: Record<string, unknown> = {};
       try { data = text ? JSON.parse(text) : {}; }
       catch { throw new Error(`Unreadable sign-in response (HTTP ${response.status}).`); }
+
+      if (response.status === 429) {
+        const seconds = Math.max(1, Number.parseInt(response.headers.get('retry-after') || '0', 10) || 0);
+        setRetryAfter(seconds);
+        setError(String(data.detail || 'Account temporarily locked.'));
+        return;
+      }
+
       if (!response.ok) throw new Error(`${String(data.detail || 'Sign-in failed')} (HTTP ${response.status})`);
       window.localStorage.removeItem('sahjony_owner_session');
       window.location.replace(destination);
@@ -75,6 +99,7 @@ export default function UnifiedLoginPage() {
   }
 
   const statusClass = systemOnline === true ? 'online' : systemOnline === false ? 'offline' : '';
+  const locked = retryAfter > 0;
 
   return <main className="premiumLogin">
     <section className="premiumLoginVisual" aria-label="SAHJONY Wholesale Operating System">
@@ -105,14 +130,21 @@ export default function UnifiedLoginPage() {
           <span>{status}</span>
         </div>
 
-        {error && <div className="premiumLoginError" role="alert">{error}</div>}
+        {error && <div className="premiumLoginError" role="alert">
+          <div>{error}</div>
+          {locked && <div style={{ marginTop: 8 }}>
+            Try again in <strong>{formatCountdown(retryAfter)}</strong> or <Link href="/forgot-password">reset the owner password now</Link>.
+          </div>}
+        </div>}
 
         <form onSubmit={signIn} className="premiumLoginForm">
           <label htmlFor="app-email">Email</label>
-          <input id="app-email" value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required />
+          <input id="app-email" value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required disabled={locked} />
           <label htmlFor="app-password">Password</label>
-          <input id="app-password" value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" required />
-          <button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Enter Wholesale OS'}</button>
+          <input id="app-password" value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" required disabled={locked} />
+          <button type="submit" disabled={loading || locked}>
+            {locked ? `Locked ${formatCountdown(retryAfter)}` : loading ? 'Signing in…' : 'Enter Wholesale OS'}
+          </button>
         </form>
 
         <div className="premiumLoginLinks">
