@@ -131,7 +131,10 @@ def _send_with_resend(email: str, code: str) -> bool:
     api_key = (os.getenv("RESEND_API_KEY") or "").strip()
     if not api_key:
         return False
-    from_email = os.getenv("AUTH_FROM_EMAIL", "SAHJONY Wholesale OS <onboarding@resend.dev>")
+    from_email = (
+        os.getenv("AUTH_FROM_EMAIL")
+        or "SAHJONY Security <support@sahjony.com>"
+    ).strip()
     response = httpx.post(
         "https://api.resend.com/emails",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
