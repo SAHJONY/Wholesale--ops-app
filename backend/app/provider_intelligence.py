@@ -26,12 +26,36 @@ from .providers.batchdata import (
 router = APIRouter(prefix="/provider-intelligence", tags=["provider intelligence v4"])
 
 PROVIDERS = (
-    {"id":"census_geocoder","name":"US Census Geocoder","priority":100,"public":True,"credential_env":None,"capabilities":["address_standardization","coordinates","county","tract","block"],"truth":["geography"]},
-    {"id":"county_assessor","name":"County Assessor","priority":95,"public":True,"credential_env":"COUNTY_ASSESSOR_BASE_URL","capabilities":["owner","parcel","assessed_value","property_characteristics"],"truth":["ownership","assessment"]},
-    {"id":"county_recorder","name":"County Recorder","priority":95,"public":True,"credential_env":"COUNTY_RECORDER_BASE_URL","capabilities":["deeds","mortgages","liens","releases"],"truth":["recorded_documents"]},
-    {"id":"attom","name":"ATTOM","priority":90,"public":False,"credential_env":"ATTOM_API_KEY","capabilities":["property","owner","mortgage","avm","foreclosure"],"truth":["licensed_property_data"]},
-    {"id":"mls_idx","name":"MLS/IDX","priority":85,"public":False,"credential_env":"MLS_IDX_BASE_URL","capabilities":["sold_comps","listings","days_on_market","price_history"],"truth":["licensed_listing_data"]},
-    {"id":"batchdata","name":"BatchData MCP","priority":80,"public":False,"credential_env":"BATCHDATA_API_TOKEN","capabilities":["property","owner","phones","emails","valuation","mortgages","liens","comparables","contact_confidence"],"truth":["licensed_property_data","licensed_owner_data","licensed_contact_data"]},
+    {"id":"census_geocoder","name":"US Census Geocoder","priority":100,"public":True,"credential_env":None,"required":True,"capabilities":["address_standardization","coordinates","county","tract","block"],"truth":["geography"]},
+    {"id":"county_assessor","name":"County Assessor","priority":95,"public":True,"credential_env":None,"required":True,"reference_registry":True,"capabilities":["owner","parcel","assessed_value","property_characteristics"],"truth":["ownership","assessment"]},
+    {"id":"county_recorder","name":"County Recorder","priority":95,"public":True,"credential_env":None,"required":True,"reference_registry":True,"capabilities":["deeds","mortgages","liens","releases"],"truth":["recorded_documents"]},
+    {"id":"attom","name":"ATTOM","priority":90,"public":False,"credential_env":"ATTOM_API_KEY","required":False,"capabilities":["property","owner","mortgage","avm","foreclosure"],"truth":["licensed_property_data"]},
+    {"id":"mls_idx","name":"MLS/IDX","priority":85,"public":False,"credential_env":"MLS_IDX_BASE_URL","required":False,"capabilities":["sold_comps","listings","days_on_market","price_history"],"truth":["licensed_listing_data"]},
+    {"id":"batchdata","name":"BatchData MCP","priority":80,"public":False,"credential_env":"BATCHDATA_API_TOKEN","required":True,"capabilities":["property","owner","phones","emails","valuation","mortgages","liens","comparables","contact_confidence"],"truth":["licensed_property_data","licensed_owner_data","licensed_contact_data"]},
+)
+
+PUBLIC_RECORD_SOURCES: tuple[dict[str, Any], ...] = (
+    {
+        "id":"fl_escambia_assessor",
+        "provider_id":"county_assessor",
+        "state":"FL",
+        "county":"Escambia",
+        "name":"Escambia County Property Appraiser",
+        "url":"https://escpa.org/",
+        "access_mode":"official_search",
+        "verification_status":"human_review_required",
+    },
+    {
+        "id":"fl_escambia_recorder",
+        "provider_id":"county_recorder",
+        "state":"FL",
+        "county":"Escambia",
+        "name":"Escambia County Clerk Official Records",
+        "url":"https://www.escambiaclerk.com/338/Official-Records",
+        "search_url":"https://dory.escambiaclerk.com/LandmarkWeb1.4.6.134/search/index",
+        "access_mode":"official_search",
+        "verification_status":"human_review_required",
+    },
 )
 
 
@@ -64,7 +88,7 @@ def _status(
     configured = True if env is None else bool((os.getenv(env) or "").strip())
     if provider["id"] == "batchdata":
         configured = _batchdata_configured()
-    state = "ready" if configured else "blocked"
+    state = "ready" if configured else ("optional_not_configured" if not provider.get("required", True) else "blocked")
     verified = env is None
     verification: dict[str, Any] | None = None
     missing = [] if configured else ([env] if env else [])
@@ -81,6 +105,18 @@ def _status(
             verification = verify_credentials(config, db, organization_id)
             state = verification["state"]
             verified = bool(verification["verified"])
+
+    if provider.get("reference_registry"):
+        matching_sources = [source for source in PUBLIC_RECORD_SOURCES if source["provider_id"] == provider["id"]]
+        configured = bool(matching_sources)
+        verified = False
+        state = "ready_reference" if configured else "blocked"
+        missing = [] if configured else ["JURISDICTION_SOURCE"]
+        verification = {
+            "environment":"official_public_registry",
+            "source_count":len(matching_sources),
+            "reason":"Official search available; property facts require human review before promotion.",
+        }
 
     return {
         **provider,
@@ -147,7 +183,7 @@ def snapshot(
     db: Session = Depends(get_db),
 ):
     providers = sorted((_status(p, db, principal.organization_id) for p in PROVIDERS), key=lambda p: -p["priority"])
-    ready = [p for p in providers if p["state"] in {"ready", "ready_verified"}]
+    ready = [p for p in providers if p["state"] in {"ready", "ready_verified", "ready_reference"}]
     allowed_ids = _allowed_ids(db, principal.organization_id)
     workspace_properties = list(db.scalars(select(Property).where(Property.id.in_(allowed_ids))).all()) if allowed_ids else []
     eligible_property_count = sum(
@@ -161,6 +197,7 @@ def snapshot(
         "version": "4.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "providers": providers,
+        "public_record_sources": PUBLIC_RECORD_SOURCES,
         "ready_count": len(ready),
         "provider_count": len(providers),
         "eligible_property_count": eligible_property_count,
@@ -237,6 +274,22 @@ def orchestrate(
                 "provider_id":"census_geocoder",
                 "observed_at":datetime.now(timezone.utc).isoformat(),
                 "confidence":0.95,
+            }
+
+        state = (item.state or "").strip().upper()
+        city = (item.city or "").strip().lower()
+        public_sources = [
+            source for source in PUBLIC_RECORD_SOURCES
+            if source["state"] == state
+            and (source["county"].lower() == "escambia" and city == "pensacola")
+        ]
+        if public_sources:
+            canonical["public_record_sources"] = public_sources
+            canonical["public_record_verification"] = {
+                "status":"human_review_required",
+                "ownership_verified":False,
+                "recorded_documents_verified":False,
+                "instruction":"Search the official assessor first, then confirm deeds and liens in Official Records.",
             }
 
         if config and payload.use_batchdata:

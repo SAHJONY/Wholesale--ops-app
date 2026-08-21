@@ -26,6 +26,13 @@ def test_provider_intelligence_v4_routes_and_contracts_present():
     assert 'No Provider Intelligence v4 run' in page
     assert 'Checking…' in page
     assert 'AbortSignal.timeout(60000)' in gateway
+    assert 'PUBLIC_RECORD_SOURCES' in backend
+    assert 'https://escpa.org/' in backend
+    assert 'https://www.escambiaclerk.com/338/Official-Records' in backend
+    assert 'ready_reference' in backend
+    assert 'optional_not_configured' in backend
+    assert 'OFFICIAL PUBLIC RECORDS' in page
+    assert 'Open official source' in page
 
 
 def test_provider_verification_does_not_immediately_erase_verified_state():
@@ -46,3 +53,4 @@ def test_provider_intelligence_preserves_truth_and_safety_controls():
     assert 'external_actions":False' in backend
     assert 'contact_data_redacted_by_default":True' in backend
     assert 'dnc_tcpa_screening_required":True' in backend
+    assert 'recorded_documents_verified":False' in backend
