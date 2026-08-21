@@ -6,7 +6,10 @@ import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-BASE_URL = os.getenv("SMOKE_BASE_URL", "https://backend-pi-opal-65.vercel.app").rstrip("/")
+BASE_URL = os.getenv(
+    "SMOKE_BASE_URL",
+    "https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend",
+).rstrip("/")
 TOKEN = os.getenv("SMOKE_OWNER_TOKEN", "").strip()
 TIMEOUT = float(os.getenv("SMOKE_TIMEOUT_SECONDS", "20"))
 

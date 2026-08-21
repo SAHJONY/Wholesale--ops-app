@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Falls back to the production host so deployed behavior is unchanged, but
 // lets the app be pointed at a local or staging backend without editing source.
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:8000';
 const SESSION_COOKIE = 'sahjony_owner_session';
 
 function allowed(path: string[]) {

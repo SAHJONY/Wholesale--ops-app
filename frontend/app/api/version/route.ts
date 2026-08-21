@@ -3,16 +3,15 @@ import { NextResponse } from 'next/server';
 const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.BACKEND_URL ||
-  'https://backend-pi-opal-65.vercel.app';
+  'http://localhost:8000';
 
 /**
  * Confirms that the frontend and backend are running the same repository commit.
  *
  * In the target Vercel Services architecture both services deploy atomically from
  * the same GitHub commit. BACKEND_INTERNAL_URL is injected by the frontend ->
- * backend service binding. BACKEND_URL and the legacy public backend host remain
- * temporary migration fallbacks so production is not interrupted before the
- * Vercel project Framework Preset is switched to Services.
+ * backend service binding. BACKEND_URL is retained only for local or explicit
+ * non-Vercel deployments.
  */
 export async function GET() {
   const frontend = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null;
@@ -54,7 +53,7 @@ export async function GET() {
       status,
       frontend_commit: frontend,
       backend_commit: backend,
-      backend_transport: process.env.BACKEND_INTERNAL_URL ? 'vercel_service_binding' : 'migration_fallback',
+      backend_transport: process.env.BACKEND_INTERNAL_URL ? 'vercel_service_binding' : 'explicit_backend_url',
       detail,
       note:
         'Target architecture: frontend and FastAPI backend deploy atomically as Vercel Services from SAHJONY/Wholesale--ops-app.',

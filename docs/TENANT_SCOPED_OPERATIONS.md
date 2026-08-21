@@ -52,13 +52,13 @@ The frontend project should redeploy automatically from GitHub.
 Unauthenticated requests must return HTTP 401:
 
 ```bash
-curl -i https://backend-pi-opal-65.vercel.app/workspace/dashboard
+curl -i https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/workspace/dashboard
 ```
 
 Authenticated request:
 
 ```bash
-curl -s https://backend-pi-opal-65.vercel.app/workspace/dashboard \
+curl -s https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/workspace/dashboard \
   -H "Authorization: Bearer $SAHJONY_OWNER_KEY" | python3 -m json.tool
 ```
 

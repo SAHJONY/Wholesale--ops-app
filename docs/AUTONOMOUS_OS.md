@@ -91,9 +91,9 @@ vercel --prod
 Verify:
 
 ```bash
-curl https://backend-pi-opal-65.vercel.app/health
-curl https://backend-pi-opal-65.vercel.app/executive/brief
-curl https://backend-pi-opal-65.vercel.app/deals
+curl https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/health
+curl https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/executive/brief
+curl https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/deals
 ```
 
 ## Recommended environment variables
