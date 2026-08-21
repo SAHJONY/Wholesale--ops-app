@@ -75,15 +75,16 @@ def test_all_owner_pages_avoid_browser_token_storage_and_direct_backend_calls():
 
 def test_generic_backend_proxy_uses_stable_backend_alias():
     source = read("frontend/app/api/backend/[...path]/route.ts")
+    assert "process.env.BACKEND_INTERNAL_URL" in source
     assert "process.env.BACKEND_URL" in source
-    assert "https://backend-pi-opal-65.vercel.app" in source
+    assert "http://localhost:8000" in source
     assert "wholesale-ops-2kqe2x2q1" not in source
 
 
-def test_ceo_command_center_displays_canonical_close_percentage_once():
+def test_ceo_command_center_displays_probability_weighted_forecast():
     source = read("frontend/app/owner/ceo-command/page.tsx")
-    assert "Math.round(deal.probability_to_close || 0)" in source
-    assert "(deal.probability_to_close || 0) * 100" not in source
+    assert "probability_weighted_revenue" in source
+    assert "Probability-adjusted assignment forecast" in source
 
 
 def test_owner_navigation_prioritizes_deal_workflow_and_classifies_support_surfaces():
@@ -120,6 +121,9 @@ def test_owner_navigation_prioritizes_deal_workflow_and_classifies_support_surfa
         "/owner/audit",
         "/owner/security",
         "/owner/sessions",
+        "/owner/activate",
+        "/owner/go-live",
+        "/owner/real-estate-intelligence",
     }
     pages = sorted((ROOT / "frontend/app/owner").glob("*/page.tsx"))
     unexpected_hidden = []

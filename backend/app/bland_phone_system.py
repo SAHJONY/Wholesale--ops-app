@@ -61,8 +61,8 @@ def _business_number() -> str | None:
     return _clean_env("BLAND_DEFAULT_FROM_NUMBER") or _clean_env("BLAND_DEFAULT_CALLER_ID") or None
 
 
-def _inbound_number() -> str | None:
-    return _clean_env("BLAND_INBOUND_NUMBER") or None
+def _inbound_numbers() -> tuple[str, ...]:
+    return tuple(value.strip() for value in _clean_env("BLAND_INBOUND_NUMBER").split(",") if value.strip())
 
 
 def _webhook_url() -> str | None:
@@ -237,7 +237,7 @@ def readiness(principal: Principal = Depends(get_principal), db: Session = Depen
     configured = {
         "api_key": bool(_clean_env("BLAND_AI_API_KEY")),
         "business_phone_number": bool(_business_number()),
-        "inbound_phone_number": bool(_inbound_number()),
+        "inbound_phone_number": bool(_inbound_numbers()),
         "webhook_url": bool(_webhook_url()),
         "webhook_signing_secret": bool(_webhook_secret()),
         "inbound_organization_id": bool(_clean_env("BLAND_INBOUND_ORGANIZATION_ID")),
@@ -319,9 +319,9 @@ async def provider_readiness(principal: Principal = Depends(get_principal)):
 
     inbound_inventory = _extract_phone_inventory(inbound_payload)
     outbound_inventory = _extract_phone_inventory(outbound_payload)
-    configured_inbound = _phone_digits(_inbound_number())
+    configured_inbound = {_phone_digits(number) for number in _inbound_numbers() if _phone_digits(number)}
     configured_outbound = _phone_digits(_business_number())
-    inbound_match = bool(configured_inbound and configured_inbound in inbound_inventory)
+    inbound_match = bool(configured_inbound and configured_inbound.issubset(inbound_inventory))
     outbound_match = bool(configured_outbound and configured_outbound in outbound_inventory)
     webhook_ready = bool(_webhook_url() and _webhook_secret())
     org_ready = bool(_clean_env("BLAND_INBOUND_ORGANIZATION_ID"))
@@ -334,6 +334,7 @@ async def provider_readiness(principal: Principal = Depends(get_principal)):
         "inbound_inventory_http_status": inbound_response.status_code,
         "outbound_inventory_http_status": outbound_response.status_code,
         "inbound_inventory_verified": inbound_match,
+        "configured_inbound_number_count": len(configured_inbound),
         "outbound_inventory_verified": outbound_match,
         "webhook_configured": webhook_ready,
         "organization_id_configured": org_ready,

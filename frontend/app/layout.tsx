@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     "SAHJONY real estate operations for property owners, cash buyers, brokers, and transaction partners.",
   applicationName: "SAHJONY Real Estate Operations",
   formatDetection: { telephone: false, address: false, email: false },
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

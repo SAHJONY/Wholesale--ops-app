@@ -2,14 +2,10 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import AuthShell from '../../components/AuthShell';
 
 const DEFAULT_DESTINATION = '/owner';
-
-function safeReturnTo() {
-  if (typeof window === 'undefined') return DEFAULT_DESTINATION;
-  const value = new URLSearchParams(window.location.search).get('returnTo') || DEFAULT_DESTINATION;
-  return value.startsWith('/owner') && !value.startsWith('//') ? value : DEFAULT_DESTINATION;
-}
+function safeReturnTo() { if (typeof window === 'undefined') return DEFAULT_DESTINATION; const value = new URLSearchParams(window.location.search).get('returnTo') || DEFAULT_DESTINATION; return value.startsWith('/owner') && !value.startsWith('//') ? value : DEFAULT_DESTINATION; }
 
 function formatCountdown(seconds: number) {
   const minutes = Math.floor(seconds / 60);
@@ -98,60 +94,17 @@ export default function UnifiedLoginPage() {
     }
   }
 
-  const statusClass = systemOnline === true ? 'online' : systemOnline === false ? 'offline' : '';
   const locked = retryAfter > 0;
 
-  return <main className="premiumLogin">
-    <section className="premiumLoginVisual" aria-label="SAHJONY Wholesale Operating System">
-      <div className="premiumLoginBrand">
-        <span className="premiumLoginBrandMark">S</span>
-        <span>SAHJONY WHOLESALE OS</span>
-      </div>
-      <div className="premiumLoginHero">
-        <small>Private acquisition infrastructure</small>
-        <h1>Source. Verify.<span>Acquire.</span></h1>
-        <p>A precision operating environment for distressed-property intelligence, underwriting, seller execution, disposition and closing.</p>
-      </div>
-      <div className="premiumLoginMeta">
-        <span>Supervised autonomy</span>
-        <span>Owner access</span>
-        <span>Houston · Nationwide</span>
-      </div>
-    </section>
-
-    <section className="premiumLoginPanel">
-      <div className="premiumLoginCard">
-        <span className="kicker">Secure workspace access</span>
-        <h2>Welcome back.</h2>
-        <p>Enter the owner operating system. One authenticated session unlocks every authorized workflow.</p>
-
-        <div className={`premiumStatus ${statusClass}`}>
-          <span className="premiumStatusDot" aria-hidden="true" />
-          <span>{status}</span>
-        </div>
-
-        {error && <div className="premiumLoginError" role="alert">
-          <div>{error}</div>
-          {locked && <div style={{ marginTop: 8 }}>
-            Try again in <strong>{formatCountdown(retryAfter)}</strong> or <Link href="/forgot-password">reset the owner password now</Link>.
-          </div>}
-        </div>}
-
-        <form onSubmit={signIn} className="premiumLoginForm">
-          <label htmlFor="app-email">Email</label>
-          <input id="app-email" value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required disabled={locked} />
-          <label htmlFor="app-password">Password</label>
-          <input id="app-password" value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete="current-password" required disabled={locked} />
-          <button type="submit" disabled={loading || locked}>
-            {locked ? `Locked ${formatCountdown(retryAfter)}` : loading ? 'Signing in…' : 'Enter Wholesale OS'}
-          </button>
-        </form>
-
-        <div className="premiumLoginLinks">
-          <Link href="/forgot-password">Forgot password?</Link>
-          <span>HttpOnly secure session</span>
-        </div>
-      </div>
-    </section>
-  </main>;
+  const statusTone = systemOnline === true ? 'online' : systemOnline === false ? 'offline' : 'checking';
+  return <AuthShell eyebrow="EXECUTIVE ACCESS" title="Welcome back." description="Sign in to your private wholesale operations command center." footer={<><span>Protected by a secure same-origin HttpOnly session.</span><Link href="/forgot-password">Recover access</Link></>}>
+    <div className={`authStatus authStatus--${statusTone}`} role="status"><i />{status}</div>
+    {error ? <div className="authAlert" role="alert"><div>{error}</div>{locked ? <div>Try again in <strong>{formatCountdown(retryAfter)}</strong> or <Link href="/forgot-password"> reset your password</Link>.</div> : null}</div> : null}
+    <form className="authForm" onSubmit={signIn}>
+      <label htmlFor="app-email"><span>Business email</span><input id="app-email" value={email} onChange={event => setEmail(event.target.value)} type="email" autoComplete="username" placeholder="you@company.com" required disabled={locked} autoFocus /></label>
+      <label htmlFor="app-password"><span>Password</span><input id="app-password" value={password} onChange={event => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Enter your password" required disabled={locked} /></label>
+      <div className="authFormMeta"><span>Authorized personnel only</span><Link href="/forgot-password">Forgot password?</Link></div>
+      <button className="authSubmit" type="submit" disabled={loading || locked}>{locked ? `Locked ${formatCountdown(retryAfter)}` : loading ? 'Authenticating…' : 'Enter command center'}<span aria-hidden="true">→</span></button>
+    </form>
+  </AuthShell>;
 }
