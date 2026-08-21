@@ -101,7 +101,7 @@ export default function UnifiedLoginPage() {
     <div className={`authStatus authStatus--${statusTone}`} role="status"><i />{status}</div>
     {error ? <div className="authAlert" role="alert"><div>{error}</div>{locked ? <div>Try again in <strong>{formatCountdown(retryAfter)}</strong> or <Link href="/forgot-password"> reset your password</Link>.</div> : null}</div> : null}
     <form className="authForm" onSubmit={signIn}>
-      <label htmlFor="app-email"><span>Business email</span><input id="app-email" value={email} onChange={event => setEmail(event.target.value)} type="email" autoComplete="username" placeholder="you@company.com" required disabled={locked} autoFocus /></label>
+      <label htmlFor="app-email"><span>Executive account email</span><input id="app-email" value={email} onChange={event => setEmail(event.target.value)} type="email" autoComplete="username" placeholder="Authorized owner email" required disabled={locked} autoFocus /></label>
       <label htmlFor="app-password"><span>Password</span><input id="app-password" value={password} onChange={event => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Enter your password" required disabled={locked} /></label>
       <div className="authFormMeta"><span>Authorized personnel only</span><Link href="/forgot-password">Forgot password?</Link></div>
       <button className="authSubmit" type="submit" disabled={loading || locked}>{locked ? `Locked ${formatCountdown(retryAfter)}` : loading ? 'Authenticating…' : 'Enter command center'}<span aria-hidden="true">→</span></button>
