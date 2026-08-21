@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from app.deal_execution import _manual_contracts_ready, _provider_readiness
+from app.integrations import PROVIDERS
+from app.provider_activation import _activation_item
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,3 +42,21 @@ def test_manual_completion_requires_private_blob_document_url():
     assert '@router.post("/packets/{packet_id}/manual-completion")' in source
     assert '".blob.vercel-storage.com/" not in storage_key' in source
     assert 'verification_method": "owner_attestation"' in source
+
+
+def test_provider_activation_accepts_governed_manual_contracts_and_blob(monkeypatch):
+    monkeypatch.setenv("E_SIGNATURE_PROVIDER", "manual")
+    monkeypatch.setenv("CONTRACT_EXECUTION_MODE", "manual_governed")
+    monkeypatch.setenv("BLOB_READ_WRITE_TOKEN", "vercel_blob_rw_test")
+    monkeypatch.delenv("DOCUSEAL_API_KEY", raising=False)
+    monkeypatch.delenv("DOCUSEAL_URL", raising=False)
+    storage = next(provider for provider in PROVIDERS if provider["id"] == "object_storage")
+    docuseal = next(provider for provider in PROVIDERS if provider["id"] == "docuseal")
+
+    storage_status = _activation_item(storage)
+    docuseal_status = _activation_item(docuseal)
+
+    assert storage_status["activation_ready"] is True
+    assert storage_status["missing_variables"] == []
+    assert storage_status["configured_variables"] == ["BLOB_READ_WRITE_TOKEN"]
+    assert docuseal_status["required_now"] is False

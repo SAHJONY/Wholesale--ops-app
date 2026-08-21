@@ -107,6 +107,15 @@ def _activation_item(provider: dict) -> dict:
     url_check = _safe_host_check(url_value) if url_value else None
     ready_states = {"configured", "available_public_or_manual"}
     selected_signature = str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
+    blob_storage_ready = bool((os.getenv("BLOB_READ_WRITE_TOKEN") or "").strip())
+    if provider["id"] == "object_storage" and blob_storage_ready:
+        status = {
+            **status,
+            "state": "configured",
+            "configured_variables": ["BLOB_READ_WRITE_TOKEN"],
+            "missing_variables": [],
+            "alternative_configured_variables": ["BLOB_READ_WRITE_TOKEN"],
+        }
     required_now = provider.get("tier") in {"primary", "required", "authoritative_verification", "authoritative_public"}
     # ATTOM and Smarty are alternatives. Their shared requirement is scored once
     # in snapshot(), rather than incorrectly requiring ATTOM specifically.
@@ -115,7 +124,7 @@ def _activation_item(provider: dict) -> dict:
     if provider["id"] == "docusign":
         required_now = selected_signature == "docusign"
     if provider["id"] == "docuseal":
-        required_now = selected_signature != "docusign"
+        required_now = selected_signature == "docuseal"
     activation_ready = status["state"] in ready_states and (not url_check or url_check["valid_url"])
     return {
         "id": provider["id"],
@@ -152,13 +161,20 @@ def snapshot(principal: Principal = Depends(get_principal)):
     ready_count = len(ready) + (1 if property_ready else 0)
     blocker_count = len(blockers) + (0 if property_ready else 1)
     score = round((ready_count / required_count) * 100) if required_count else 0
+    selected_signature = str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
+    blob_storage_ready = bool((os.getenv("BLOB_READ_WRITE_TOKEN") or "").strip())
+    manual_contracts_ready = (
+        selected_signature == "manual"
+        and os.getenv("CONTRACT_EXECUTION_MODE") == "manual_governed"
+        and blob_storage_ready
+    )
     workflows = {
         "lead_acquisition": (
             property_ready
             and all(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["batchdata", "county_records"])
         ),
         "seller_outreach": next((p["activation_ready"] for p in providers if p["id"] == "bland"), False),
-        "contract_execution": next((p["activation_ready"] for p in providers if p["id"] == ("docusign" if str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower() == "docusign" else "docuseal")), False),
+        "contract_execution": manual_contracts_ready or next((p["activation_ready"] for p in providers if p["id"] == ("docusign" if selected_signature == "docusign" else "docuseal")), False),
         "document_retention": next((p["activation_ready"] for p in providers if p["id"] == "object_storage"), False),
     }
     return {
@@ -174,7 +190,7 @@ def snapshot(principal: Principal = Depends(get_principal)):
             "providers": ["attom", "smarty"],
             "ready": property_ready,
         },
-        "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
+        "selected_signature_provider": selected_signature,
         "workflows": workflows,
         "providers": providers,
         "safety": {
