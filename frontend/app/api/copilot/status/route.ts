@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     configured: Boolean(process.env.OPENAI_API_KEY),
-    model: process.env.OPENAI_MODEL || 'gpt-5',
+    model: process.env.OPENAI_MODEL || 'gpt-5.6-sol',
     responses_api: true,
     tools: {
       web_search: true,

@@ -98,7 +98,7 @@ def _feed_config() -> dict[str, Any]:
             "source": "county",
             "url": OPENAI_RESPONSES_URL,
             "headers": {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            "model": str(os.getenv("OPENAI_DISCOVERY_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5").strip(),
+            "model": str(os.getenv("OPENAI_DISCOVERY_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol").strip(),
         }
     source = status["source"]
     if source not in ALLOWED_SOURCES:
