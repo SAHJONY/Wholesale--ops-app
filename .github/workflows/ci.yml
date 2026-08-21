@@ -54,6 +54,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
       - name: Verify root workspace lockfile governance
         run: test -f package-lock.json && test ! -f frontend/package-lock.json
       - name: Type check

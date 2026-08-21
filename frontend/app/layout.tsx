@@ -10,6 +10,7 @@ export const metadata: Metadata = {
     "Supervised autonomous residential and commercial wholesale real estate operations.",
   applicationName: "SAHJONY Wholesale Ops",
   formatDetection: { telephone: false, address: false, email: false },
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

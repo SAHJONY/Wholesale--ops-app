@@ -1,0 +1,2 @@
+'use client';
+export default function ErrorPage({reset}:{error:Error&{digest?:string};reset:()=>void}){return <main className="systemState"><section><span>OPERATION INTERRUPTED</span><h1>We couldn&apos;t complete that request.</h1><p>Your data was not changed. Retry the operation or return to the command center.</p><div><button onClick={reset}>Try again</button><a href="/owner">Command center</a></div></section></main>;}
