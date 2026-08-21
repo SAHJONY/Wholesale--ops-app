@@ -88,6 +88,14 @@ def test_vercel_routes_do_not_bypass_authenticated_frontend_proxies():
     assert '"source": "/api/integration-reliability/:path*"' not in config
 
 
+def test_lead_verification_uses_backend_service_binding():
+    source = read("frontend/app/api/lead-verification/[...path]/route.ts")
+    assert "process.env.BACKEND_INTERNAL_URL" in source
+    assert "process.env.BACKEND_URL" in source
+    assert "http://localhost:8000" in source
+    assert "https://backend-pi-opal-65.vercel.app" not in source
+
+
 def test_ceo_command_center_displays_probability_weighted_forecast():
     source = read("frontend/app/owner/ceo-command/page.tsx")
     assert "probability_weighted_revenue" in source
