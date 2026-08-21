@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 
-const API_URL = 'https://backend-pi-opal-65.vercel.app';
 const SESSION_STORAGE = 'sahjony_owner_session';
 const OWNER_EMAIL = 'sahjonycapitalllc@outlook.com';
 
@@ -57,7 +56,7 @@ export default function OwnerAccessPage() {
         <p style={{letterSpacing:2,fontSize:12,color:'#9fb0c8'}}>SAHJONY WHOLESALE OS</p>
         <h1>Owner Access Recovery</h1>
         <p>This page uses a secure same-origin proxy to reach the production Vercel backend.</p>
-        <p><strong>API:</strong> {API_URL}</p>
+        <p><strong>API:</strong> Canonical embedded backend</p>
         <p>{status}</p>
         {error && <div style={{background:'#421f26',padding:12,borderRadius:8,marginBottom:16}}>{error}</div>}
         <form onSubmit={signIn} style={{display:'grid',gap:12}}>

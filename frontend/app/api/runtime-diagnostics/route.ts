@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:8000';
 
 async function requireOwnerAdmin(request: NextRequest) {
   const cookie = request.headers.get('cookie') || '';
@@ -32,7 +35,11 @@ export async function GET(request: NextRequest) {
   const result: Record<string, unknown> = {
     frontend_environment: process.env.VERCEL_ENV || 'unknown',
     backend_host: target.host,
-    backend_url_source: process.env.BACKEND_URL ? 'BACKEND_URL' : 'legacy_fallback',
+    backend_url_source: process.env.BACKEND_INTERNAL_URL
+      ? 'BACKEND_INTERNAL_URL'
+      : process.env.BACKEND_URL
+        ? 'BACKEND_URL'
+        : 'local_development',
     frontend_openai_key_present: Boolean(process.env.OPENAI_API_KEY),
     frontend_vector_store_present: Boolean(process.env.OPENAI_VECTOR_STORE_ID),
   };

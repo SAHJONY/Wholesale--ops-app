@@ -56,7 +56,7 @@ vercel --prod
 Confirm the frontend project has:
 
 ```env
-NEXT_PUBLIC_API_URL=https://backend-pi-opal-65.vercel.app
+NEXT_PUBLIC_API_URL=https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend
 ```
 
 ## Owner setup
@@ -78,10 +78,10 @@ After the owner workspace is connected, click **Import existing**. This creates 
 ## API examples
 
 ```bash
-curl https://backend-pi-opal-65.vercel.app/auth/me \
+curl https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/auth/me \
   -H "X-API-Key: $SAHJONY_API_KEY"
 
-curl https://backend-pi-opal-65.vercel.app/crm/pipeline \
+curl https://wholesale-ops-app-juan-gonzalezs-projects-94b6dfe9.vercel.app/api/backend/crm/pipeline \
   -H "X-API-Key: $SAHJONY_API_KEY"
 ```
 

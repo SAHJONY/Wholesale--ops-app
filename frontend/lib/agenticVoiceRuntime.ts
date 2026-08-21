@@ -9,7 +9,10 @@ import {
 } from '@openai/agents/realtime';
 import { z } from 'zod';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:8000';
 const MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime';
 const VOICE = process.env.OPENAI_REALTIME_VOICE || 'marin';
 const TRANSFER_TARGET = process.env.VOICE_HUMAN_TRANSFER_TARGET || '+12816628581';

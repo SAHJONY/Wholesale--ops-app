@@ -3,10 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.BACKEND_URL ||
-  'https://backend-pi-opal-65.vercel.app';
-const RECOVERY_BACKEND_URL =
-  process.env.RECOVERY_BACKEND_URL ||
-  'https://backend-pi-opal-65.vercel.app/api/backend';
+  'http://localhost:8000';
 const SESSION_COOKIE = 'sahjony_owner_session';
 const SESSION_MAX_AGE = 60 * 60 * 8;
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };
@@ -85,31 +82,13 @@ async function proxy(request: NextRequest, context: { params: Promise<{ action: 
   }
 
   try {
-    let upstream = await fetch(`${BACKEND_URL}${mapping.path}`, {
+    const upstream = await fetch(`${BACKEND_URL}${mapping.path}`, {
       method: mapping.method,
       headers: mapping.method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
       body: body || undefined,
       cache: 'no-store',
       signal: AbortSignal.timeout(20000),
     });
-
-    // Reset-email delivery is a critical recovery path. A stale embedded
-    // backend may reject mail even while the independently deployed backend
-    // is healthy. A 502/503 means the request was rolled back, so one retry is
-    // safe and cannot leave two valid reset codes behind.
-    if (
-      action === 'request-password-reset' &&
-      (upstream.status === 502 || upstream.status === 503) &&
-      RECOVERY_BACKEND_URL !== BACKEND_URL
-    ) {
-      upstream = await fetch(`${RECOVERY_BACKEND_URL}${mapping.path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: body || undefined,
-        cache: 'no-store',
-        signal: AbortSignal.timeout(20000),
-      });
-    }
 
     const text = await upstream.text();
     const responseHeaders: Record<string, string> = {
