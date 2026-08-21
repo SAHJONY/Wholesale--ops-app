@@ -81,6 +81,13 @@ def test_generic_backend_proxy_uses_stable_backend_alias():
     assert "wholesale-ops-2kqe2x2q1" not in source
 
 
+def test_vercel_routes_do_not_bypass_authenticated_frontend_proxies():
+    config = read("vercel.json")
+    assert '"source": "/api/backend/wholesale-os/:path*"' not in config
+    assert '"source": "/api/integration-hub/:path*"' not in config
+    assert '"source": "/api/integration-reliability/:path*"' not in config
+
+
 def test_ceo_command_center_displays_probability_weighted_forecast():
     source = read("frontend/app/owner/ceo-command/page.tsx")
     assert "probability_weighted_revenue" in source

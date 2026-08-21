@@ -34,24 +34,6 @@
   },
   "rewrites": [
     {
-      "source": "/api/backend/wholesale-os/:path*",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/api/integration-hub/:path*",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/api/integration-reliability/:path*",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"
