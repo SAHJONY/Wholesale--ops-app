@@ -61,7 +61,9 @@ def snapshot(
 
     provider = _provider()
     provider_api_ready = _configured("NEON_API_KEY") and _configured("NEON_PROJECT_ID") if provider == "neon" else False
-    offsite_ready = _configured("S3_BUCKET") and _configured("S3_ACCESS_KEY_ID") and _configured("S3_SECRET_ACCESS_KEY")
+    offsite_ready = _configured("BLOB_READ_WRITE_TOKEN") or (
+        _configured("S3_BUCKET") and _configured("S3_ACCESS_KEY_ID") and _configured("S3_SECRET_ACCESS_KEY")
+    )
 
     controls = {
         "database_connection": database_ok,
