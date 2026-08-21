@@ -15,44 +15,18 @@ env:
 
 jobs:
   migrate:
-    name: Migrate the production database
+    name: Validate migration bridge
     runs-on: ubuntu-latest
     env:
-      HAS_DATABASE: ${{ secrets.PRODUCTION_DATABASE_URL != '' && 'yes' || 'no' }}
+      HAS_MIGRATION_TOKEN: ${{ secrets.MIGRATION_RELEASE_TOKEN != '' && 'yes' || 'no' }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Report deployment prerequisites
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      - name: Require scoped migration release token
         run: |
-          echo "VERCEL_TOKEN length ${#VERCEL_TOKEN}"
-          echo "PRODUCTION_DATABASE_URL length ${#PRODUCTION_DATABASE_URL}"
-
-      - name: Skip migration when no production database URL is configured
-        if: env.HAS_DATABASE == 'no'
-        run: echo "::notice::PRODUCTION_DATABASE_URL is not configured; schema migration is skipped."
-
-      - uses: actions/setup-python@v5
-        if: env.HAS_DATABASE == 'yes'
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
-
-      - name: Upgrade production schema to head
-        if: env.HAS_DATABASE == 'yes'
-        working-directory: backend
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-          APP_URL: https://www.sahjony.com
-        run: |
-          set -euo pipefail
-          pip install -r requirements.txt
-          alembic current
-          alembic upgrade head
-          alembic current
+          if [ "$HAS_MIGRATION_TOKEN" != "yes" ]; then
+            echo "::error::MIGRATION_RELEASE_TOKEN is missing. Refusing to deploy without a working migration bridge."
+            exit 1
+          fi
+          echo "Migration bridge authorization is configured."
 
   deploy:
     name: Deploy unified frontend and backend
@@ -116,7 +90,6 @@ jobs:
         if: env.HAS_TOKEN == 'yes'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           SMARTY_AUTH_ID: ${{ secrets.SMARTY_AUTH_ID }}
           SMARTY_AUTH_TOKEN: ${{ secrets.SMARTY_AUTH_TOKEN }}
         shell: bash
@@ -127,10 +100,6 @@ jobs:
             --env "GIT_COMMIT_SHA=$GITHUB_SHA"
             --build-env "GIT_COMMIT_SHA=$GITHUB_SHA"
           )
-
-          if [ -n "$PRODUCTION_DATABASE_URL" ]; then
-            runtime_env+=(--env "DATABASE_URL=$PRODUCTION_DATABASE_URL")
-          fi
 
           if [ -n "$SMARTY_AUTH_ID" ] && [ -n "$SMARTY_AUTH_TOKEN" ]; then
             runtime_env+=(--env "SMARTY_AUTH_ID=$SMARTY_AUTH_ID")
@@ -146,6 +115,34 @@ jobs:
             *) echo "::error::Vercel did not return a production deployment URL"; exit 1 ;;
           esac
           echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Upgrade Vercel-managed production database
+        if: env.HAS_TOKEN == 'yes'
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          MIGRATION_RELEASE_TOKEN: ${{ secrets.MIGRATION_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "$DEPLOYMENT_URL/api/backend/release/migrate" \
+            --header "Authorization: Bearer $MIGRATION_RELEASE_TOKEN" \
+            --header "Content-Type: application/json" \
+            --output /tmp/migration-result.json
+          python3 - /tmp/migration-result.json <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1]))
+          if payload.get("status") != "current":
+              raise SystemExit(f"Production migration did not reach current: {payload}")
+          if payload.get("current_revision") != payload.get("expected_head"):
+              raise SystemExit("Production migration revision does not match expected head")
+          if payload.get("database_credential_exported") is not False:
+              raise SystemExit("Migration bridge credential boundary was not preserved")
+          print(f"Production database current at {payload['current_revision']}")
+          PY
 
       - name: Verify atomic production release
         if: env.HAS_TOKEN == 'yes'

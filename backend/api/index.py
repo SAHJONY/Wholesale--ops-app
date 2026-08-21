@@ -23,6 +23,7 @@ from app.outcome_optimizer import router as outcome_optimizer_router
 from app.owner_resolution import router as owner_resolution_router
 from app.provider_intelligence import router as provider_intelligence_router
 from app.public_intake import router as public_intake_router
+from app.release_migrations import router as release_migrations_router
 from app.self_healing_engine import router as self_healing_router
 from app.self_improvement_engine import router as self_improvement_router
 from app.task_resolution_engine import router as task_resolution_router
@@ -56,6 +57,7 @@ app.include_router(bland_diagnostics_router)
 app.include_router(bland_diagnostics_once_router)
 app.include_router(openai_realtime_voice_router)
 app.include_router(bland_test_once_router)
+app.include_router(release_migrations_router)
 
 # Vercel Services currently preserves the public request path when traffic is
 # rewritten to the backend service. Mount authenticated compatibility aliases
