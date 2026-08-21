@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from app.wholesale_skill_engine import SKILLS, _rank_buyer_matches
+from app.wholesale_skill_engine import SKILLS, _normalize_distress_signals, _rank_buyer_matches
 
 
 def test_wholesale_skill_registry_covers_real_deal_workflow():
@@ -68,3 +68,23 @@ def test_malformed_buyer_does_not_crash_deal_factory_ranking():
     matches, invalid = _rank_buyer_matches(_property_payload(), [bad, good])
     assert invalid == 1
     assert [row["buyer_id"] for row in matches] == [12]
+
+
+def test_structured_distress_evidence_is_normalized_without_losing_provenance():
+    source_record = {
+        "type": "foreclosure_candidate",
+        "source": "public_foreclosure_screen",
+        "status": "verification_required",
+        "auction_date": "2026-09-01",
+    }
+
+    labels, evidence, invalid = _normalize_distress_signals([
+        source_record,
+        source_record,
+        "tax_delinquent",
+        {"source": "unknown_shape"},
+    ])
+
+    assert labels == ["foreclosure_candidate", "tax_delinquent"]
+    assert evidence == [source_record, source_record, {"source": "unknown_shape"}]
+    assert invalid == 1

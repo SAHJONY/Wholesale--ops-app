@@ -139,7 +139,7 @@ async function workspaceContext(request: NextRequest) {
   const paths = [
     '/api/backend/wholesale-os/skills',
     '/api/backend/wholesale-os/deal-factory',
-    '/api/backend/buyers',
+    '/api/backend/workspace/buyers',
   ];
 
   const results = await Promise.all(paths.map(async path => {

@@ -233,6 +233,41 @@ def _source_summary(facts: list[IntelligenceFact]) -> list[dict[str, Any]]:
     return rows
 
 
+def _normalize_distress_signals(value: Any) -> tuple[list[str], list[dict[str, Any]], int]:
+    """Return stable labels while preserving structured source evidence.
+
+    Production imports legitimately store distress evidence as objects.  The
+    ranking layer historically assumed every item was a hashable string, which
+    caused one evidence object to crash the entire property analysis.  Unknown
+    shapes are counted, not guessed into a material fact.
+    """
+    if value in (None, []):
+        return [], [], 0
+    if not isinstance(value, list):
+        return [], [], 1
+
+    labels: list[str] = []
+    evidence: list[dict[str, Any]] = []
+    invalid = 0
+    for item in value:
+        if isinstance(item, str):
+            label = item.strip()
+            if label and label not in labels:
+                labels.append(label)
+            continue
+        if isinstance(item, dict):
+            record = dict(item)
+            evidence.append(record)
+            label = str(record.get("type") or record.get("signal") or "").strip()
+            if label and label not in labels:
+                labels.append(label)
+            elif not label:
+                invalid += 1
+            continue
+        invalid += 1
+    return labels, evidence, invalid
+
+
 def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Buyer]) -> dict[str, Any]:
     facts = _facts(db, principal.organization_id, prop.id)
     conflicts = _open_conflicts(db, principal.organization_id, prop.id)
@@ -257,9 +292,9 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
         if prop.asking_price is not None:
             spread = screening_buyer_price - float(prop.asking_price)
 
-    distress_signals = prop.distress_signals if isinstance(prop.distress_signals, list) else []
-    if prop.distress_signals not in (None, []) and not isinstance(prop.distress_signals, list):
-        missing.append("normalize malformed distress signals")
+    distress_signals, distress_evidence, invalid_distress = _normalize_distress_signals(prop.distress_signals)
+    if invalid_distress:
+        missing.append(f"normalize {invalid_distress} malformed distress signal record(s)")
 
     property_payload = {
         "id": prop.id,
@@ -342,7 +377,12 @@ def _analysis(db: Session, principal: Principal, prop: Property, buyers: list[Bu
             "deed_type": _value(facts, "deed_type"),
             "instrument": _value(facts, "deed_instrument"),
         },
-        "distress": {"signals": distress, "count": len(distress)},
+        "distress": {
+            "signals": distress,
+            "count": len(distress),
+            "source_records": distress_evidence,
+            "invalid_record_count": invalid_distress,
+        },
         "economics": {
             "screening_factor": 0.70,
             "screening_buyer_price": screening_buyer_price,
@@ -390,6 +430,9 @@ def deal_factory(principal: Principal = Depends(get_principal), db: Session = De
     lead_ids = _ids(db, principal.organization_id, "lead")
     leads = list(db.scalars(select(Lead).where(Lead.id.in_(lead_ids))).all()) if lead_ids else []
     buyers = _buyer_rows(db, principal)
+    deal_ids = _ids(db, principal.organization_id, "deal")
+    deals = list(db.scalars(select(Deal).where(Deal.id.in_(deal_ids))).all()) if deal_ids else []
+    deals_by_property = {deal.property_id: deal for deal in deals}
 
     analyses: list[dict[str, Any]] = []
     analysis_warnings: list[dict[str, Any]] = []
@@ -400,7 +443,20 @@ def deal_factory(principal: Principal = Depends(get_principal), db: Session = De
             continue
         seen_properties.add(prop.id)
         try:
-            analyses.append(_analysis(db, principal, prop, buyers))
+            analysis = _analysis(db, principal, prop, buyers)
+            linked_deal = deals_by_property.get(prop.id)
+            analysis["promoted_deal"] = ({
+                "id": linked_deal.id,
+                "stage": linked_deal.stage,
+                "strategy": linked_deal.strategy,
+                "target_contract_price": linked_deal.target_contract_price,
+                "target_buyer_price": linked_deal.target_buyer_price,
+                "projected_assignment_fee": linked_deal.projected_assignment_fee,
+                "probability_to_close": linked_deal.probability_to_close,
+                "risk_score": linked_deal.risk_score,
+                "next_action": linked_deal.next_action,
+            } if linked_deal else None)
+            analyses.append(analysis)
         except Exception:
             logger.exception(
                 "Deal Factory property analysis failed",
@@ -419,8 +475,6 @@ def deal_factory(principal: Principal = Depends(get_principal), db: Session = De
         float(row["evidence"]["score"] or 0),
     ), reverse=True)
 
-    deal_ids = _ids(db, principal.organization_id, "deal")
-    deals = list(db.scalars(select(Deal).where(Deal.id.in_(deal_ids))).all()) if deal_ids else []
     return {
         "generated_at": datetime.now(timezone.utc),
         "organization_id": principal.organization_id,
