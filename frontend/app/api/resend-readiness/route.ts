@@ -14,8 +14,8 @@ export async function GET() {
   return NextResponse.json(
     {
       provider: "resend",
-      domain: "sahjonycapitalllc.com",
-      default_sender: "acquisitions@sahjonycapitalllc.com",
+      domain: "sahjony.com",
+      default_sender: "acquisitions@sahjony.com",
       checks,
       sending_live: checks.resend_api_key_configured && checks.domain_verified,
       responding_live: Object.values(checks).every(Boolean),

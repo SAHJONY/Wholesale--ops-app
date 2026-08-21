@@ -23,8 +23,8 @@ def public_email_readiness():
     }
     return {
         "provider": "resend",
-        "domain": "sahjonycapitalllc.com",
-        "default_sender": "acquisitions@sahjonycapitalllc.com",
+        "domain": "sahjony.com",
+        "default_sender": "acquisitions@sahjony.com",
         "checks": checks,
         "sending_live": checks["resend_api_key_configured"] and checks["domain_verified"],
         "responding_live": all(checks.values()),

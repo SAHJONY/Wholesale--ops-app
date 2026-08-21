@@ -10,6 +10,7 @@ from app.bland_diagnostics import router as bland_diagnostics_router
 from app.bland_diagnostics_once import router as bland_diagnostics_once_router
 from app.bland_phone_system import router as bland_phone_router
 from app.bland_test_once import router as bland_test_once_router
+from app.business_email_public import router as business_email_public_router
 from app.buyer_directory import router as buyer_directory_router
 from app.buyer_first_acquisition import router as buyer_first_acquisition_router
 from app.communication_os import router as communication_os_router
@@ -56,6 +57,7 @@ app.include_router(bland_diagnostics_router)
 app.include_router(bland_diagnostics_once_router)
 app.include_router(openai_realtime_voice_router)
 app.include_router(bland_test_once_router)
+app.include_router(business_email_public_router)
 
 # Vercel Services currently preserves the public request path when traffic is
 # rewritten to the backend service. Mount authenticated compatibility aliases
