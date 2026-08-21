@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const maxDuration = 300;
+
 const SYSTEM_PROMPT = `You are SAHJONY Wholesale Copilot operating inside a supervised real-estate wholesale operating system.
 Use the supplied SAHJONY workspace context before making assumptions about existing properties, buyers, or skills. Use web search for current external research and file search for authorized knowledge when available.
 Never invent owners, deeds, APNs, court records, liens, comparable sales, repair costs, buyer proof of funds, seller prices, or contact details.
@@ -9,6 +11,7 @@ Do not send offers, sign contracts, move money, or make legal/financial commitme
 For material recommendations, state evidence, unknowns, and next checkable action.`;
 
 const MAX_CONTEXT_CHARS = 30_000;
+const OPENAI_TIMEOUT_MS = 280_000;
 const MAX_ITEMS_PER_ARRAY = 20;
 const MAX_STRING_CHARS = 800;
 const ROLE_RANK: Record<string, number> = {
@@ -195,17 +198,33 @@ export async function POST(request: NextRequest) {
   const tools: any[] = [{ type: 'web_search' }];
   if (process.env.OPENAI_VECTOR_STORE_ID) tools.push({ type: 'file_search', vector_store_ids: [process.env.OPENAI_VECTOR_STORE_ID] });
 
-  const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5.6-sol',
-      instructions: SYSTEM_PROMPT,
-      tools,
-      input: `Operator request:\n${message}\n\nCurrent SAHJONY workspace context (source-bounded; unavailable sections must not be guessed):\n${context.serialized}`,
-    }),
-    signal: AbortSignal.timeout(120_000),
-  });
+  let openaiResponse: Response;
+  try {
+    openaiResponse = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || 'gpt-5.6-sol',
+        instructions: SYSTEM_PROMPT,
+        tools,
+        max_output_tokens: 4_500,
+        input: `Operator request:\n${message}\n\nCurrent SAHJONY workspace context (source-bounded; unavailable sections must not be guessed):\n${context.serialized}`,
+      }),
+      signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === 'TimeoutError';
+    await writeAudit(request, {
+      activity_type: 'openai_wholesale_copilot_failed',
+      summary: timedOut ? 'Wholesale Copilot request timed out safely' : 'Wholesale Copilot network request failed',
+      metadata: { runtime: 'nextjs_same_origin', failure: timedOut ? 'timeout' : 'network_error' },
+    }).catch(() => false);
+    return NextResponse.json({
+      detail: timedOut
+        ? 'Copilot research exceeded the bounded response window. No action was taken. Retry with fewer properties or a narrower verification request.'
+        : 'Copilot could not reach OpenAI. No action was taken; retry once.',
+    }, { status: timedOut ? 504 : 502, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
+  }
 
   const data = await openaiResponse.json().catch(() => ({}));
   if (!openaiResponse.ok) {
