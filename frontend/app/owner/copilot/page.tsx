@@ -17,7 +17,8 @@ type Status = {
   note: string;
 };
 
-type Message = { role: 'user' | 'assistant'; text: string; tools?: string[]; sources?: string[] };
+type ImportResult={created_count:number;duplicate_count:number;rejected_count:number;status:string};
+type Message = { role: 'user' | 'assistant'; text: string; tools?: string[]; sources?: string[]; importResult?:ImportResult; importing?:boolean };
 
 const suggestions = [
   'Find the strongest single-family opportunities already in my Deal Factory and explain what is missing before I can call them real $10K+ deals.',
@@ -67,7 +68,15 @@ export default function CopilotPage() {
           ...(data.web_sources || []).map((item: { url: string }) => item.url),
           ...(data.file_sources || []).map((item: { filename?: string; file_id?: string }) => item.filename || item.file_id).filter(Boolean),
         ],
+        importing: true,
       }]);
+      try {
+        const imported=await request('/import',{method:'POST',body:JSON.stringify({response_id:data.response_id,answer:data.answer,web_sources:data.web_sources||[]})});
+        setMessages(current=>current.map(item=>item.importing?{...item,importing:false,importResult:imported}:item));
+      } catch(importError) {
+        setMessages(current=>current.map(item=>item.importing?{...item,importing:false}:item));
+        setError(importError instanceof Error?`Research completed, but lead staging failed: ${importError.message}`:'Research completed, but lead staging failed');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Copilot request failed');
     } finally { setBusy(false); }
@@ -107,6 +116,8 @@ export default function CopilotPage() {
           {messages.length === 0 ? <div className={styles.empty}><b>Ask SAHJONY about a deal or market.</b><span>Example: “Find my best $10K+ single-family opportunity and tell me what owner/deed facts still need verification.”</span></div> : messages.map((message, index) => <article key={index} className={message.role === 'user' ? styles.user : styles.assistant}>
             <span>{message.role === 'user' ? 'YOU' : 'SAHJONY COPILOT'}</span><p>{message.text}</p>
             {!!message.tools?.length && <small>Tools: {Array.from(new Set(message.tools)).join(' · ')}</small>}
+            {message.importing&&<div style={{marginTop:12,padding:12,border:'1px solid rgba(212,175,55,.32)',borderRadius:11,color:'#f4df9a'}}>Saving sourced candidates and checking duplicates…</div>}
+            {message.importResult&&<div style={{marginTop:12,padding:12,border:'1px solid rgba(212,175,55,.32)',borderRadius:11,color:'#f4df9a'}}><b>{message.importResult.created_count} new lead{message.importResult.created_count===1?'':'s'} saved</b><small style={{display:'block',marginTop:4}}>{message.importResult.duplicate_count} duplicate · {message.importResult.rejected_count} insufficient evidence · Verification required before promotion</small></div>}
             {!!message.sources?.length && <details><summary>{message.sources.length} source{message.sources.length === 1 ? '' : 's'}</summary>{message.sources.map(source => <span key={source}>{source}</span>)}</details>}
           </article>)}
           {busy && <div className={styles.thinking}>Researching and analyzing with bounded tools…</div>}

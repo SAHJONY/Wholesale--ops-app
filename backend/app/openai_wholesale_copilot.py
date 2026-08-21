@@ -12,7 +12,7 @@ from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity, WorkspaceEntity
 from .config import settings
 from .database import get_db
-from .models import Buyer, Property
+from .models import Buyer, Lead, Property
 from .wholesale_skill_engine import SKILLS, _analysis
 
 router = APIRouter(prefix="/openai-copilot", tags=["OpenAI wholesale copilot"])
@@ -36,6 +36,10 @@ Available internal functions expose workspace facts and the source-grounded Deal
 """
 
 MAX_TOOL_ROUNDS = 6
+
+
+def _address_key(address: str, city: str, state: str, zip_code: str) -> str:
+    return "|".join(" ".join(value.lower().split()) for value in (address, city, state, zip_code[:5]))
 
 
 def _linked_ids(db: Session, org_id: int, entity_type: str) -> list[int]:
@@ -269,6 +273,82 @@ def status(principal: Principal = Depends(get_principal)):
         },
         "note": "ChatGPT web subscriptions are separate from API access; this runtime uses OPENAI_API_KEY.",
     }
+
+
+@router.post("/import-candidates")
+def import_candidates(
+    payload: dict,
+    principal: Principal = Depends(require_role("acquisitions")),
+    db: Session = Depends(get_db),
+):
+    candidates = payload.get("candidates")
+    if not isinstance(candidates, list):
+        raise HTTPException(422, "candidates must be a list")
+    if len(candidates) > 50:
+        raise HTTPException(413, "At most 50 Copilot candidates may be staged at once")
+
+    lead_ids = _linked_ids(db, principal.organization_id, "lead")
+    existing_properties = list(db.scalars(select(Property).where(Property.lead_id.in_(lead_ids))).all()) if lead_ids else []
+    existing_keys = {_address_key(item.address, item.city, item.state, item.zip_code) for item in existing_properties}
+    created: list[dict[str, Any]] = []
+    duplicates: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+
+    for raw in candidates:
+        item = raw if isinstance(raw, dict) else {}
+        address = str(item.get("address") or "").strip()
+        city = str(item.get("city") or "").strip()
+        state = str(item.get("state") or "").strip().upper()
+        zip_code = str(item.get("zip_code") or "").strip()[:10]
+        source_url = str(item.get("source_url") or "").strip()
+        if not address or not city or len(state) != 2 or len(zip_code) < 5 or not source_url.startswith(("https://", "http://")):
+            rejected.append({"address":address, "reason":"complete address and public source URL required"})
+            continue
+        if state == "TX":
+            rejected.append({"address":address, "reason":"Texas is excluded"})
+            continue
+        key = _address_key(address, city, state, zip_code)
+        if key in existing_keys:
+            duplicates.append({"address":address, "city":city, "state":state, "zip_code":zip_code})
+            continue
+
+        try:
+            asking_price = float(item["asking_price"]) if item.get("asking_price") is not None else None
+        except (TypeError, ValueError):
+            asking_price = None
+        facts = item.get("listing_claims") if isinstance(item.get("listing_claims"), list) else []
+        notes = json.dumps({
+            "evidence_status":"copilot_research_candidate",
+            "source_url":source_url,
+            "source_title":str(item.get("source_title") or "")[:300],
+            "listing_claims":[str(value)[:500] for value in facts[:12]],
+            "research_response_id":str(payload.get("response_id") or "")[:200],
+            "boundary":"Public listing candidate only; owner, deed, title, condition, ARV, repairs, and authority remain unverified.",
+        })
+        lead = Lead(seller_name="Owner verification pending", phone="", email=None, source="openai_copilot_research", status="new", notes=notes)
+        lead.property = Property(
+            address=address, city=city, state=state, zip_code=zip_code,
+            property_type=str(item.get("property_type") or "single_family")[:50],
+            asking_price=asking_price,
+            distress_signals=[str(value)[:160] for value in facts[:12]],
+        )
+        db.add(lead)
+        db.flush()
+        db.add_all([
+            WorkspaceEntity(organization_id=principal.organization_id, entity_type="lead", entity_id=lead.id),
+            WorkspaceEntity(organization_id=principal.organization_id, entity_type="property", entity_id=lead.property.id),
+        ])
+        existing_keys.add(key)
+        created.append({"lead_id":lead.id, "property_id":lead.property.id, "address":address})
+
+    db.add(CrmActivity(
+        organization_id=principal.organization_id, user_id=principal.user_id,
+        activity_type="openai_copilot_candidates_staged",
+        summary=f"Copilot staged {len(created)} sourced research candidate(s)",
+        metadata_json={"response_id":str(payload.get("response_id") or "")[:200], "created":len(created), "duplicates":len(duplicates), "rejected":len(rejected), "promotion_status":"verification_required"},
+    ))
+    db.commit()
+    return {"created_count":len(created), "duplicate_count":len(duplicates), "rejected_count":len(rejected), "records":created, "duplicates":duplicates, "rejected":rejected, "status":"verification_required"}
 
 
 @router.post("/chat")
