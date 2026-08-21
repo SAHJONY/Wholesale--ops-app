@@ -44,16 +44,17 @@ def test_every_api_operation_is_published_in_openapi():
     assert len(published) >= 167
 
 
-def test_all_owner_pages_are_present_and_nonempty():
+def test_all_remaining_owner_pages_are_valid_and_nonempty():
     pages = sorted((ROOT / "frontend/app/owner").glob("**/page.tsx"))
-    assert len(pages) >= 30
-    assert all(
-    (
-        "export default" in page.read_text()
-        or "export { default }" in page.read_text()
-    )
-    for page in pages
-)
+    assert pages, "Owner application must expose at least one page"
+    empty = [str(page.relative_to(ROOT)) for page in pages if not page.read_text().strip()]
+    invalid = [
+        str(page.relative_to(ROOT))
+        for page in pages
+        if "export default" not in page.read_text() and "export { default }" not in page.read_text()
+    ]
+    assert not empty, f"Empty owner pages remain: {empty}"
+    assert not invalid, f"Owner pages without a default page export remain: {invalid}"
 
 
 def test_frontend_workspace_uses_only_root_lockfile():

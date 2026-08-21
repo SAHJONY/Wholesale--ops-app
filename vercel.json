@@ -1,7 +1,75 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "installCommand": "npm install",
-  "buildCommand": "npm run build",
-  "outputDirectory": "frontend/.next"
+  "services": {
+    "frontend": {
+      "root": "frontend/",
+      "framework": "nextjs",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "backend",
+          "format": "url",
+          "env": "BACKEND_INTERNAL_URL"
+        }
+      ],
+      "functions": {
+        "app/api/queues/realtime-call/route.ts": {
+          "maxDuration": 300,
+          "experimentalTriggers": [
+            {
+              "type": "queue/v2beta",
+              "topic": "sahjony-realtime-calls",
+              "retryAfterSeconds": 10,
+              "initialDelaySeconds": 0
+            }
+          ]
+        }
+      }
+    },
+    "backend": {
+      "root": "backend/",
+      "framework": "fastapi",
+      "entrypoint": "api.index:app"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/backend/wholesale-os/:path*",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/api/integration-hub/:path*",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/api/integration-reliability/:path*",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/backend/scheduled/operations",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/backend/integration-reliability/scheduled",
+      "schedule": "15 13 * * *"
+    },
+    {
+      "path": "/api/backend/jobs/scheduled",
+      "schedule": "30 13 * * *"
+    }
+  ]
 }

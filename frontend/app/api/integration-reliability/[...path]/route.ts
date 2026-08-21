@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Falls back to the production host so deployed behavior is unchanged, but
-// lets the app be pointed at a local or staging backend without editing source.
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+// Production uses the Vercel service binding. BACKEND_URL remains an explicit
+// local/staging override; there is no hidden legacy production host fallback.
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:8000';
 
 function allowed(path: string[]) {
   const joined = path.join('/');

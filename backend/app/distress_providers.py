@@ -194,6 +194,32 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         ),
     ),
     ProviderSpec(
+        id="usps_vacancy",
+        name="USPS delivery vacancy (via Smarty US Street API)",
+        category="distress",
+        # Licensed rather than public_record: USPS does not publish this, a
+        # commercial agreement does. That also keeps it out of the nationwide
+        # public-record sweep, which is correct -- it is a per-address lookup,
+        # not a county feed you can enumerate.
+        access="licensed",
+        authority_tier="usps_delivery_data",
+        verification_status="verified",
+        # Below the county recorders. Vacancy for delivery purposes is strong
+        # evidence a property is empty, but a forwarded owner or a seasonal
+        # property reads the same way, so it does not carry a recorder's weight.
+        confidence=80.0,
+        writable_fields=("usps_reported_vacant", "usps_no_stat", "rdi_residential"),
+        feature_flag="DISTRESS_USPS_VACANCY_ENABLED",
+        endpoint_env="SMARTY_AUTH_ID",
+        license_required=True,
+        supported_transports=("rest",),
+        notes=(
+            "Per-address lookup, not a sweep. USPS marks an address vacant after roughly "
+            "90 days of undeliverable mail. Evidence the building may be empty, never a "
+            "statement about who owns it or whether they want to sell."
+        ),
+    ),
+    ProviderSpec(
         id="demolition_permit",
         name="Building and demolition permits",
         category="distress",

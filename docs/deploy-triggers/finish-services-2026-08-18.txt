@@ -1,0 +1,5 @@
+Canonical Vercel Services production deployment trigger.
+Target project: prj_9kGGPvXomtn9ZMscOcsapPQMlWkV
+Target team: team_Me3fB0D0J6He10CgJlJ44Xaq
+Framework must remain: services
+Deploy current main atomically with frontend and FastAPI backend.

@@ -1,0 +1,3 @@
+Production deployment trigger for PR #113.
+Owner auth transport fix + SAHJONY cinematic acquisition login v2.
+2026-08-18

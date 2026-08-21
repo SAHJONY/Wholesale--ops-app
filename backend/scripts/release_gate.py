@@ -31,6 +31,22 @@ REQUIRED_ROUTES = {
     "/continuity/snapshot",
 }
 
+# The build is not production-ready when a headline snapshot exists but a
+# revenue-critical router has disappeared or been replaced by a placeholder.
+# Prefix coverage guards the full operational path without coupling this gate
+# to every individual endpoint implementation.
+REQUIRED_ROUTE_PREFIXES = {
+    "/lead-verification",
+    "/deal-intelligence",
+    "/deal-execution",
+    "/buyer-matching",
+    "/disposition",
+    "/closing-command",
+    "/title-company-matching",
+    "/integration-hub",
+    "/integration-reliability",
+}
+
 REQUIRED_MODELS = {
     "property_intelligence_scores",
     "national_intelligence_runs",
@@ -54,16 +70,26 @@ def main() -> int:
         database_error = f"{type(exc).__name__}: {exc}"
 
     missing_routes = sorted(REQUIRED_ROUTES - routes)
+    missing_route_prefixes = sorted(
+        prefix for prefix in REQUIRED_ROUTE_PREFIXES
+        if not any(route == prefix or route.startswith(f"{prefix}/") for route in routes)
+    )
     missing_models = sorted(REQUIRED_MODELS - metadata_tables)
     missing_database_tables = sorted(REQUIRED_MODELS - database_tables) if not database_error else []
 
     result = {
         "release_ready": not missing_routes
+        and not missing_route_prefixes
         and not missing_models
         and len(heads) == 1
         and not database_error
         and not missing_database_tables,
-        "routes": {"required": len(REQUIRED_ROUTES), "missing": missing_routes},
+        "routes": {
+            "required": len(REQUIRED_ROUTES),
+            "missing": missing_routes,
+            "required_prefixes": sorted(REQUIRED_ROUTE_PREFIXES),
+            "missing_prefixes": missing_route_prefixes,
+        },
         "models": {"required": len(REQUIRED_MODELS), "missing": missing_models},
         "migrations": {"heads": heads, "single_head": len(heads) == 1},
         "database": {

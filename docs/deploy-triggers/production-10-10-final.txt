@@ -1,0 +1,3 @@
+Production 10/10 final redeploy trigger.
+
+Purpose: deploy current main after production Neon migration e675e500-ad5b-4cf7-85f2-16bc143abef5 and Real Deals visibility fix PR #119.

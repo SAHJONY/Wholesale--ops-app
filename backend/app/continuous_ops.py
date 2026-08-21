@@ -10,6 +10,7 @@ from .auth import Principal, get_principal, require_role
 from .auth_models import AppUser, CrmActivity, FollowUpTask, Membership, Organization, WorkspaceEntity
 from .autonomy import AUTONOMY_AGENTS, execute_next_tasks, run_agent
 from .database import get_db
+from .market_selection import DEFAULT_WEIGHTS, _collect, _composite, _confidence, _score_market
 from .models import Lead
 from .services import lead_score
 
@@ -45,6 +46,60 @@ def _authorized_cron(authorization: str | None) -> None:
     expected = f"Bearer {configured}"
     if not authorization or not secrets.compare_digest(authorization, expected):
         raise HTTPException(401, "Invalid cron authorization")
+
+
+def _market_intelligence_snapshot(db: Session, organization_id: int, *, limit: int = 25) -> dict:
+    markets = _collect(db, organization_id)
+    ranked: list[dict] = []
+    confidence_order = {"none": 0, "low": 1, "moderate": 2, "high": 3}
+
+    for entry in markets.values():
+        scored = _score_market(entry)
+        composite, coverage = _composite(scored["scores"], DEFAULT_WEIGHTS)
+        if composite is None:
+            continue
+        confidence = _confidence(coverage)
+        ranked.append({
+            "zip_code": entry["zip_code"],
+            "states": sorted(entry["states"]),
+            "cities": sorted(city for city in entry["cities"] if city),
+            "counties": sorted(county for county in entry["counties"] if county),
+            "composite_score": composite,
+            "evidence_coverage_percent": coverage,
+            "confidence": confidence,
+            "cash_buyers": len(entry["buyers"]),
+            "properties": len(entry["properties"]),
+            "distress_facts": entry["distress_facts"],
+            "scores": scored["scores"],
+            "missing_dimensions": [
+                key for key, present in scored["evidence"].items() if not present
+            ],
+        })
+
+    ranked.sort(
+        key=lambda row: (
+            confidence_order[row["confidence"]],
+            row["composite_score"],
+            row["evidence_coverage_percent"],
+            row["cash_buyers"],
+        ),
+        reverse=True,
+    )
+    top = ranked[:max(1, min(limit, 100))]
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "scope": "nationwide_workspace",
+        "ranking_model": "buyer_first_zip_market_selection",
+        "markets_considered": len(markets),
+        "markets_ranked": len(ranked),
+        "high_confidence_markets": sum(1 for row in ranked if row["confidence"] == "high"),
+        "top_markets": top,
+        "weights": DEFAULT_WEIGHTS,
+        "boundary": (
+            "This snapshot ranks only SAHJONY workspace evidence. External national benchmark rankings "
+            "remain a separate evidence layer and are not inferred from missing internal data."
+        ),
+    }
 
 
 def _run_workspace_cycle(db: Session, organization: Organization, trigger: str = "vercel_cron") -> dict:
@@ -99,6 +154,18 @@ def _run_workspace_cycle(db: Session, organization: Organization, trigger: str =
     first_pass = execute_next_tasks(db, limit=25, organization_id=organization.id)
     second_pass = execute_next_tasks(db, limit=25, organization_id=organization.id)
     completed = first_pass + second_pass
+    market_snapshot = _market_intelligence_snapshot(db, organization.id)
+
+    db.add(CrmActivity(
+        organization_id=organization.id,
+        user_id=owner.id,
+        activity_type="daily_market_intelligence",
+        summary=(
+            f"Daily market intelligence ranked {market_snapshot['markets_ranked']} workspace markets; "
+            f"{market_snapshot['high_confidence_markets']} high-confidence"
+        ),
+        metadata_json=market_snapshot,
+    ))
 
     summary = {
         "organization_id": organization.id,
@@ -110,6 +177,12 @@ def _run_workspace_cycle(db: Session, organization: Organization, trigger: str =
         "tasks_completed": len([item for item in completed if item.status == "completed"]),
         "tasks_failed": len([item for item in completed if item.status == "failed"]),
         "followups_created": followups_created,
+        "market_intelligence": {
+            "markets_considered": market_snapshot["markets_considered"],
+            "markets_ranked": market_snapshot["markets_ranked"],
+            "high_confidence_markets": market_snapshot["high_confidence_markets"],
+            "top_markets": market_snapshot["top_markets"][:5],
+        },
     }
     db.add(CrmActivity(
         organization_id=organization.id,
@@ -169,6 +242,28 @@ def scheduled_status(
             "metadata": latest.metadata_json,
             "created_at": latest.created_at,
         },
+    }
+
+
+@router.get("/market-intelligence")
+def scheduled_market_intelligence(
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    latest = db.scalar(select(CrmActivity).where(
+        CrmActivity.organization_id == principal.organization_id,
+        CrmActivity.activity_type == "daily_market_intelligence",
+    ).order_by(CrmActivity.created_at.desc()))
+    if latest:
+        return {
+            "persisted": True,
+            "activity_id": latest.id,
+            "created_at": latest.created_at,
+            **(latest.metadata_json or {}),
+        }
+    return {
+        "persisted": False,
+        **_market_intelligence_snapshot(db, principal.organization_id),
     }
 
 

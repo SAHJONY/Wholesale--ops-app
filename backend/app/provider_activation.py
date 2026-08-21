@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import Principal, get_principal, require_role
+from .batchdata_adapter import DEFAULT_BATCHDATA_SKIPTRACE_URL
 from .integrations import PROVIDERS, _provider_status
 
 router = APIRouter(prefix="/provider-activation", tags=["production provider activation"])
@@ -22,7 +23,7 @@ PROVIDER_GUIDANCE = {
     "batchdata": {
         "purpose": "Seller phone and email enrichment with right-party and compliance review.",
         "environment": "production",
-        "validation": "Credential and endpoint format checks; live verification occurs through preview-only skip tracing.",
+        "validation": "API-key readiness plus the official BatchData skip-trace endpoint (environment override supported); live contact lookup remains fail-closed.",
         "priority": 100,
     },
     "smarty": {
@@ -38,10 +39,10 @@ PROVIDER_GUIDANCE = {
         "priority": 100,
     },
     "google_maps": {
-        "purpose": "Geocoding and dated Street View support for visual condition review.",
-        "environment": "production",
-        "validation": "Credential presence; imagery date and human review remain mandatory.",
-        "priority": 70,
+        "purpose": "Optional geocoding and dated Street View support for visual condition review.",
+        "environment": "optional",
+        "validation": "Credential presence when enabled; imagery date and human review remain mandatory.",
+        "priority": 40,
     },
     "fema": {
         "purpose": "Federal flood-zone and special-flood-hazard-area evidence.",
@@ -52,19 +53,13 @@ PROVIDER_GUIDANCE = {
     "bland": {
         "purpose": "Approved inbound and outbound voice operations with outcome capture.",
         "environment": "production",
-        "validation": "Credential presence and webhook secret readiness; no test call is placed.",
-        "priority": 90,
-    },
-    "twilio": {
-        "purpose": "SMS, phone-number, delivery-status, and opt-out event infrastructure.",
-        "environment": "production",
-        "validation": "Credential and sender readiness; no message is sent by activation checks.",
+        "validation": "API key, signed webhook secret, and at least one Bland business/inbound number; no test call is placed by readiness checks.",
         "priority": 90,
     },
     "docuseal": {
         "purpose": "Owner-approved eSignature submissions and signed-document synchronization.",
         "environment": "production",
-        "validation": "URL, API credential, and attorney-approved template readiness; no submission is created.",
+        "validation": "URL, API credential, and attorney-approved template readiness; no submission is created by readiness checks.",
         "priority": 90,
     },
     "docusign": {
@@ -86,6 +81,10 @@ URL_ENV = {
     "docuseal": "DOCUSEAL_URL",
 }
 
+DEFAULT_URLS = {
+    "batchdata": DEFAULT_BATCHDATA_SKIPTRACE_URL,
+}
+
 
 def _safe_host_check(url_value: str) -> dict:
     parsed = urlparse(url_value)
@@ -102,12 +101,17 @@ def _activation_item(provider: dict) -> dict:
     status = _provider_status(provider)
     guidance = PROVIDER_GUIDANCE.get(provider["id"], {})
     url_env = URL_ENV.get(provider["id"])
-    url_check = None
-    if url_env and (os.getenv(url_env) or "").strip():
-        url_check = _safe_host_check(str(os.getenv(url_env)))
+    url_value = (os.getenv(url_env) or "").strip() if url_env else ""
+    if not url_value:
+        url_value = DEFAULT_URLS.get(provider["id"], "")
+    url_check = _safe_host_check(url_value) if url_value else None
     ready_states = {"configured", "available_public_or_manual"}
     selected_signature = str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
     required_now = provider.get("tier") in {"primary", "required", "authoritative_verification", "authoritative_public"}
+    # ATTOM and Smarty are alternatives. Their shared requirement is scored once
+    # in snapshot(), rather than incorrectly requiring ATTOM specifically.
+    if provider["id"] in {"attom", "smarty"}:
+        required_now = False
     if provider["id"] == "docusign":
         required_now = selected_signature == "docusign"
     if provider["id"] == "docuseal":
@@ -137,19 +141,23 @@ def _activation_item(provider: dict) -> dict:
 @router.get("/snapshot")
 def snapshot(principal: Principal = Depends(get_principal)):
     providers = sorted((_activation_item(item) for item in PROVIDERS), key=lambda item: (-item["priority"], item["name"]))
+    property_ready = any(
+        next((p["activation_ready"] for p in providers if p["id"] == pid), False)
+        for pid in ["attom", "smarty"]
+    )
     required = [item for item in providers if item["required_now"]]
     blockers = [item for item in required if not item["activation_ready"]]
     ready = [item for item in required if item["activation_ready"]]
-    score = round((len(ready) / len(required)) * 100) if required else 0
+    required_count = len(required) + 1  # one property-data slot: ATTOM OR Smarty
+    ready_count = len(ready) + (1 if property_ready else 0)
+    blocker_count = len(blockers) + (0 if property_ready else 1)
+    score = round((ready_count / required_count) * 100) if required_count else 0
     workflows = {
-        # Property data is any-of because ATTOM and Smarty are alternatives; the
-        # rest are genuinely all required. Treating them alike would report lead
-        # acquisition as blocked on a deployment that runs entirely on Smarty.
         "lead_acquisition": (
-            any(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["attom", "smarty"])
+            property_ready
             and all(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["batchdata", "county_records"])
         ),
-        "seller_outreach": any(next((p["activation_ready"] for p in providers if p["id"] == pid), False) for pid in ["twilio", "bland"]),
+        "seller_outreach": next((p["activation_ready"] for p in providers if p["id"] == "bland"), False),
         "contract_execution": next((p["activation_ready"] for p in providers if p["id"] == ("docusign" if str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower() == "docusign" else "docuseal")), False),
         "document_retention": next((p["activation_ready"] for p in providers if p["id"] == "object_storage"), False),
     }
@@ -157,10 +165,15 @@ def snapshot(principal: Principal = Depends(get_principal)):
         "generated_at": datetime.now(timezone.utc),
         "organization_id": principal.organization_id,
         "score": score,
-        "status": "ready" if not blockers else "blocked",
-        "required_count": len(required),
-        "ready_count": len(ready),
-        "blocker_count": len(blockers),
+        "status": "ready" if blocker_count == 0 else "blocked",
+        "required_count": required_count,
+        "ready_count": ready_count,
+        "blocker_count": blocker_count,
+        "property_data_requirement": {
+            "mode": "any_of",
+            "providers": ["attom", "smarty"],
+            "ready": property_ready,
+        },
         "selected_signature_provider": str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower(),
         "workflows": workflows,
         "providers": providers,
@@ -168,6 +181,7 @@ def snapshot(principal: Principal = Depends(get_principal)):
             "credentials_exposed": False,
             "external_messages_sent": False,
             "calls_placed": False,
+            "sms_enabled": False,
             "signature_submissions_created": False,
             "storage_objects_written": False,
         },

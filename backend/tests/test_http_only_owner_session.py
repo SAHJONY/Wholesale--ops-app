@@ -75,25 +75,62 @@ def test_all_owner_pages_avoid_browser_token_storage_and_direct_backend_calls():
 
 def test_generic_backend_proxy_uses_stable_backend_alias():
     source = read("frontend/app/api/backend/[...path]/route.ts")
+    assert "process.env.BACKEND_INTERNAL_URL" in source
     assert "process.env.BACKEND_URL" in source
-    assert "https://backend-pi-opal-65.vercel.app" in source
+    assert "http://localhost:8000" in source
     assert "wholesale-ops-2kqe2x2q1" not in source
 
 
-def test_ceo_command_center_displays_canonical_close_percentage_once():
+def test_ceo_command_center_displays_probability_weighted_forecast():
     source = read("frontend/app/owner/ceo-command/page.tsx")
-    assert "Math.round(deal.probability_to_close || 0)" in source
-    assert "(deal.probability_to_close || 0) * 100" not in source
+    assert "probability_weighted_revenue" in source
+    assert "Probability-adjusted assignment forecast" in source
 
 
-def test_owner_navigation_exposes_every_distinct_workspace():
+def test_owner_navigation_prioritizes_deal_workflow_and_classifies_support_surfaces():
     navigation = read("frontend/app/owner/OwnerNavigation.tsx")
+    deal_routes = {
+        "/owner/deal-factory",
+        "/owner/attention",
+        "/owner/acquisition",
+        "/owner/real-deals",
+        "/owner/deals",
+        "/owner/buyer-intake",
+        "/owner/properties",
+        "/owner/phone-os",
+        "/owner/communications",
+        "/owner/sms-acquisition",
+        "/owner/disposition",
+        "/owner/closing",
+        "/owner/title-companies",
+        "/owner/deal-intelligence",
+        "/owner/lead-verification",
+        "/owner/system-health",
+    }
+    for route in deal_routes:
+        assert f"href: '{route}'" in navigation, f"Deal workflow route missing from navigation: {route}"
+
+    support_hidden_routes = {
+        "/owner/copilot",
+        "/owner/markets",
+        "/owner/live-data",
+        "/owner/jobs",
+        "/owner/integrations",
+        "/owner/provider-activation",
+        "/owner/public-data",
+        "/owner/audit",
+        "/owner/security",
+        "/owner/sessions",
+        "/owner/activate",
+        "/owner/go-live",
+        "/owner/real-estate-intelligence",
+    }
     pages = sorted((ROOT / "frontend/app/owner").glob("*/page.tsx"))
-    missing = []
+    unexpected_hidden = []
     for page in pages:
         route = f"/owner/{page.parent.name}"
-        if route == "/owner/ceo-command":
+        if route == "/owner/ceo-command" or route in support_hidden_routes:
             continue
-        if f"href: '{route}'" not in navigation:
-            missing.append(route)
-    assert not missing, f"Owner routes missing from navigation: {missing}"
+        if route != "/owner" and f"href: '{route}'" not in navigation:
+            unexpected_hidden.append(route)
+    assert not unexpected_hidden, f"Unclassified owner routes missing from deal-first navigation: {unexpected_hidden}"

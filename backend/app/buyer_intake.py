@@ -102,8 +102,6 @@ def _classify(db: Session, principal: Principal, csv_text: str) -> tuple[dict, s
             errors.append("Valid phone is required")
         if not zips:
             errors.append("At least one ZIP code is required")
-        if any(item.upper() == "TX" or item.lower().startswith("texas") for item in zips):
-            errors.append("Texas is excluded from wholesale workflows")
         min_price = _number(row.get("min_price"), default=0) or 0
         max_price = _number(row.get("max_price"), default=10_000_000) or 10_000_000
         if max_price < min_price:
@@ -163,7 +161,7 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         "required_columns": sorted(REQUIRED_COLUMNS),
         "optional_columns": sorted(OPTIONAL_COLUMNS),
         "max_rows": MAX_ROWS,
-        "texas_excluded": True,
+        "texas_excluded": False,
         "imports": [{"id": item.id, "summary": item.summary, "metadata": item.metadata_json, "created_at": item.created_at} for item in imports],
     }
 
@@ -217,7 +215,7 @@ def commit(payload: dict, principal: Principal = Depends(require_role("manager")
             "duplicates": preview_result["duplicate_count"],
             "rejected": preview_result["rejected_count"],
             "proof_of_funds_verified": sum(1 for item in created if item["proof_of_funds_verified"]),
-            "texas_excluded": True,
+            "texas_excluded": False,
         },
     )
     db.add(audit)

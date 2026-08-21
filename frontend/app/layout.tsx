@@ -1,14 +1,19 @@
 import "./globals.css";
+import "./premium.css";
+import "./cinematic-login-v2.css";
+import "./premium-ux-v3.css";
+import "./public-site.css";
 import type { Metadata, Viewport } from "next";
+import GlobalLanguageTranslation from "./components/GlobalLanguageTranslation";
 
 export const metadata: Metadata = {
   title: {
-    default: "SAHJONY Wholesale Ops",
-    template: "%s · SAHJONY Wholesale Ops",
+    default: "SAHJONY Real Estate Operations",
+    template: "%s · SAHJONY",
   },
   description:
-    "Supervised autonomous residential and commercial wholesale real estate operations.",
-  applicationName: "SAHJONY Wholesale Ops",
+    "SAHJONY real estate operations for property owners, cash buyers, brokers, and transaction partners.",
+  applicationName: "SAHJONY Real Estate Operations",
   formatDetection: { telephone: false, address: false, email: false },
   robots: { index: false, follow: false },
 };
@@ -16,15 +21,17 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Matches --bg, so mobile browser chrome blends into the console.
-  themeColor: "#07090d",
+  themeColor: "#030406",
   colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        {children}
+        <GlobalLanguageTranslation />
+      </body>
     </html>
   );
 }

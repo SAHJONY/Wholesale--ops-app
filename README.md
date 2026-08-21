@@ -20,6 +20,8 @@ Production-oriented MVP for residential and commercial real-estate wholesale ope
 - Driving-for-dollars lead intake
 - Human approval gates and audit-ready architecture
 - Property Truth Reports with field-level provenance, explicit unknowns, and evidence gates
+- Nationwide market intelligence with Pensacola priority routing
+- Wholesaler joint-venture intake, assignment-fee economics, JV revenue KPIs, split tracking, conversion tracking, and days-to-buyer measurement
 
 ## Quick start
 
@@ -36,6 +38,8 @@ API docs: http://localhost:8000/docs
 
 Lead intake → distress scoring → seller call → underwriting → approval → buyer matching → disposition → closing.
 
+JV workflow: wholesaler submission → authority/economics review → written JV → buyer matching → assignment → closing → realized JV revenue.
+
 See `docs/ARCHITECTURE.md` and `fable5-plan.yaml` for the system blueprint.
 # BatchData MCP
 
@@ -51,3 +55,5 @@ Verify the free data connectors against live endpoints:
 ```bash
 cd backend && python scripts/verify_market_data.py
 ```
+
+Production synchronization review: 2026-08-19.

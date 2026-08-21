@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-pi-opal-65.vercel.app';
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:8000';
+const SESSION_COOKIE = 'sahjony_owner_session';
+const LEGACY_PLACEHOLDER_AUTH = 'Bearer cookie-session';
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function proxy(
@@ -14,7 +19,12 @@ async function proxy(
   const { path } = await context.params;
   const backendPath = `/${path.map(segment => encodeURIComponent(segment)).join('/')}`;
   const query = request.nextUrl.search;
-  const authorization = request.headers.get('authorization');
+  const explicitAuthorization = request.headers.get('authorization') || '';
+  const session = request.cookies.get(SESSION_COOKIE)?.value || '';
+  const validExplicitAuthorization = explicitAuthorization && explicitAuthorization !== LEGACY_PLACEHOLDER_AUTH
+    ? explicitAuthorization
+    : '';
+  const authorization = validExplicitAuthorization || (session ? `Bearer ${session}` : '');
   const contentType = request.headers.get('content-type');
   const body = request.method === 'GET' ? undefined : await request.text();
 

@@ -5,6 +5,9 @@ from typing import Any
 import httpx
 
 
+DEFAULT_BATCHDATA_SKIPTRACE_URL = "https://api.batchdata.com/api/v1/property/skip-trace"
+
+
 class BatchDataConfigurationError(RuntimeError):
     pass
 
@@ -143,11 +146,9 @@ def normalize_batchdata_contacts(payload: dict) -> dict:
 
 async def lookup_batchdata_contacts(*, address: str, city: str, state: str, zip_code: str, owner_name: str | None = None) -> dict:
     api_key = os.getenv("BATCHDATA_API_KEY", "").strip()
-    endpoint = os.getenv("BATCHDATA_SKIPTRACE_URL", "").strip()
+    endpoint = os.getenv("BATCHDATA_SKIPTRACE_URL", "").strip() or DEFAULT_BATCHDATA_SKIPTRACE_URL
     if not api_key:
         raise BatchDataConfigurationError("BATCHDATA_API_KEY is not configured")
-    if not endpoint:
-        raise BatchDataConfigurationError("BATCHDATA_SKIPTRACE_URL is not configured; use the exact endpoint assigned in the BatchData developer account")
 
     auth_header = os.getenv("BATCHDATA_AUTH_HEADER", "Authorization").strip() or "Authorization"
     auth_scheme = os.getenv("BATCHDATA_AUTH_SCHEME", "Bearer").strip()

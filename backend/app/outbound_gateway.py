@@ -22,23 +22,12 @@ from .voice_models import VoiceCall
 router = APIRouter(prefix="/outbound", tags=["controlled outbound gateway"])
 
 DECISION_TTL = timedelta(minutes=15)
-
 VOICE_CHANNELS = frozenset({"automated_call", "live_call"})
-
-# +, a non-zero country code, then 7 to 14 more digits.
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 
 
-def caller_id() -> str | None:
-    """The number outbound calls are placed from, or None if unusable.
-
-    Validated rather than passed through. A caller ID copied out of a chat
-    window or a dashboard often arrives wrapped in typographic quotes, and
-    Vercel stores an environment variable exactly as pasted -- so the value
-    becomes "“+13465214387”" and every call fails at the provider with an
-    error that says nothing about quotes.
-    """
-    for name in ("BLAND_DEFAULT_FROM_NUMBER", "BLAND_DEFAULT_CALLER_ID"):
+def _valid_number_from_env(*names: str) -> str | None:
+    for name in names:
         raw = str(os.getenv(name) or "").strip()
         if not raw:
             continue
@@ -51,51 +40,49 @@ def caller_id() -> str | None:
     return None
 
 
-def _opening_line(request: OutboundRequest) -> str:
-    """The words the person actually hears first.
+def caller_id() -> str | None:
+    return _valid_number_from_env("BLAND_DEFAULT_FROM_NUMBER", "BLAND_DEFAULT_CALLER_ID")
 
-    ``first_sentence`` is spoken verbatim when set. Otherwise Bland improvises
-    the opening from ``task``, so the disclosure has to be instructed there.
-    Both are joined rather than picking one, because a disclosure in either
-    place is a real disclosure and refusing it would only teach people to
-    duplicate the sentence.
-    """
+
+def bland_sms_agent_number() -> str | None:
+    return _valid_number_from_env(
+        "BLAND_SMS_AGENT_NUMBER",
+        "BLAND_MESSAGING_NUMBER",
+        "BLAND_DEFAULT_FROM_NUMBER",
+        "BLAND_DEFAULT_CALLER_ID",
+    )
+
+
+def _opening_line(request: OutboundRequest) -> str:
     content = request.content or {}
-    return " ".join(
-        str(content.get(field) or "") for field in ("first_sentence", "task")
-    ).strip()
+    return " ".join(str(content.get(field) or "") for field in ("first_sentence", "task")).strip()
 
 
 def _will_record(request: OutboundRequest) -> bool:
-    """Whether this call would be recorded.
-
-    ``_dispatch_bland`` hardcodes ``record: False`` and does not pass the field
-    through, so today this is always False. It is read from content anyway so
-    that the all-party consent check is already standing if recording is ever
-    made configurable -- the gate should not have to be remembered later.
-    """
     return bool((request.content or {}).get("record"))
 
 
 def _call_state(db: Session, request: OutboundRequest) -> str | None:
-    """The lead's state, which decides the recording rule.
-
-    Returns None when unknown, and ``requires_all_party_consent`` reads None as
-    all-party. That is the intended direction: a missing state is missing
-    information, and only one of the two guesses is a criminal exposure.
-    """
     lead = db.get(Lead, request.lead_id) if request.lead_id else None
     return (getattr(lead, "state", None) or None) if lead else None
 
 
 def _validate_channel_provider(channel: str, provider: str) -> None:
-    allowed = {("sms", "twilio"), ("automated_call", "bland")}
+    # SAHJONY uses Bland as the unified communications provider. The app does
+    # not require or fall back to a Twilio account for SMS delivery.
+    allowed = {("sms", "bland"), ("automated_call", "bland")}
     if (channel, provider) not in allowed:
-        raise HTTPException(422, "Supported combinations are sms/twilio and automated_call/bland")
+        raise HTTPException(422, "Supported combinations are sms/bland and automated_call/bland")
 
 
-def _decision_for_request(db: Session, principal: Principal, lead_id: int, decision_id: int,
-                          channel: str, contact: str) -> ComplianceDecision:
+def _decision_for_request(
+    db: Session,
+    principal: Principal,
+    lead_id: int,
+    decision_id: int,
+    channel: str,
+    contact: str,
+) -> ComplianceDecision:
     decision = db.get(ComplianceDecision, decision_id)
     if not decision:
         raise HTTPException(404, "Compliance decision not found")
@@ -143,9 +130,9 @@ def create_outbound_request(
         raise HTTPException(404, "Lead not found")
 
     channel = str(payload.get("channel") or "").strip().lower()
-    provider = str(payload.get("provider") or "").strip().lower()
+    provider = str(payload.get("provider") or "bland").strip().lower()
     _validate_channel_provider(channel, provider)
-    raw_contact = str(payload.get("contact") or (lead.phone if channel != "email" else lead.email) or "")
+    raw_contact = str(payload.get("contact") or lead.phone or "")
     contact = normalize_contact(channel, raw_contact)
     if not contact:
         raise HTTPException(422, "Contact is required")
@@ -166,7 +153,7 @@ def create_outbound_request(
         lead_id=lead_id,
         compliance_decision_id=decision_id,
         channel=channel,
-        provider=provider,
+        provider="bland",
         contact=contact,
         status="pending_approval",
         content=content,
@@ -181,11 +168,11 @@ def create_outbound_request(
         status="pending",
         entity_type="outbound_request",
         entity_id=request.id,
-        summary=f"Approve {channel.replace('_', ' ')} to {lead.seller_name} via {provider}",
+        summary=f"Approve {channel.replace('_', ' ')} to {lead.seller_name} via Bland AI",
         payload={
             "outbound_request_id": request.id,
             "lead_id": lead_id,
-            "provider": provider,
+            "provider": "bland",
             "channel": channel,
             "contact": contact,
         },
@@ -199,7 +186,7 @@ def create_outbound_request(
         lead_id=lead_id,
         activity_type="outbound_requested",
         summary=f"{channel} request created for {lead.seller_name}; owner approval required",
-        metadata_json={"request_id": request.id, "approval_id": approval.id, "provider": provider},
+        metadata_json={"request_id": request.id, "approval_id": approval.id, "provider": "bland"},
     ))
     db.commit()
     return {
@@ -208,48 +195,84 @@ def create_outbound_request(
         "approval_id": approval.id,
         "approval_required": True,
         "dispatch_allowed": False,
+        "provider": "bland",
     }
 
 
-async def _dispatch_twilio(request: OutboundRequest) -> dict:
-    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    # Twilio's own sender only. This used to fall back to
-    # BLAND_DEFAULT_FROM_NUMBER, which meant that with no Twilio sender
-    # configured, texts went out from the Bland voice number -- a number that
-    # is not registered for A2P 10DLC messaging. Carriers either reject that
-    # traffic or fine it, and neither failure points back here.
-    from_number = os.getenv("TWILIO_FROM_NUMBER")
-    messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
-    if not account_sid or not auth_token or not (from_number or messaging_service_sid):
-        raise HTTPException(503, "Twilio credentials or sender are not configured")
+async def _dispatch_bland_sms(request: OutboundRequest) -> dict:
+    api_key = os.getenv("BLAND_AI_API_KEY")
+    if not api_key:
+        raise HTTPException(503, "BLAND_AI_API_KEY is not configured")
 
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
-    form = {"To": request.contact, "Body": str(request.content.get("body") or "")}
-    if messaging_service_sid:
-        form["MessagingServiceSid"] = messaging_service_sid
-    else:
-        form["From"] = from_number
-    callback = os.getenv("TWILIO_STATUS_CALLBACK_URL")
-    if callback:
-        form["StatusCallback"] = callback
+    content = request.content or {}
+    agent_number = str(content.get("agent_number") or bland_sms_agent_number() or "").strip()
+    if not agent_number:
+        raise HTTPException(503, "Bland SMS agent number is not configured")
+    if not E164.match(agent_number):
+        raise HTTPException(503, "Bland SMS agent number must be E.164")
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.post(url, data=form, auth=(account_sid, auth_token))
+    body = {
+        "user_number": request.contact,
+        "agent_number": agent_number,
+        "agent_message": str(content.get("body") or ""),
+        "new_conversation": bool(content.get("new_conversation", True)),
+        "channel": "sms",
+        "request_data": content.get("request_data") or {},
+        "metadata": {
+            **(content.get("metadata") or {}),
+            "outbound_request_id": request.id,
+            "lead_id": request.lead_id,
+            "organization_id": request.organization_id,
+            "requested_by_user_id": request.requested_by_user_id,
+            "source": "sahjony_wholesale_os",
+        },
+    }
+
+    optional_fields = (
+        "persona_id", "persona_version", "persona_settings", "pathway_id",
+        "pathway_version", "start_node_id", "disposition_ids", "citation_schema_ids",
+        "content_sid", "content_variables", "time_out", "timeout_message",
+        "warning_time", "warning_message",
+    )
+    for field in optional_fields:
+        value = content.get(field)
+        if value not in (None, "", [], {}):
+            body[field] = value
+
+    webhook = str(content.get("webhook") or os.getenv("BLAND_SMS_WEBHOOK_URL") or "").strip()
+    if webhook:
+        body["webhook"] = webhook
+
+    async with httpx.AsyncClient(timeout=25) as client:
+        response = await client.post(
+            "https://api.bland.ai/v1/sms/send",
+            headers={"authorization": api_key, "Content-Type": "application/json"},
+            json=body,
+        )
     try:
-        data = response.json()
+        payload = response.json()
     except ValueError:
-        data = {"body": response.text[:1000]}
-    if response.status_code >= 400:
-        raise HTTPException(502, f"Twilio rejected the message: {data.get('message') or response.status_code}")
+        payload = {"message": response.text[:1000]}
+
+    if response.status_code >= 400 or payload.get("errors"):
+        raise HTTPException(502, f"Bland rejected the SMS: {payload.get('errors') or payload.get('message') or response.status_code}")
+
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    conversation_id = data.get("conversation_id")
+    workflow_id = data.get("workflow_id")
     return {
-        "provider_reference": data.get("sid"),
-        "provider_status": data.get("status") or "queued",
-        "provider_response": {k: data.get(k) for k in ("sid", "status", "error_code", "error_message")},
+        "provider_reference": conversation_id or workflow_id,
+        "provider_status": "queued",
+        "provider_response": {
+            "conversation_id": conversation_id,
+            "workflow_id": workflow_id,
+            "message": data.get("message"),
+            "channel": "sms",
+        },
     }
 
 
-async def _dispatch_bland(request: OutboundRequest) -> dict:
+async def _dispatch_bland_call(request: OutboundRequest) -> dict:
     api_key = os.getenv("BLAND_AI_API_KEY")
     if not api_key:
         raise HTTPException(503, "BLAND_AI_API_KEY is not configured")
@@ -260,6 +283,7 @@ async def _dispatch_bland(request: OutboundRequest) -> dict:
             "outbound_request_id": request.id,
             "lead_id": request.lead_id,
             "organization_id": request.organization_id,
+            "requested_by_user_id": request.requested_by_user_id,
         },
     }
     for field in (
@@ -319,17 +343,18 @@ async def dispatch_outbound_request(
         raise HTTPException(422, "Contact became suppressed after approval; dispatch blocked")
 
     if request.channel in VOICE_CHANNELS:
-        # Enforced here rather than only at /voice/preflight. Preflight is
-        # advisory -- nothing obliges a caller to run it -- so a script that
-        # never says it is a machine would otherwise dial anyway. The FCC
-        # treats an AI voice as an artificial voice, which is the difference
-        # between a marketing call and a TCPA claim per call.
         problems = validate_call_script(_opening_line(request), _call_state(db, request), _will_record(request))
         if problems:
             raise HTTPException(422, f"Call script rejected: {', '.join(problems)}")
 
     try:
-        result = await (_dispatch_twilio(request) if request.provider == "twilio" else _dispatch_bland(request))
+        if request.channel == "sms":
+            result = await _dispatch_bland_sms(request)
+        elif request.channel in VOICE_CHANNELS:
+            result = await _dispatch_bland_call(request)
+        else:
+            raise HTTPException(422, "Unsupported outbound channel")
+
         request.status = "queued"
         request.provider_reference = result["provider_reference"]
         request.provider_status = result["provider_status"]
@@ -337,11 +362,8 @@ async def dispatch_outbound_request(
         request.dispatched_by_user_id = principal.user_id
         request.dispatched_at = datetime.now(timezone.utc)
         request.error = None
+
         if request.channel == "sms":
-            # Written here because this is where a message actually goes out.
-            # The frequency cap counts these rows, so a send the log never sees
-            # is a send the cap cannot count, and the limit silently becomes no
-            # limit at all.
             db.add(SmsMessage(
                 organization_id=principal.organization_id,
                 lead_id=request.lead_id,
@@ -351,19 +373,22 @@ async def dispatch_outbound_request(
                 decision_id=decision.id,
                 status="queued",
                 provider_message_id=request.provider_reference,
-                evidence={"request_id": request.id, "provider": request.provider},
+                evidence={
+                    "request_id": request.id,
+                    "provider": "bland",
+                    "conversation_id": result["provider_response"].get("conversation_id"),
+                    "workflow_id": result["provider_response"].get("workflow_id"),
+                },
             ))
+
         if request.channel in VOICE_CHANNELS:
-            # What was disclosed is recorded per call, at the moment of the
-            # call. Deriving it from settings later would let a settings change
-            # rewrite what a past call is able to claim.
             db.add(VoiceCall(
                 organization_id=principal.organization_id,
                 lead_id=request.lead_id,
                 direction="outbound",
                 contact=request.contact,
                 state=_call_state(db, request),
-                provider=request.provider,
+                provider="bland",
                 provider_call_id=request.provider_reference,
                 decision_id=decision.id,
                 status="queued",
@@ -372,16 +397,18 @@ async def dispatch_outbound_request(
                 recording_consent_basis=None,
                 evidence={"request_id": request.id, "channel": request.channel},
             ))
+
         db.add(CrmActivity(
             organization_id=principal.organization_id,
             user_id=principal.user_id,
             lead_id=request.lead_id,
             activity_type="outbound_dispatched",
-            summary=f"{request.channel} dispatched via {request.provider} for {lead.seller_name}",
+            summary=f"{request.channel} dispatched via Bland AI for {lead.seller_name}",
             metadata_json={
                 "request_id": request.id,
                 "compliance_decision_id": decision.id,
                 "provider_reference": request.provider_reference,
+                "provider": "bland",
             },
         ))
         db.commit()
@@ -394,7 +421,7 @@ async def dispatch_outbound_request(
     return {
         "request_id": request.id,
         "status": request.status,
-        "provider": request.provider,
+        "provider": "bland",
         "provider_reference": request.provider_reference,
         "provider_status": request.provider_status,
     }

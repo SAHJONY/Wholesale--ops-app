@@ -13,7 +13,7 @@ ACQUISITION_SOURCES = [
 ]
 
 DEFAULT_MARKETS = [
-    "Pensacola FL", "Atlanta GA", "Tampa FL", "Jacksonville FL",
+    "Houston TX", "Pensacola FL", "Atlanta GA", "Tampa FL", "Jacksonville FL",
     "Cleveland OH", "Birmingham AL", "Springfield MO",
 ]
 
@@ -27,7 +27,7 @@ def schedule_acquisition_runs(db: Session, markets: list[str] | None = None,
                 source_type=source,
                 market=market,
                 status="queued",
-                configuration={"mode": "licensed_or_public_data_only", "exclude_states": ["TX"]},
+                configuration={"mode": "licensed_or_public_data_only", "jurisdiction_policy_required": True},
             )
             db.add(run)
             runs.append(run)

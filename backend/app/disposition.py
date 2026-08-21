@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session
 
 from .auth import Principal, get_principal, require_role
 from .auth_models import CrmActivity, WorkspaceEntity
+from .buyer_match_api import rank_workspace_buyers
 from .closing_command_models import FundingRecord
 from .crm import _assert_linked, _workspace_link
 from .database import get_db
 from .disposition_models import AssignmentSelection, BuyerOffer, DealBuyerMatch, DispositionCampaign
 from .models import Approval, Buyer, Deal, Property
-from .services import match_buyer
 
 router = APIRouter(prefix="/disposition", tags=["buyer disposition"])
 
@@ -24,8 +24,8 @@ def _deal(db: Session, principal: Principal, deal_id: int):
     prop = db.get(Property, deal.property_id)
     if not prop:
         raise HTTPException(422, "Deal property is missing")
-    if str(prop.state or "").upper() == "TX":
-        raise HTTPException(422, "Texas is excluded from SAHJONY acquisition workflows")
+    # Jurisdiction-specific policy gates belong in compliance/outreach policy,
+    # not in disposition discovery or buyer matching. Texas is supported here.
     return deal, prop
 
 
@@ -67,32 +67,36 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         "matches": [{"id": m.id, "deal_id": m.deal_id, "buyer_id": m.buyer_id, "buyer_name": buyer_map[m.buyer_id].name if m.buyer_id in buyer_map else f"Buyer #{m.buyer_id}", "score": m.score, "reasons": m.reasons, "status": m.status} for m in matches],
         "offers": [{"id": o.id, "deal_id": o.deal_id, "buyer_id": o.buyer_id, "buyer_name": buyer_map[o.buyer_id].name if o.buyer_id in buyer_map else f"Buyer #{o.buyer_id}", "amount": o.amount, "earnest_money": o.earnest_money, "closing_days": o.closing_days, "proof_of_funds_status": o.proof_of_funds_status, "contingencies": o.contingencies, "status": o.status, "ranking_score": o.ranking_score, "submitted_at": o.submitted_at} for o in offers],
         "selections": [{"id": s.id, "deal_id": s.deal_id, "buyer_id": s.buyer_id, "buyer_offer_id": s.buyer_offer_id, "assignment_price": s.assignment_price, "assignment_fee": s.assignment_fee, "status": s.status, "approval_id": s.approval_id} for s in selections],
+        "buyer_matching_engine": "buying_box_intelligence_v2",
     }
 
 
 @router.post("/deals/{deal_id}/match-buyers")
 def refresh_matches(deal_id: int, principal: Principal = Depends(require_role("manager")), db: Session = Depends(get_db)):
-    deal, prop = _deal(db, principal, deal_id)
-    buyer_ids = _linked_buyer_ids(db, principal.organization_id)
-    buyers = db.scalars(select(Buyer).where(Buyer.id.in_(buyer_ids))).all() if buyer_ids else []
-    existing = {(m.buyer_id): m for m in db.scalars(select(DealBuyerMatch).where(DealBuyerMatch.organization_id == principal.organization_id, DealBuyerMatch.deal_id == deal_id)).all()}
-    results = []
-    for buyer in buyers:
-        score, reasons = match_buyer(buyer, prop)
-        row = existing.get(buyer.id) or DealBuyerMatch(organization_id=principal.organization_id, deal_id=deal_id, buyer_id=buyer.id)
-        row.score, row.reasons, row.status = score, reasons, "matched"
-        db.add(row)
-        results.append({"buyer_id": buyer.id, "buyer_name": buyer.name, "score": score, "reasons": reasons})
-    db.add(CrmActivity(organization_id=principal.organization_id, user_id=principal.user_id, deal_id=deal_id, activity_type="buyer_matches_refreshed", summary=f"Ranked {len(results)} tenant buyers for disposition", metadata_json={"matches": results[:20]}))
-    db.commit()
-    return {"deal_id": deal.id, "matches": sorted(results, key=lambda x: x["score"], reverse=True)}
+    # Backward-compatible disposition route; one scoring source of truth.
+    return rank_workspace_buyers(deal_id, None, principal, db)
 
 
 @router.post("/deals/{deal_id}/campaigns")
 def create_campaign(deal_id: int, payload: dict, principal: Principal = Depends(require_role("manager")), db: Session = Depends(get_db)):
     deal, _ = _deal(db, principal, deal_id)
-    audience_count = db.scalar(select(DealBuyerMatch).where(DealBuyerMatch.organization_id == principal.organization_id, DealBuyerMatch.deal_id == deal_id).count()) if False else len(db.scalars(select(DealBuyerMatch).where(DealBuyerMatch.organization_id == principal.organization_id, DealBuyerMatch.deal_id == deal_id, DealBuyerMatch.score >= float(payload.get("minimum_match_score") or 50))).all())
-    campaign = DispositionCampaign(organization_id=principal.organization_id, deal_id=deal_id, name=str(payload.get("name") or f"Deal #{deal_id} buyer campaign"), status="pending_approval", asking_price=float(payload.get("asking_price") or deal.target_buyer_price or 0), minimum_assignment_fee=float(payload.get("minimum_assignment_fee") or deal.projected_assignment_fee or 0), audience_count=audience_count, payload={"minimum_match_score": float(payload.get("minimum_match_score") or 50), "channels": payload.get("channels") or ["email", "sms"], "public_address_hidden": True})
+    minimum_score = float(payload.get("minimum_match_score") or 50)
+    audience_count = len(db.scalars(select(DealBuyerMatch).where(
+        DealBuyerMatch.organization_id == principal.organization_id,
+        DealBuyerMatch.deal_id == deal_id,
+        DealBuyerMatch.status == "matched",
+        DealBuyerMatch.score >= minimum_score,
+    )).all())
+    campaign = DispositionCampaign(
+        organization_id=principal.organization_id,
+        deal_id=deal_id,
+        name=str(payload.get("name") or f"Deal #{deal_id} buyer campaign"),
+        status="pending_approval",
+        asking_price=float(payload.get("asking_price") or deal.target_buyer_price or 0),
+        minimum_assignment_fee=float(payload.get("minimum_assignment_fee") or deal.projected_assignment_fee or 0),
+        audience_count=audience_count,
+        payload={"minimum_match_score": minimum_score, "channels": payload.get("channels") or ["email", "sms"], "public_address_hidden": True, "matching_engine": "buying_box_intelligence_v2"},
+    )
     db.add(campaign); db.flush(); _workspace_link(db, principal.organization_id, "disposition_campaign", campaign.id)
     approval = Approval(action_type="launch_disposition_campaign", status="pending", entity_type="disposition_campaign", entity_id=campaign.id, summary=f"Approve buyer campaign for deal #{deal_id}", payload={"campaign_id": campaign.id, "deal_id": deal_id, "audience_count": audience_count})
     db.add(approval); db.flush(); _workspace_link(db, principal.organization_id, "approval", approval.id)
@@ -152,6 +156,8 @@ def finalize_selection(selection_id: int, principal: Principal = Depends(require
     deal, _ = _deal(db, principal, selection.deal_id)
     buyer = db.get(Buyer, selection.buyer_id)
     offer = db.get(BuyerOffer, selection.buyer_offer_id)
+    if not offer:
+        raise HTTPException(422, "Selected buyer offer is missing")
     selection.status = "finalized"; offer.status = "selected"; offer.selected_at = datetime.now(timezone.utc)
     deal.target_buyer_price = selection.assignment_price
     deal.projected_assignment_fee = selection.assignment_fee
