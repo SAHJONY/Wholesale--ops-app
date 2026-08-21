@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5',
+      model: process.env.OPENAI_MODEL || 'gpt-5.6-sol',
       instructions: SYSTEM_PROMPT,
       tools,
       input: `Operator request:\n${message}\n\nCurrent SAHJONY workspace context (source-bounded; unavailable sections must not be guessed):\n${context.serialized}`,
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
     metadata: {
       runtime: 'nextjs_same_origin',
       response_id: data.id,
-      model: data.model || process.env.OPENAI_MODEL || 'gpt-5',
+      model: data.model || process.env.OPENAI_MODEL || 'gpt-5.6-sol',
       tools_used: toolsUsed,
       web_source_count: webSources.length,
       file_source_count: fileSources.length,
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     response_id: data.id,
-    model: data.model || process.env.OPENAI_MODEL || 'gpt-5',
+    model: data.model || process.env.OPENAI_MODEL || 'gpt-5.6-sol',
     answer: outputText(data),
     tools_used: toolsUsed,
     web_sources: webSources,

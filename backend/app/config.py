@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     # Override with OPENAI_MODEL to a Responses-API-capable model available to
     # the API project.
-    openai_model: str = "gpt-5.1"
+    openai_model: str = "gpt-5.6-sol"
     # Optional OpenAI vector store containing authorized books, SOPs, contracts,
     # market references, and other source material. When unset, the Copilot
     # simply omits file_search rather than pretending the knowledge base exists.

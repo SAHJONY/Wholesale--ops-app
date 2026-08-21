@@ -154,7 +154,7 @@ Requirements:
 """.strip()
 
     body = {
-        "model": _clean(os.getenv("OPENAI_DISCOVERY_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5"),
+        "model": _clean(os.getenv("OPENAI_DISCOVERY_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol"),
         "tools": [{"type": "web_search", "search_context_size": "high"}],
         "include": ["web_search_call.action.sources"],
         "input": prompt,
