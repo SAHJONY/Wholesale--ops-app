@@ -2,7 +2,7 @@
 
 Resend is the application transport.  The module is deliberately fail-closed:
 no message leaves the application unless the API key is configured and the
-selected sender belongs to the approved sahjonycapitalllc.com department map.
+selected sender belongs to the approved sahjony.com department map.
 Inbound messages are accepted only after Svix signature verification and are
 written into the CRM activity stream so a reply can be associated with a deal
 or lead by the stable subject tags produced by outbound mail.
@@ -34,14 +34,14 @@ LEAD_TAG = re.compile(r"\[Lead\s+#(\d+)\]", re.IGNORECASE)
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 FALLBACK_DEPARTMENTS = {
-    "acquisitions": ("SAHJONY Acquisitions", "acquisitions@sahjonycapitalllc.com"),
-    "dispositions": ("SAHJONY Dispositions", "dispositions@sahjonycapitalllc.com"),
-    "title_closing": ("SAHJONY Title & Closing", "title@sahjonycapitalllc.com"),
-    "underwriting": ("SAHJONY Underwriting", "underwriting@sahjonycapitalllc.com"),
-    "compliance": ("SAHJONY Compliance", "compliance@sahjonycapitalllc.com"),
-    "operations": ("SAHJONY Operations", "operations@sahjonycapitalllc.com"),
-    "support": ("SAHJONY Support", "support@sahjonycapitalllc.com"),
-    "executive": ("SAHJONY Executive Office", "executive@sahjonycapitalllc.com"),
+    "acquisitions": ("SAHJONY Acquisitions", "acquisitions@sahjony.com"),
+    "dispositions": ("SAHJONY Dispositions", "dispositions@sahjony.com"),
+    "title_closing": ("SAHJONY Title & Closing", "title@sahjony.com"),
+    "underwriting": ("SAHJONY Underwriting", "underwriting@sahjony.com"),
+    "compliance": ("SAHJONY Compliance", "compliance@sahjony.com"),
+    "operations": ("SAHJONY Operations", "operations@sahjony.com"),
+    "support": ("SAHJONY Support", "support@sahjony.com"),
+    "executive": ("SAHJONY Executive Office", "executive@sahjony.com"),
 }
 
 
@@ -77,7 +77,7 @@ def _sender_for(department: str) -> tuple[str, str]:
     if not selected:
         raise HTTPException(422, f"Unknown business-email department: {department}")
     display_name, email = selected
-    if not email.endswith("@sahjonycapitalllc.com"):
+    if not email.endswith("@sahjony.com"):
         raise HTTPException(503, "Business email sender rejected by permanent domain policy")
     return display_name, email
 
@@ -122,7 +122,7 @@ def email_readiness(principal: Principal = Depends(require_role("viewer"))):
     }
     return {
         "provider": "resend",
-        "domain": "sahjonycapitalllc.com",
+        "domain": "sahjony.com",
         "default_department": "acquisitions",
         "default_sender": departments["acquisitions"][1],
         "departments": {key: email for key, (_, email) in departments.items()},
@@ -260,9 +260,7 @@ async def resend_webhook(request: Request, db: Session = Depends(get_db)):
     except WebhookVerificationError as exc:
         raise HTTPException(401, "Invalid Resend webhook signature") from exc
 
-    if str(event.get("type") or "") != "email.received":
-        return {"accepted": True, "ignored": True, "type": event.get("type")}
-
+    event_type = str(event.get("type") or "")
     event_data = event.get("data") or {}
     email_id = str(event_data.get("email_id") or "").strip()
     if not email_id:
@@ -270,11 +268,40 @@ async def resend_webhook(request: Request, db: Session = Depends(get_db)):
 
     event_id = str(headers["svix-id"])
     duplicate = db.scalar(select(CrmActivity).where(
-        CrmActivity.activity_type == "business_email_received",
+        CrmActivity.activity_type.in_(["business_email_received", "business_email_status"]),
         CrmActivity.metadata_json["provider_event_id"].as_string() == event_id,
     ))
     if duplicate:
         return {"accepted": True, "duplicate": True, "activity_id": duplicate.id}
+
+    if event_type != "email.received":
+        tracked_types = {"email.sent", "email.delivered", "email.bounced", "email.complained", "email.suppressed"}
+        if event_type not in tracked_types:
+            return {"accepted": True, "ignored": True, "type": event_type}
+        sent_rows = db.scalars(select(CrmActivity).where(
+            CrmActivity.activity_type == "business_email_sent",
+        ).order_by(CrmActivity.id.desc()).limit(500)).all()
+        original = next((row for row in sent_rows if str((row.metadata_json or {}).get("provider_message_id") or "") == email_id), None)
+        if not original:
+            return {"accepted": True, "matched": False, "type": event_type}
+        status = event_type.removeprefix("email.")
+        db.add(CrmActivity(
+            organization_id=original.organization_id,
+            user_id=None,
+            lead_id=original.lead_id,
+            deal_id=original.deal_id,
+            activity_type="business_email_status",
+            summary=f"Business email {status}: {(original.metadata_json or {}).get('subject') or email_id}",
+            metadata_json={
+                "provider": "resend",
+                "provider_event_id": event_id,
+                "provider_email_id": email_id,
+                "status": status,
+                "department": (original.metadata_json or {}).get("department"),
+            },
+        ))
+        db.commit()
+        return {"accepted": True, "matched": True, "type": event_type, "status": status}
 
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(

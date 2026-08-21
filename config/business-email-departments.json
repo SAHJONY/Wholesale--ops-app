@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "company": "SAHJONY CAPITAL LLC",
-  "domain": "sahjonycapitalllc.com",
+  "domain": "sahjony.com",
   "default_department": "acquisitions",
-  "default_sender": "acquisitions@sahjonycapitalllc.com",
-  "default_reply_to": "acquisitions@sahjonycapitalllc.com",
+  "default_sender": "acquisitions@sahjony.com",
+  "default_reply_to": "acquisitions@sahjony.com",
   "policy": {
     "business_email_only": true,
     "personal_email_fallback_allowed": false,
@@ -14,42 +14,42 @@
   },
   "departments": {
     "acquisitions": {
-      "email": "acquisitions@sahjonycapitalllc.com",
+      "email": "acquisitions@sahjony.com",
       "display_name": "SAHJONY Acquisitions",
       "purpose": ["seller outreach", "agent outreach", "foreclosure leads", "offer negotiation", "seller follow-up", "property acquisition"]
     },
     "dispositions": {
-      "email": "dispositions@sahjonycapitalllc.com",
+      "email": "dispositions@sahjony.com",
       "display_name": "SAHJONY Dispositions",
       "purpose": ["cash buyers", "investor marketing", "buyer matching", "assignment sales", "proof of funds follow-up"]
     },
     "title_closing": {
-      "email": "title@sahjonycapitalllc.com",
+      "email": "title@sahjony.com",
       "display_name": "SAHJONY Title & Closing",
       "purpose": ["title companies", "escrow", "closing coordination", "payoffs", "lien clearance", "deed and vesting verification"]
     },
     "underwriting": {
-      "email": "underwriting@sahjonycapitalllc.com",
+      "email": "underwriting@sahjony.com",
       "display_name": "SAHJONY Underwriting",
       "purpose": ["comps", "ARV", "rehab estimates", "MAO review", "deal analysis", "due diligence"]
     },
     "compliance": {
-      "email": "compliance@sahjonycapitalllc.com",
+      "email": "compliance@sahjony.com",
       "display_name": "SAHJONY Compliance",
       "purpose": ["consent", "DNC", "communication approvals", "legal review", "suppression requests", "audit evidence"]
     },
     "operations": {
-      "email": "operations@sahjonycapitalllc.com",
+      "email": "operations@sahjony.com",
       "display_name": "SAHJONY Operations",
       "purpose": ["vendors", "integrations", "workflow exceptions", "provider support", "internal operations"]
     },
     "support": {
-      "email": "support@sahjonycapitalllc.com",
+      "email": "support@sahjony.com",
       "display_name": "SAHJONY Support",
       "purpose": ["general inbound", "application support", "account support", "routing unknown requests"]
     },
     "executive": {
-      "email": "executive@sahjonycapitalllc.com",
+      "email": "executive@sahjony.com",
       "display_name": "SAHJONY Executive Office",
       "purpose": ["owner escalations", "executive approvals", "strategic partners", "high-risk exceptions"]
     }
