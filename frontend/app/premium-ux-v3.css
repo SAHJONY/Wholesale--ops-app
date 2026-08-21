@@ -9,6 +9,9 @@
 .ownerNavUtility b { font-size:12px; font-weight:700; }
 .ownerNavUtility small { color:#727e8d; font-size:9px; letter-spacing:.02em; }
 .ownerNavUtility em { color:#727e8d; font-style:normal; }
+.ownerNavUtility.ownerNavCopilot { margin-top:-6px; border-color:rgba(109,171,255,.2); background:linear-gradient(120deg,rgba(54,126,235,.12),rgba(255,195,107,.055)); }
+.ownerNavUtility.ownerNavCopilot:hover,.ownerNavUtility.ownerNavCopilot.active { border-color:rgba(125,184,255,.4); background:linear-gradient(120deg,rgba(54,126,235,.2),rgba(255,195,107,.1)); box-shadow:0 10px 30px rgba(21,76,157,.16); }
+.ownerNavUtility.ownerNavCopilot>i { width:31px; color:#c9e0ff; background:linear-gradient(135deg,rgba(77,151,255,.22),rgba(255,195,107,.12)); font-size:9px; letter-spacing:.08em; }
 
 .ownerNavSpaces { display:grid; gap:3px; }
 .ownerNavSpace { margin:0 8px; border:1px solid transparent; border-radius:15px; transition:border-color .22s ease,background .22s ease; }
@@ -32,6 +35,10 @@
 .ownerNavChildren a i { opacity:.45; font-style:normal; }
 
 .ownerTopRailStatus { text-decoration:none; padding:7px 10px; border:1px solid rgba(255,255,255,.055); border-radius:999px; background:rgba(255,255,255,.022); }
+.ownerTopRailActions { display:flex; align-items:center; gap:9px; }
+.ownerTopRailCopilot { display:flex; align-items:center; gap:8px; padding:7px 11px; border:1px solid rgba(112,173,255,.2); border-radius:999px; background:linear-gradient(120deg,rgba(55,126,232,.13),rgba(255,193,99,.06)); color:#c9e0ff; text-decoration:none; font-size:10px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+.ownerTopRailCopilot:hover { border-color:rgba(129,188,255,.4); color:#fff; background:linear-gradient(120deg,rgba(55,126,232,.22),rgba(255,193,99,.1)); }
+.ownerTopRailCopilot i { display:grid; place-items:center; width:20px; height:20px; border-radius:7px; background:rgba(102,166,255,.15); color:#dcebff; font-size:8px; font-style:normal; letter-spacing:.06em; }
 .ownerTopRailStatus i { transition:all .25s ease; }
 .ownerTopRailStatus.live { color:#99cdb2; border-color:rgba(125,230,170,.12); }
 .ownerTopRailStatus.live i { background:#7de6aa; box-shadow:0 0 0 5px rgba(125,230,170,.075),0 0 22px rgba(125,230,170,.5); }

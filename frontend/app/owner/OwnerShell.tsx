@@ -119,9 +119,12 @@ export default function OwnerShell({ children }: { children: React.ReactNode }) 
       <OwnerNavigation />
       <header className="ownerTopRail" aria-label="Workspace status">
         <div className="ownerTopRailPath"><small>SAHJONY / PRIVATE WHOLESALE OS</small><strong>{label}</strong></div>
-        <Link href="/owner/system-health" className={`ownerTopRailStatus ${health}`} title={healthDetail} aria-label={`Workspace status: ${healthLabel(health)}. ${healthDetail}`}>
-          <i aria-hidden="true"/><span>{healthLabel(health)} workspace</span>
-        </Link>
+        <div className="ownerTopRailActions">
+          <Link href="/owner/copilot" className="ownerTopRailCopilot" aria-label="Open SAHJONY Copilot"><i aria-hidden="true">AI</i><span>Open Copilot</span></Link>
+          <Link href="/owner/system-health" className={`ownerTopRailStatus ${health}`} title={healthDetail} aria-label={`Workspace status: ${healthLabel(health)}. ${healthDetail}`}>
+            <i aria-hidden="true"/><span>{healthLabel(health)} workspace</span>
+          </Link>
+        </div>
       </header>
     </> : null}
     <div className="ownerAppContent">{children}</div>

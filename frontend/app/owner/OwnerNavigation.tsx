@@ -8,6 +8,7 @@ type NavItem = { href: string; label: string; hint?: string };
 type NavSpace = { id: string; href: string; label: string; icon: string; hint: string; children?: NavItem[] };
 
 const actionInbox: NavItem = { href: '/owner/attention', label: 'Action Inbox', hint: 'Approvals, exceptions and blockers' };
+const copilot: NavItem = { href: '/owner/copilot', label: 'SAHJONY Copilot', hint: 'Ask GPT-5.6 Sol about leads, deals and next actions' };
 
 const spaces: NavSpace[] = [
   { id: 'command', href: '/owner', label: 'Command', icon: '⌂', hint: 'Revenue, pipeline, risk and next actions' },
@@ -94,6 +95,9 @@ export default function OwnerNavigation() {
       <Link href="/owner" className="ownerBrand"><span>S</span><div><b>SAHJONY</b><small>Private Wholesale OS</small></div></Link>
       <Link href={actionInbox.href} className={routeIsActive(pathname, actionInbox.href) ? 'ownerNavUtility active' : 'ownerNavUtility'} onClick={() => setOpen(false)}>
         <i aria-hidden="true">!</i><span><b>{actionInbox.label}</b><small>{actionInbox.hint}</small></span><em>→</em>
+      </Link>
+      <Link href={copilot.href} className={routeIsActive(pathname, copilot.href) ? 'ownerNavUtility ownerNavCopilot active' : 'ownerNavUtility ownerNavCopilot'} onClick={() => setOpen(false)}>
+        <i aria-hidden="true">AI</i><span><b>{copilot.label}</b><small>{copilot.hint}</small></span><em>→</em>
       </Link>
       <nav aria-label="Wholesale operating system" className="ownerNavSpaces">
         <span className="ownerNavSectionLabel">Business workflow</span>
