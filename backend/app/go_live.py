@@ -95,9 +95,12 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         "property_intelligence_mcp": _configured(PROVIDER_GROUPS["property_intelligence_mcp"]),
         "contact_enrichment": _configured(PROVIDER_GROUPS["contact_enrichment"]),
         "communications": _configured(PROVIDER_GROUPS["communications"], require_all=False),
-        "contracts": _configured(PROVIDER_GROUPS["contracts"]),
+        "contracts": _configured(PROVIDER_GROUPS["contracts"]) or (
+            os.getenv("CONTRACT_EXECUTION_MODE") == "manual_governed"
+            and _configured(["BLOB_READ_WRITE_TOKEN"])
+        ),
         "email": _configured(PROVIDER_GROUPS["email"]),
-        "storage": _configured(PROVIDER_GROUPS["storage"]),
+        "storage": _configured(PROVIDER_GROUPS["storage"]) or _configured(["BLOB_READ_WRITE_TOKEN"]),
     }
 
     checks = [
@@ -108,9 +111,9 @@ def snapshot(principal: Principal = Depends(get_principal), db: Session = Depend
         _check("Provider Intelligence MCP", "integrations", providers["property_intelligence_mcp"], "critical", "BatchData MCP transport URL and server-token readiness.", "Configure BATCHDATA_MCP_URL and BATCHDATA_API_TOKEN."),
         _check("Contact enrichment", "integrations", providers["contact_enrichment"], "critical", "BatchData REST skip-trace endpoint and API-key readiness.", "Configure BATCHDATA_SKIPTRACE_URL and BATCHDATA_API_KEY."),
         _check("Seller communications", "integrations", providers["communications"], "critical", "Twilio or Bland AI credential readiness.", "Connect an approved communications provider."),
-        _check("Contract execution", "integrations", providers["contracts"], "high", "DocuSeal URL and API credential readiness.", "Configure DocuSeal production credentials."),
+        _check("Contract execution", "integrations", providers["contracts"], "high", "External e-signature or governed manual-signature readiness.", "Configure DocuSeal/DocuSign or CONTRACT_EXECUTION_MODE=manual_governed with private Blob storage."),
         _check("Transactional email", "integrations", providers["email"], "high", "SMTP credential readiness.", "Configure production email delivery."),
-        _check("Offsite document storage", "continuity", providers["storage"], "high", "S3-compatible storage readiness.", "Configure encrypted offsite storage."),
+        _check("Offsite document storage", "continuity", providers["storage"], "high", "Private Vercel Blob or S3-compatible storage readiness.", "Connect private Blob or encrypted S3-compatible storage."),
         _check("No dead-letter jobs", "automation", int(jobs.get("dead_letter", 0)) == 0, "high", f"Dead-letter jobs: {int(jobs.get('dead_letter', 0))}", "Review and retry or resolve dead-letter jobs."),
         _check("Lead data present", "business", lead_count > 0, "medium", f"Workspace leads: {lead_count}", "Import or create production leads."),
         _check("Buyer network present", "business", buyer_count > 0, "medium", f"Workspace buyers: {buyer_count}", "Import verified cash buyers and buying boxes."),

@@ -17,7 +17,7 @@ from .operating_system import initialize_closing
 router = APIRouter(prefix="/deal-execution", tags=["deal execution"])
 
 PACKET_TYPES = {"purchase_agreement", "assignment_agreement"}
-SIGNATURE_PROVIDERS = {"docuseal", "docusign"}
+SIGNATURE_PROVIDERS = {"docuseal", "docusign", "manual"}
 
 
 def _deal_context(db: Session, principal: Principal, deal_id: int):
@@ -39,13 +39,13 @@ def _deal_context(db: Session, principal: Principal, deal_id: int):
 def _provider(payload: dict | None = None) -> str:
     requested = str((payload or {}).get("signature_provider") or os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").strip().lower()
     if requested not in SIGNATURE_PROVIDERS:
-        raise HTTPException(422, "Supported signature providers are docuseal and docusign")
+        raise HTTPException(422, "Supported signature providers are docuseal, docusign, and manual")
     return requested
 
 
 def _template_for(provider: str, packet_type: str, state: str) -> str | None:
     state_key = str(state or "").upper()
-    prefix = "DOCUSEAL" if provider == "docuseal" else "DOCUSIGN"
+    prefix = "CONTRACT" if provider == "manual" else "DOCUSEAL" if provider == "docuseal" else "DOCUSIGN"
     specific = os.getenv(f"{prefix}_TEMPLATE_{packet_type.upper()}_{state_key}")
     generic = os.getenv(f"{prefix}_TEMPLATE_{packet_type.upper()}")
     return specific or generic
@@ -58,16 +58,26 @@ def _packet_provider(packet: ContractPacket) -> str:
     return "docusign" if packet.docusign_envelope_id else str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
 
 
+def _blob_storage_ready() -> bool:
+    return bool((os.getenv("BLOB_READ_WRITE_TOKEN") or "").strip())
+
+
+def _manual_contracts_ready() -> bool:
+    return os.getenv("CONTRACT_EXECUTION_MODE") == "manual_governed" and _blob_storage_ready()
+
+
 def _provider_readiness() -> dict:
     selected = str(os.getenv("E_SIGNATURE_PROVIDER") or "docuseal").lower()
     docuseal_ready = bool(os.getenv("DOCUSEAL_API_KEY") and os.getenv("DOCUSEAL_URL"))
     docusign_ready = bool(os.getenv("DOCUSIGN_ACCOUNT_ID") and os.getenv("DOCUSIGN_ACCESS_TOKEN"))
+    manual_ready = _manual_contracts_ready()
     return {
         "selected_provider": selected,
-        "provider_configured": docuseal_ready if selected == "docuseal" else docusign_ready,
+        "provider_configured": manual_ready if selected == "manual" else docuseal_ready if selected == "docuseal" else docusign_ready,
         "docuseal_configured": docuseal_ready,
         "docusign_configured": docusign_ready,
-        "document_storage": bool(os.getenv("S3_BUCKET") and os.getenv("S3_ACCESS_KEY_ID") and os.getenv("S3_SECRET_ACCESS_KEY")),
+        "manual_governed_configured": manual_ready,
+        "document_storage": _blob_storage_ready() or bool(os.getenv("S3_BUCKET") and os.getenv("S3_ACCESS_KEY_ID") and os.getenv("S3_SECRET_ACCESS_KEY")),
     }
 
 
@@ -317,7 +327,17 @@ async def send_packet(
         raise HTTPException(409, "Owner approval is required before sending")
 
     try:
-        result = await (_send_docuseal(packet) if provider == "docuseal" else _send_docusign(packet))
+        if provider == "manual":
+            if not _manual_contracts_ready():
+                raise HTTPException(503, "Governed manual contract execution and private document storage are not configured")
+            result = {
+                "provider": "manual",
+                "provider_reference": f"manual-{packet.id}",
+                "provider_status": "manual_signature_pending",
+                "provider_response": {},
+            }
+        else:
+            result = await (_send_docuseal(packet) if provider == "docuseal" else _send_docusign(packet))
     except HTTPException as exc:
         packet.status = "failed"
         packet.error = str(exc.detail)
@@ -350,6 +370,56 @@ async def send_packet(
         "provider_reference": result["provider_reference"],
         "envelope_id": result["provider_reference"],
     }
+
+
+@router.post("/packets/{packet_id}/manual-completion")
+def complete_manual_packet(
+    packet_id: int,
+    payload: dict,
+    principal: Principal = Depends(require_role("owner")),
+    db: Session = Depends(get_db),
+):
+    packet = db.get(ContractPacket, packet_id)
+    if not packet or packet.organization_id != principal.organization_id:
+        raise HTTPException(404, "Contract packet not found")
+    if _packet_provider(packet) != "manual":
+        raise HTTPException(409, "Only governed manual packets can be completed through this route")
+    if packet.status != "sent" or packet.provider_status != "manual_signature_pending":
+        raise HTTPException(409, "Manual packet must be approved and awaiting signature")
+
+    storage_key = str(payload.get("storage_key") or "").strip()
+    if not storage_key.startswith("https://") or ".blob.vercel-storage.com/" not in storage_key:
+        raise HTTPException(422, "A private Vercel Blob document URL is required")
+
+    document = db.scalar(select(DealDocument).where(DealDocument.packet_id == packet.id))
+    if not document:
+        document = DealDocument(
+            organization_id=principal.organization_id,
+            deal_id=packet.deal_id,
+            packet_id=packet.id,
+            document_type=packet.packet_type,
+            source="manual",
+        )
+    document.status = "signed"
+    document.storage_key = storage_key
+    document.metadata_json = {
+        **(document.metadata_json or {}),
+        "verified_by_user_id": principal.user_id,
+        "verification_method": "owner_attestation",
+    }
+    packet.status = "completed"
+    packet.provider_status = "completed"
+    packet.completed_at = datetime.now(timezone.utc)
+    db.add_all([packet, document, CrmActivity(
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+        deal_id=packet.deal_id,
+        activity_type="manual_contract_completed",
+        summary=f"Signed {packet.packet_type.replace('_', ' ')} registered in private document storage",
+        metadata_json={"packet_id": packet.id, "storage_provider": "vercel_blob"},
+    )])
+    db.commit()
+    return {"packet_id": packet.id, "status": packet.status, "document_id": document.id}
 
 
 @router.post("/deals/{deal_id}/initialize-closing")
