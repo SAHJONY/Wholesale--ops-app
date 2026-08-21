@@ -19,6 +19,8 @@ router = APIRouter(prefix="/openai-copilot", tags=["OpenAI wholesale copilot"])
 
 SYSTEM_PROMPT = """You are SAHJONY Wholesale Copilot, an AI operating inside a supervised real-estate wholesale operating system.
 
+Operate as institutional-grade acquisition intelligence across sourcing, verification, underwriting, title risk, negotiation preparation, disposition, and closing readiness. Resolve the complete request, internally evaluate your work for evidence quality, completeness, economics, risk, and actionability, and improve decisions using only measured outcomes and explicit operator feedback.
+
 Your job is to find, verify, analyze, prioritize, and explain residential wholesale opportunities nationwide using the tools available in this runtime.
 
 Non-negotiable rules:
@@ -31,6 +33,11 @@ Non-negotiable rules:
 - Do not send offers, sign contracts, move money, publish mass outreach, or make legal/financial commitments. Those actions require explicit human approval through application gates.
 - Prefer individual-owner single-family opportunities when the operator's stated buy box requires that filter.
 - For material recommendations, identify the evidence used, important unknowns, and the next checkable action.
+- When researching leads, return complete addresses with a matching public source for every candidate so the governed importer can stage them.
+- A public listing is a research candidate, not a verified seller lead or offer-ready deal.
+- Preserve conflicting facts, freshness dates, source provenance, and jurisdiction boundaries.
+- Treat prior feedback and closed/dead outcomes as learning evidence, not as universal truth. Never treat repeated AI output as verification.
+- Self-improvement may adjust future analysis through stored feedback and measured outcomes. It may not rewrite code, modify policies, weaken gates, or claim model-weight training.
 
 Available internal functions expose workspace facts and the source-grounded Deal Factory. Use them before assuming anything about properties already in SAHJONY.
 """
@@ -349,6 +356,69 @@ def import_candidates(
     ))
     db.commit()
     return {"created_count":len(created), "duplicate_count":len(duplicates), "rejected_count":len(rejected), "records":created, "duplicates":duplicates, "rejected":rejected, "status":"verification_required"}
+
+
+@router.get("/learning-context")
+def learning_context(
+    principal: Principal = Depends(require_role("acquisitions")),
+    db: Session = Depends(get_db),
+):
+    activities = list(db.scalars(select(CrmActivity).where(
+        CrmActivity.organization_id == principal.organization_id,
+        CrmActivity.activity_type.in_(["openai_copilot_feedback", "openai_copilot_candidates_staged"]),
+    ).order_by(CrmActivity.created_at.desc()).limit(40)).all())
+    feedback = []
+    imports = []
+    for activity in activities:
+        metadata = activity.metadata_json or {}
+        if activity.activity_type == "openai_copilot_feedback":
+            feedback.append({
+                "rating":metadata.get("rating"),
+                "correction":metadata.get("correction"),
+                "response_id":metadata.get("response_id"),
+                "created_at":activity.created_at.isoformat(),
+            })
+        else:
+            imports.append({
+                "created":metadata.get("created", 0),
+                "duplicates":metadata.get("duplicates", 0),
+                "rejected":metadata.get("rejected", 0),
+                "created_at":activity.created_at.isoformat(),
+            })
+    return {
+        "learning_mode":"governed_outcome_feedback",
+        "feedback":feedback[:20],
+        "candidate_import_outcomes":imports[:20],
+        "rules":[
+            "Explicit operator corrections outrank inferred preferences.",
+            "Repeated AI output is not evidence.",
+            "No policy, approval, or safety gate may be changed by learning context.",
+        ],
+    }
+
+
+@router.post("/feedback")
+def copilot_feedback(
+    payload: dict,
+    principal: Principal = Depends(require_role("acquisitions")),
+    db: Session = Depends(get_db),
+):
+    rating = str(payload.get("rating") or "").strip().lower()
+    if rating not in {"useful", "not_useful", "corrected"}:
+        raise HTTPException(422, "rating must be useful, not_useful, or corrected")
+    correction = str(payload.get("correction") or "").strip()[:2000]
+    if rating == "corrected" and not correction:
+        raise HTTPException(422, "correction is required when rating is corrected")
+    response_id = str(payload.get("response_id") or "").strip()[:200]
+    db.add(CrmActivity(
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+        activity_type="openai_copilot_feedback",
+        summary=f"Copilot response rated {rating}",
+        metadata_json={"rating":rating, "correction":correction or None, "response_id":response_id},
+    ))
+    db.commit()
+    return {"saved":True, "rating":rating, "learning_mode":"governed_outcome_feedback"}
 
 
 @router.post("/chat")

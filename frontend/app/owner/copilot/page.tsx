@@ -18,7 +18,7 @@ type Status = {
 };
 
 type ImportResult={created_count:number;duplicate_count:number;rejected_count:number;status:string};
-type Message = { role: 'user' | 'assistant'; text: string; tools?: string[]; sources?: string[]; importResult?:ImportResult; importing?:boolean };
+type Message = { role: 'user' | 'assistant'; text: string; responseId?:string; tools?: string[]; sources?: string[]; importResult?:ImportResult; importing?:boolean; feedback?:string };
 
 const suggestions = [
   'Find the strongest single-family opportunities already in my Deal Factory and explain what is missing before I can call them real $10K+ deals.',
@@ -63,6 +63,7 @@ export default function CopilotPage() {
       setMessages(current => [...current, {
         role: 'assistant',
         text: data.answer || 'The Copilot returned no text.',
+        responseId:data.response_id,
         tools: (data.tools_used || []).map((item: { name: string }) => item.name),
         sources: [
           ...(data.web_sources || []).map((item: { url: string }) => item.url),
@@ -83,6 +84,12 @@ export default function CopilotPage() {
   }
 
   function submit(event: FormEvent) { event.preventDefault(); void send(input); }
+
+  async function rate(responseId:string|undefined,rating:'useful'|'not_useful'){
+    if(!responseId)return;
+    try{const response=await fetch('/api/backend/openai-copilot/feedback',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({response_id:responseId,rating})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.detail||`Feedback failed (${response.status})`);setMessages(current=>current.map(item=>item.responseId===responseId?{...item,feedback:rating}:item))}
+    catch(err){setError(err instanceof Error?err.message:'Unable to save Copilot feedback')}
+  }
 
   return <main className={styles.page}>
     <header className={styles.hero}>
@@ -118,6 +125,7 @@ export default function CopilotPage() {
             {!!message.tools?.length && <small>Tools: {Array.from(new Set(message.tools)).join(' · ')}</small>}
             {message.importing&&<div style={{marginTop:12,padding:12,border:'1px solid rgba(212,175,55,.32)',borderRadius:11,color:'#f4df9a'}}>Saving sourced candidates and checking duplicates…</div>}
             {message.importResult&&<div style={{marginTop:12,padding:12,border:'1px solid rgba(212,175,55,.32)',borderRadius:11,color:'#f4df9a'}}><b>{message.importResult.created_count} new lead{message.importResult.created_count===1?'':'s'} saved</b><small style={{display:'block',marginTop:4}}>{message.importResult.duplicate_count} duplicate · {message.importResult.rejected_count} insufficient evidence · Verification required before promotion</small></div>}
+            {message.role==='assistant'&&message.responseId&&<div style={{display:'flex',gap:8,marginTop:10}}><button type="button" onClick={()=>void rate(message.responseId,'useful')} disabled={!!message.feedback}>{message.feedback==='useful'?'✓ Useful':'Useful'}</button><button type="button" onClick={()=>void rate(message.responseId,'not_useful')} disabled={!!message.feedback}>{message.feedback==='not_useful'?'✓ Needs improvement':'Needs improvement'}</button></div>}
             {!!message.sources?.length && <details><summary>{message.sources.length} source{message.sources.length === 1 ? '' : 's'}</summary>{message.sources.map(source => <span key={source}>{source}</span>)}</details>}
           </article>)}
           {busy && <div className={styles.thinking}>Researching and analyzing with bounded tools…</div>}
