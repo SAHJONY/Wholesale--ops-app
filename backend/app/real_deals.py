@@ -127,7 +127,7 @@ def _serialize(deal: Deal, prop: Property | None, lead: Lead | None) -> dict:
     source_confidence = 0.0
     if sources:
         source_confidence = round(sum(float(item.get("confidence") or 0) for item in sources) / len(sources), 3)
-    return {
+    record = {
         "deal_id": deal.id,
         "lead_id": lead.id if lead else None,
         "property_id": prop.id if prop else deal.property_id,
@@ -166,14 +166,63 @@ def _serialize(deal: Deal, prop: Property | None, lead: Lead | None) -> dict:
         "created_at": deal.created_at,
         "updated_at": deal.updated_at,
     }
+    record["gate"] = _verification_gate(record)
+    return record
+
+
+def _verification_gate(record: dict, minimum_assignment_fee: float | None = None) -> dict:
+    owner = record.get("owner") or {}
+    deed = record.get("deed") or {}
+    prop = record.get("property") or {}
+    underwriting = record.get("underwriting") or {}
+    verification = record.get("verification") or {}
+    sources = record.get("sources") or []
+    communication_gate = ((record.get("metadata") or {}).get("communication_gate") or {})
+    minimum = float(minimum_assignment_fee if minimum_assignment_fee is not None else underwriting.get("minimum_assignment_fee") or 10_000)
+    spread = float(underwriting.get("projected_assignment_fee") or 0)
+    owner_verified = bool(owner.get("verified") or verification.get("owner_verified") or communication_gate.get("seller_authority_verified"))
+    title_verified = bool(
+        verification.get("title_verified")
+        or deed.get("instrument")
+        or (deed.get("parcel_id") and verification.get("owner_verified"))
+    )
+    blockers: list[str] = []
+    if (owner.get("type") or "unknown") != "individual":
+        blockers.append("individual_owner_not_confirmed")
+    if not owner_verified:
+        blockers.append("seller_authority_not_verified")
+    if not title_verified:
+        blockers.append("title_or_deed_evidence_missing")
+    if not sources:
+        blockers.append("source_evidence_missing")
+    if not prop.get("arv"):
+        blockers.append("arv_missing")
+    if prop.get("repairs") is None:
+        blockers.append("repair_scope_missing")
+    if not underwriting.get("target_contract_price"):
+        blockers.append("contract_target_missing")
+    if not underwriting.get("target_buyer_price"):
+        blockers.append("buyer_target_missing")
+    if spread < minimum:
+        blockers.append("assignment_spread_below_minimum")
+    return {
+        "cleared": not blockers,
+        "blockers": blockers,
+        "owner_verified": owner_verified,
+        "title_verified": title_verified,
+        "source_count": len(sources),
+        "minimum_assignment_fee": minimum,
+        "projected_assignment_fee": spread,
+    }
 
 
 @router.get("")
 def list_real_deals(
     state: str | None = Query(default=None, min_length=2, max_length=2),
     property_type: str = Query(default="single_family"),
-    owner_type: str = Query(default="individual"),
+    owner_type: str | None = Query(default=None),
     min_assignment_fee: float = Query(default=10_000, ge=0),
+    verified_only: bool = Query(default=False),
     principal: Principal = Depends(get_principal),
     db: Session = Depends(get_db),
 ):
@@ -187,6 +236,7 @@ def list_real_deals(
         prop = db.get(Property, deal.property_id)
         lead = db.get(Lead, prop.lead_id) if prop else None
         record = _serialize(deal, prop, lead)
+        record["gate"] = _verification_gate(record, min_assignment_fee)
         if owner_type and (record["owner"].get("type") or "unknown") != owner_type:
             continue
         if property_type and record["property"].get("property_type") != property_type:
@@ -195,6 +245,8 @@ def list_real_deals(
             continue
         if float(record["underwriting"]["projected_assignment_fee"] or 0) < min_assignment_fee:
             continue
+        if verified_only and not record["gate"]["cleared"]:
+            continue
         output.append(record)
     return {
         "filters": {
@@ -202,6 +254,7 @@ def list_real_deals(
             "property_type": property_type,
             "owner_type": owner_type,
             "min_assignment_fee": min_assignment_fee,
+            "verified_only": verified_only,
         },
         "count": len(output),
         "deals": output,

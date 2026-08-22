@@ -30,6 +30,7 @@ type RealDeal = {
     risk_score?: number;
   };
   next_action?: string;
+  gate?: { cleared?: boolean; blockers?: string[]; owner_verified?: boolean; title_verified?: boolean; source_count?: number };
 };
 
 type DealDossier = {
@@ -100,10 +101,10 @@ export default function RealDealsPage() {
         property_type: 'single_family',
         owner_type: 'individual',
         min_assignment_fee: '10000',
+        verified_only: 'true',
       });
       const activeQuery = new URLSearchParams({
         property_type: 'single_family',
-        owner_type: 'unknown',
         min_assignment_fee: '0',
       });
 
@@ -128,7 +129,6 @@ export default function RealDealsPage() {
       setOpportunities(
         dossiers
           .filter((item): item is DealDossier => Boolean(item))
-          .filter((item) => item.deal?.metadata?.golden_deal === true)
           .sort((a, b) => Number(b.deal.id || 0) - Number(a.deal.id || 0)),
       );
     } catch (err) {
@@ -254,7 +254,7 @@ export default function RealDealsPage() {
           <div>
             <span>VERIFIED PIPELINE</span>
             <h2>Verified real wholesale deals</h2>
-            <p>These have passed the strict individual-owner and minimum assignment-spread intake gate.</p>
+            <p>These have passed owner authority, title/deed evidence, source, underwriting and minimum assignment-spread gates.</p>
           </div>
         </div>
         <div className={styles.grid}>
