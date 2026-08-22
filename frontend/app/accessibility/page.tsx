@@ -1,0 +1,5 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Accessibility Statement' };
+
+export default function AccessibilityPage(){return <main className="publicShell"><nav className="publicNav"><a className="publicBrand" href="/">SAHJONY<small>REAL ESTATE OPERATIONS</small></a><a className="loginPill" href="/contact">Contact</a></nav><article className="publicPageHeader legalPage"><span className="sectionEyebrow">ACCESSIBILITY</span><h1>Access for every visitor.</h1><p>SAHJONY CAPITAL LLC aims to make its website usable with keyboards, screen readers, zoom, high-contrast settings, and common assistive technologies. We continuously review forms, navigation, labels, focus behavior, and readable contrast.</p><h2>Need assistance?</h2><p>If any page, form, or document prevents you from accessing information or submitting an opportunity, use our <a className="backLink" href="/contact">contact form</a> and describe the page and assistance needed. We will offer a reasonable alternative communication method.</p><p className="publicNote">Accessibility feedback is treated as an operational issue and routed for review.</p></article></main>}

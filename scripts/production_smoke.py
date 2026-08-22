@@ -7,7 +7,7 @@ import argparse
 import json
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 OWNER_ROUTES = (
     "/owner", "/owner/acquisition", "/owner/acquisition-automation", "/owner/activate",
@@ -21,10 +21,21 @@ OWNER_ROUTES = (
 )
 
 
-def fetch(url: str) -> tuple[int, bytes]:
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def fetch(url: str, *, follow_redirects: bool = True) -> tuple[int, bytes, dict[str, str]]:
     request = Request(url, headers={"User-Agent": "sahjony-production-smoke/1.0"})
-    with urlopen(request, timeout=15) as response:
-        return response.status, response.read()
+    opener = build_opener() if follow_redirects else build_opener(NoRedirect)
+    try:
+        with opener.open(request, timeout=15) as response:
+            return response.status, response.read(), dict(response.headers.items())
+    except HTTPError as exc:
+        if not follow_redirects and exc.code in {301, 302, 303, 307, 308}:
+            return exc.code, exc.read(), dict(exc.headers.items())
+        raise
 
 
 def main() -> int:
@@ -34,18 +45,27 @@ def main() -> int:
     args = parser.parse_args()
     failures: list[str] = []
 
-    checks = [("api health", f"{args.api_url.rstrip('/')}/health")]
-    checks.extend((f"owner page {route}", f"{args.frontend_url.rstrip('/')}{route}") for route in OWNER_ROUTES)
-    for label, url in checks:
+    try:
+        status, _, _ = fetch(f"{args.api_url.rstrip('/')}/health")
+        if status != 200:
+            failures.append(f"api health: HTTP {status}")
+    except (HTTPError, URLError, TimeoutError) as exc:
+        failures.append(f"api health: {exc}")
+
+    protected_routes = 0
+    for route in OWNER_ROUTES:
         try:
-            status, _ = fetch(url)
-            if status != 200:
-                failures.append(f"{label}: HTTP {status}")
+            status, _, headers = fetch(f"{args.frontend_url.rstrip('/')}{route}", follow_redirects=False)
+            location = headers.get("Location", "")
+            if status != 307 or not location.startswith("/login?returnTo="):
+                failures.append(f"owner protection {route}: HTTP {status}, location={location!r}")
+            else:
+                protected_routes += 1
         except (HTTPError, URLError, TimeoutError) as exc:
-            failures.append(f"{label}: {exc}")
+            failures.append(f"owner protection {route}: {exc}")
 
     try:
-        status, body = fetch(f"{args.api_url.rstrip('/')}/openapi.json")
+        status, body, _ = fetch(f"{args.api_url.rstrip('/')}/openapi.json")
         schema = json.loads(body)
         operations = sum(len({method for method in methods if method.lower() in {"get", "post", "put", "patch", "delete"}}) for methods in schema["paths"].values())
         if status != 200 or operations < 1:
@@ -54,7 +74,7 @@ def main() -> int:
         failures.append(f"OpenAPI: {exc}")
         operations = 0
 
-    print(json.dumps({"ok": not failures, "owner_pages": len(OWNER_ROUTES), "api_operations": operations, "failures": failures}, indent=2))
+    print(json.dumps({"ok": not failures, "owner_routes_protected": protected_routes, "api_operations": operations, "failures": failures}, indent=2))
     return 1 if failures else 0
 
 

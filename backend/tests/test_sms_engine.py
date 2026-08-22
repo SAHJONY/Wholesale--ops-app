@@ -6,6 +6,7 @@ being texted after asking not to be.
 """
 
 import os
+from pathlib import Path
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_wholesale_ops.db")
 os.environ.setdefault("SMS_BUSINESS_NAME", "SAHJONY Capital")
@@ -203,6 +204,6 @@ def test_the_frequency_cap_counts_real_sends(tmp_path):
 def test_the_dispatch_path_writes_a_send_row():
     # The gap was structural: the cap read a log nothing wrote to. Assert the
     # dispatcher is the thing that writes it, so the two cannot drift apart.
-    source = open("app/outbound_gateway.py").read()
+    source = (Path(__file__).resolve().parents[1] / "app/outbound_gateway.py").read_text()
     assert "SmsMessage(" in source, "outbound dispatch must log sends"
     assert 'direction="outbound"' in source

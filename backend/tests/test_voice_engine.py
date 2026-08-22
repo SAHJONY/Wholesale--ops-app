@@ -7,6 +7,7 @@ compliance ticket.
 """
 
 import os
+from pathlib import Path
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_wholesale_ops.db")
 os.environ.setdefault("BLAND_AI_API_KEY", "test-key")
@@ -149,7 +150,7 @@ def test_asking_never_to_be_called_again_is_a_request():
 def test_recording_stays_off_by_default_in_the_dispatcher():
     # The dispatcher hardcodes record: False. If that ever becomes opt-out
     # rather than opt-in, every call in an all-party state is exposed.
-    source = open("app/outbound_gateway.py").read()
+    source = (Path(__file__).resolve().parents[1] / "app/outbound_gateway.py").read_text()
     assert '"record": False' in source
 
 
