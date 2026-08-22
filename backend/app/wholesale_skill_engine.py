@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import Principal, get_principal
+from .auth import Principal, get_principal, require_role
 from .auth_models import WorkspaceEntity
 from .buyer_intelligence import rank_buyers
 from .database import get_db
@@ -414,7 +414,7 @@ def skills(principal: Principal = Depends(get_principal)):
     return {
         "organization_id": principal.organization_id,
         "generated_at": datetime.now(timezone.utc),
-        "skills": SKILLS,
+        "skills": [{**skill, "active": True, "execution_mode": "supervised_read_only"} for skill in SKILLS],
         "policy": {
             "material_fact_traceability_target": 0.95,
             "invented_comps_allowed": False,
@@ -422,6 +422,40 @@ def skills(principal: Principal = Depends(get_principal)):
             "autonomous_legal_financial_commitments": False,
             "human_approval_required_for_offers_contracts_payments": True,
         },
+    }
+
+
+def _skill_output(skill_id: str, analysis: dict[str, Any]) -> dict[str, Any]:
+    prop = analysis["property"]
+    outputs: dict[str, Any] = {
+        "nationwide-source-discovery": {"jurisdiction": {"city": prop.get("city"), "state": prop.get("state"), "zip_code": prop.get("zip_code")}, "official_records_workspace": "/owner/live-data", "status": "official_source_discovery_available", "requires_human_source_validation": True},
+        "owner-deed-verification": {"owner": analysis["owner"], "deed": analysis["deed"], "conflicts": analysis["evidence"]["open_conflicts"], "sources": analysis["evidence"]["sources"]},
+        "distress-stacking": analysis["distress"],
+        "comparable-sales-underwriting": {"arv": prop.get("arv"), "source_count": analysis["evidence"]["source_count"], "warnings": [gap for gap in analysis["evidence"]["missing"] if "ARV" in gap or "comp" in gap.lower()], "invented_comps_allowed": False},
+        "rehab-risk": {"repair_estimate": prop.get("repairs"), "inspection_required": True, "unknown_systems": ["roof", "HVAC", "electrical", "plumbing", "structure", "permits"] if prop.get("repairs") is None else []},
+        "mao-assignment": analysis["economics"],
+        "buyer-match": {"matches": analysis["buyers"], "match_count": len(analysis["buyers"]), "proof_of_funds_review_required": True},
+        "title-closing-gate": {"cleared": not any(gap in analysis["evidence"]["missing"] for gap in ["verified owner of record", "parcel/APN", "latest deed/transfer date"]) and not analysis["evidence"]["open_conflicts"], "blocking_items": analysis["evidence"]["missing"], "human_approval_required": True},
+        "deal-ranking": {"evidence_score": analysis["evidence"]["score"], "risk_score": analysis["decision"]["risk_score"], "ready_for_promotion": analysis["decision"]["ready_for_promotion"], "next_best_action": analysis["decision"]["next_action"]},
+    }
+    return outputs[skill_id]
+
+
+@router.post("/skills/{skill_id}/run")
+def run_skill(skill_id: str, property_id: int, principal: Principal = Depends(require_role("acquisitions")), db: Session = Depends(get_db)):
+    skill = next((item for item in SKILLS if item["id"] == skill_id), None)
+    if not skill:
+        raise HTTPException(404, "Wholesale skill not found")
+    lead_ids = set(_ids(db, principal.organization_id, "lead"))
+    prop = db.get(Property, property_id)
+    if not prop or prop.lead_id not in lead_ids:
+        raise HTTPException(404, "Property not found in this workspace")
+    analysis = _analysis(db, principal, prop, _buyer_rows(db, principal))
+    return {
+        "skill": {**skill, "active": True}, "property_id": property_id,
+        "executed_at": datetime.now(timezone.utc), "execution_mode": "supervised_read_only",
+        "output": _skill_output(skill_id, analysis),
+        "safety": {"database_mutated": False, "outreach_sent": False, "offer_created": False, "contract_created": False, "title_status_changed": False, "human_approval_preserved": True},
     }
 
 

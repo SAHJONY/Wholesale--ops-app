@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './deal-factory.module.css';
 
-type Skill = { id: string; name: string; risk: string; purpose?: string; inputs?: string[]; outputs?: string[] };
+type Skill = { id: string; name: string; risk: string; purpose?: string; inputs?: string[]; outputs?: string[]; active?: boolean; execution_mode?: string };
 type Opportunity = {
   property: { id: number; address: string; city: string; state: string; zip_code: string; property_type: string; asking_price?: number; arv?: number; repairs?: number; distress_signals?: string[] };
   owner: { name?: string; type: string; mailing_address?: string; verification_status: string; confidence: number };
@@ -39,11 +39,15 @@ export default function DealFactoryPage() {
   const [state, setState] = useState('');
   const [onlyReady, setOnlyReady] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  const [runningSkill, setRunningSkill] = useState('');
+  const [skillResult, setSkillResult] = useState<{name:string;output:Record<string,unknown>}|null>(null);
 
-  const request = useCallback(async (path: string) => {
+  const request = useCallback(async (path: string, options: RequestInit = {}) => {
     const response = await fetch(`/api/backend${path}`, {
+      ...options,
       cache: 'no-store',
       credentials: 'same-origin',
+      headers: {'Content-Type':'application/json', ...(options.headers || {})},
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
@@ -104,6 +108,16 @@ export default function DealFactoryPage() {
 
   const spread = useMemo(() => opportunities.reduce((sum, item) => sum + Math.max(0, Number(item.economics.projected_screening_spread || 0)), 0), [opportunities]);
   const selectedDeal = opportunities.find(item => item.property.id === selected) || null;
+
+  async function runSkill(skill: Skill) {
+    if (!selectedDeal) { setError('Select an opportunity before running a skill.'); return; }
+    setRunningSkill(skill.id); setError(''); setSkillResult(null);
+    try {
+      const result = await request(`/wholesale-os/skills/${skill.id}/run?property_id=${selectedDeal.property.id}`, {method:'POST'});
+      setSkillResult({name: skill.name, output: result.output || {}});
+    } catch (err) { setError(err instanceof Error ? err.message : 'Skill execution failed'); }
+    finally { setRunningSkill(''); }
+  }
 
   return <main className={styles.page}>
     <header className={styles.hero}>
@@ -191,7 +205,8 @@ export default function DealFactoryPage() {
 
     <section className={styles.skillsPanel}>
       <div className={styles.sectionHeader}><div><span>WHOLESALE SKILLS</span><h2>Built-in analysis capabilities</h2><p>These skills compose the same workflow used to find and evaluate real deals, but every high-risk action remains supervised.</p></div></div>
-      <div className={styles.skillGrid}>{skills.map((skill, index) => <article key={skill.id}><span>{String(index + 1).padStart(2, '0')}</span><h3>{skill.name}</h3><p>{skill.purpose || 'Source-grounded wholesale operating capability.'}</p><footer>{label(skill.risk)}</footer></article>)}</div>
+      <div className={styles.skillGrid}>{skills.map((skill, index) => <article key={skill.id}><span>{String(index + 1).padStart(2, '0')} · {skill.active?'ACTIVE':'UNAVAILABLE'}</span><h3>{skill.name}</h3><p>{skill.purpose || 'Source-grounded wholesale operating capability.'}</p><button onClick={()=>void runSkill(skill)} disabled={!selectedDeal||!!runningSkill}>{runningSkill===skill.id?'Running…':'Run skill'}</button><footer>{label(skill.risk)} · Supervised</footer></article>)}</div>
+      {skillResult&&<div className={styles.skillResult}><span>SKILL RESULT</span><h3>{skillResult.name}</h3><pre>{JSON.stringify(skillResult.output,null,2)}</pre></div>}
     </section>
   </main>;
 }
