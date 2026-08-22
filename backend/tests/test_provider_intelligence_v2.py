@@ -33,6 +33,11 @@ def test_provider_intelligence_v4_routes_and_contracts_present():
     assert 'optional_not_configured' in backend
     assert 'OFFICIAL PUBLIC RECORDS' in page
     assert 'Open official source' in page
+    assert '@router.get("/public-record-sources")' in backend
+    assert 'jurisdiction_public_record_sources' in backend
+    assert 'Any U.S. county verification' in page
+    assert 'Find official records' in page
+    assert "'public-record-sources'" in gateway
 
 
 def test_provider_verification_does_not_immediately_erase_verified_state():

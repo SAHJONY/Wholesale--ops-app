@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -69,6 +71,50 @@ class OrchestrationRequest(BaseModel):
 
 class ProviderVerificationRequest(BaseModel):
     provider_id: str
+
+
+def _county_name(value: str) -> str:
+    return re.sub(r"\s+(county|parish|borough|census area|municipality)$", "", value.strip(), flags=re.IGNORECASE).strip()
+
+
+def jurisdiction_public_record_sources(state: str, county: str) -> list[dict[str, Any]]:
+    normalized_state = state.strip().upper()
+    normalized_county = _county_name(county)
+    if not re.fullmatch(r"[A-Z]{2}", normalized_state):
+        raise HTTPException(422, "State must be a two-letter US postal code")
+    if len(normalized_county) < 2:
+        raise HTTPException(422, "County or county-equivalent name is required")
+    registered = [
+        source for source in PUBLIC_RECORD_SOURCES
+        if source["state"] == normalized_state and _county_name(source["county"]).lower() == normalized_county.lower()
+    ]
+    if registered:
+        return registered
+    base = f"{normalized_county} County {normalized_state}"
+    return [
+        {
+            "id": f"{normalized_state.lower()}_{re.sub(r'[^a-z0-9]+', '_', normalized_county.lower()).strip('_')}_assessor_discovery",
+            "provider_id": "county_assessor",
+            "state": normalized_state,
+            "county": normalized_county,
+            "name": f"Find {normalized_county} County Assessor / Property Appraiser",
+            "url": f"https://www.google.com/search?q={quote_plus('site:.gov ' + base + ' property assessor appraiser parcel search')}",
+            "access_mode": "official_source_discovery",
+            "verification_status": "human_review_required",
+            "discovery_only": True,
+        },
+        {
+            "id": f"{normalized_state.lower()}_{re.sub(r'[^a-z0-9]+', '_', normalized_county.lower()).strip('_')}_recorder_discovery",
+            "provider_id": "county_recorder",
+            "state": normalized_state,
+            "county": normalized_county,
+            "name": f"Find {normalized_county} County Recorder / Clerk Official Records",
+            "url": f"https://www.google.com/search?q={quote_plus('site:.gov ' + base + ' recorder clerk official records deed search')}",
+            "access_mode": "official_source_discovery",
+            "verification_status": "human_review_required",
+            "discovery_only": True,
+        },
+    ]
 
 
 def _batchdata_configured() -> bool:
@@ -220,6 +266,24 @@ def snapshot(
     }
 
 
+@router.get("/public-record-sources")
+def public_record_sources(
+    state: str,
+    county: str,
+    principal: Principal = Depends(require_role("manager")),
+):
+    sources = jurisdiction_public_record_sources(state, county)
+    return {
+        "state": state.strip().upper(),
+        "county": _county_name(county),
+        "sources": sources,
+        "registered_source_count": sum(1 for source in sources if not source.get("discovery_only")),
+        "human_review_required": True,
+        "instruction": "Open the assessor/appraiser first, confirm the official government host and parcel owner, then use recorder/clerk records for deeds, mortgages, liens, releases, and authority.",
+        "boundary": "Discovery links locate likely official systems; opening a link never verifies a property or seller authority.",
+    }
+
+
 @router.post("/verify")
 def verify_provider(
     payload: ProviderVerificationRequest,
@@ -277,12 +341,8 @@ def orchestrate(
             }
 
         state = (item.state or "").strip().upper()
-        city = (item.city or "").strip().lower()
-        public_sources = [
-            source for source in PUBLIC_RECORD_SOURCES
-            if source["state"] == state
-            and (source["county"].lower() == "escambia" and city == "pensacola")
-        ]
+        census_county = str(((census_match or {}).get("county") or {}).get("NAME") or "")
+        public_sources = jurisdiction_public_record_sources(state, census_county) if state and census_county else []
         if public_sources:
             canonical["public_record_sources"] = public_sources
             canonical["public_record_verification"] = {

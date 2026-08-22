@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ||
   process.env.BACKEND_URL ||
   'http://localhost:8000';
 const SESSION_COOKIE = 'sahjony_owner_session';
-const ALLOWED = new Set(['snapshot','orchestrate','verify']);
+const ALLOWED = new Set(['snapshot','orchestrate','verify','public-record-sources']);
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
@@ -22,7 +22,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
 
   const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text();
   try {
-    const response = await fetch(`${BACKEND_URL}/provider-intelligence/${joined}`, {
+    const response = await fetch(`${BACKEND_URL}/provider-intelligence/${joined}${request.nextUrl.search}`, {
       method: request.method,
       headers: { Authorization: authorization, 'Content-Type': 'application/json' },
       body: body || undefined,
