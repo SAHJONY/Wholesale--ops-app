@@ -17,6 +17,7 @@ const labels: Record<string, string> = {
   '/owner/properties': 'Property Evidence',
   '/owner/phone-os': 'Seller Conversations',
   '/owner/communications': 'Seller Command',
+  '/owner/connect': 'SAHJONY Connect',
   '/owner/sms-acquisition': 'SMS Campaigns',
   '/owner/disposition': 'Disposition',
   '/owner/closing': 'Closing Command',
@@ -120,6 +121,7 @@ export default function OwnerShell({ children }: { children: React.ReactNode }) 
       <header className="ownerTopRail" aria-label="Workspace status">
         <div className="ownerTopRailPath"><small>SAHJONY / PRIVATE WHOLESALE OS</small><strong>{label}</strong></div>
         <div className="ownerTopRailActions">
+          <Link href="/owner/connect" className="ownerTopRailCopilot" aria-label="Open SAHJONY Connect"><i aria-hidden="true">↔</i><span>Connect</span></Link>
           <Link href="/owner/copilot" className="ownerTopRailCopilot" aria-label="Open SAHJONY Copilot"><i aria-hidden="true">AI</i><span>Open Copilot</span></Link>
           <Link href="/owner/system-health" className={`ownerTopRailStatus ${health}`} title={healthDetail} aria-label={`Workspace status: ${healthLabel(health)}. ${healthDetail}`}>
             <i aria-hidden="true"/><span>{healthLabel(health)} workspace</span>
