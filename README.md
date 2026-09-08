@@ -1,3 +1,7 @@
+## Canonical Real Estate Application
+
+**Wholesale--ops-app is the single application for Wholesale Real Estate.** The former CIMA / CIMA Real Estate / `sahjony-real-estate-platform` codebase has been absorbed under `legacy/cima-real-estate-platform/` for preservation and controlled feature migration. No separate CIMA runtime or business routing should be created.
+
 # Wholesale Real Estate — Canonical SAHJONY Real Estate Business
 
 > **Canonical application:** `SAHJONY/Wholesale--ops-app`  
