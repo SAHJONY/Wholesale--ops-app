@@ -18,7 +18,7 @@ from .voice_models import VoiceCall
 router = APIRouter(prefix="/phone-os", tags=["phone operating system"])
 
 MODEL = os.getenv("OPENAI_PHONE_QUALIFICATION_MODEL") or "gpt-5-mini"
-HUMAN_TRANSFER = os.getenv("VOICE_HUMAN_TRANSFER_TARGET") or "+12816628581"
+HUMAN_TRANSFER = os.getenv("VOICE_HUMAN_TRANSFER_TARGET") or "+13465346545"
 INBOUND_NUMBER = os.getenv("VOICE_INBOUND_NUMBER") or os.getenv("BLAND_INBOUND_NUMBER") or "+12164804413"
 OUTBOUND_NUMBER = os.getenv("BLAND_DEFAULT_FROM_NUMBER") or "+13465214387"
 

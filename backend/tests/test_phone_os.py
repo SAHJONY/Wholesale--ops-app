@@ -3,7 +3,7 @@ from app.phone_os import _score, _status
 
 def test_phone_os_status_is_supervised(monkeypatch):
     monkeypatch.setenv("VOICE_INBOUND_NUMBER", "+12164804413")
-    monkeypatch.setenv("VOICE_HUMAN_TRANSFER_TARGET", "+12816628581")
+    monkeypatch.setenv("VOICE_HUMAN_TRANSFER_TARGET", "+13465346545")
     monkeypatch.setenv("BLAND_DEFAULT_FROM_NUMBER", "+13465214387")
     data = _status()
     assert data["operating_mode"] == "supervised_acquisition"

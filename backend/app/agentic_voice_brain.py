@@ -19,7 +19,7 @@ router = APIRouter(prefix="/agentic-voice", tags=["agentic voice brain"])
 
 REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL") or "gpt-realtime"
 REALTIME_VOICE = os.getenv("OPENAI_REALTIME_VOICE") or "marin"
-HUMAN_TRANSFER = os.getenv("VOICE_HUMAN_TRANSFER_TARGET") or "+12816628581"
+HUMAN_TRANSFER = os.getenv("VOICE_HUMAN_TRANSFER_TARGET") or "+13465346545"
 
 SAFE_TOOL_NAMES = (
     "resolve_lead_by_phone",

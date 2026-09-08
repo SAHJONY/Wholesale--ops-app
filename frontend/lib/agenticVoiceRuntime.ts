@@ -15,7 +15,7 @@ const BACKEND_URL =
   'http://localhost:8000';
 const MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime';
 const VOICE = process.env.OPENAI_REALTIME_VOICE || 'marin';
-const TRANSFER_TARGET = process.env.VOICE_HUMAN_TRANSFER_TARGET || '+12816628581';
+const TRANSFER_TARGET = process.env.VOICE_HUMAN_TRANSFER_TARGET || '+13465346545';
 const DOMAIN = 'sahjony-agentic-voice-service-v1';
 
 export type VoiceRuntimeContext = {
