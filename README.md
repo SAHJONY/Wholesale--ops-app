@@ -1,3 +1,9 @@
+# Wholesale Real Estate — Canonical SAHJONY Real Estate Business
+
+> **Canonical application:** `SAHJONY/Wholesale--ops-app`  
+> **Consolidated identity:** `CIMA`, `CIMA Real Estate`, `CIMA REAL ESTATE LLC`, and `sahjony-real-estate-platform` all refer to this same business/application.  
+> No separate CIMA CRM, routing, dashboard, voice, WhatsApp, or operating application should be created.
+
 # SAHJONY Autonomous Wholesale Workforce
 
 Production-oriented MVP for residential and commercial real-estate wholesale operations.
