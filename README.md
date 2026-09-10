@@ -30,6 +30,8 @@ Production-oriented MVP for residential and commercial real-estate wholesale ope
 - Driving-for-dollars lead intake
 - Human approval gates and audit-ready architecture
 - Property Truth Reports with field-level provenance, explicit unknowns, and evidence gates
+- God-view-inspired Property Intelligence Map for workspace-scoped SFR leads and deal economics
+- Governed TinyFish official-source research previews with domain allowlists and zero contact collection
 - Nationwide market intelligence with Pensacola priority routing
 - Wholesaler joint-venture intake, assignment-fee economics, JV revenue KPIs, split tracking, conversion tracking, and days-to-buyer measurement
 
