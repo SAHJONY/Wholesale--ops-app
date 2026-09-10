@@ -21,6 +21,7 @@ const spaces: NavSpace[] = [
       { href: '/owner/owner-resolution', label: 'Owner Resolution', hint: 'Ownership and contact evidence' },
       { href: '/owner/lead-verification', label: 'Lead Verification', hint: 'Evidence gates before underwriting' },
       { href: '/owner/properties', label: 'Property Evidence', hint: 'Property facts, comps and source records' },
+      { href: '/owner/property-map', label: 'Property Intelligence Map', hint: 'God-view SFR radar and TinyFish research' },
     ],
   },
   {
@@ -53,6 +54,7 @@ const spaces: NavSpace[] = [
 ];
 
 const controls: NavItem[] = [
+  { href: '/owner/connect', label: 'SAHJONY Connect', hint: 'Connected business systems and owner workspace' },
   { href: '/owner/system-health', label: 'System Health', hint: 'Production readiness and diagnostics' },
   { href: '/owner/jobs', label: 'AI Workforce', hint: 'Agent health and task execution' },
   { href: '/owner/integrations', label: 'Integrations', hint: 'Providers and credentials status' },

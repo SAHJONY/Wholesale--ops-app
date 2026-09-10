@@ -23,6 +23,8 @@ Never commit secret values to the repository. Configure them in **GitHub → Set
 - `SMARTY_AUTH_TOKEN`
 - `ATTOM_API_KEY`
 - `GOOGLE_MAPS_API_KEY`
+- `TINYFISH_API_KEY`
+- `TINYFISH_ALLOWED_DOMAINS` (non-secret policy configuration; required with TinyFish)
 - `CENSUS_API_KEY`
 - `BATCHDATA_API_TOKEN`
 - `BATCHDATA_API_KEY`

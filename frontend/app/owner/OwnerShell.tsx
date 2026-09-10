@@ -15,6 +15,7 @@ const labels: Record<string, string> = {
   '/owner/deals': 'Contracts & Dossier',
   '/owner/buyer-intake': 'Buyer Network',
   '/owner/properties': 'Property Evidence',
+  '/owner/property-map': 'Property Intelligence Map',
   '/owner/phone-os': 'Seller Conversations',
   '/owner/communications': 'Seller Command',
   '/owner/connect': 'SAHJONY Connect',

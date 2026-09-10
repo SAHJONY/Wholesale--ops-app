@@ -61,6 +61,7 @@ from app.owner_insights import router as owner_insights_router
 from app.phone_os import router as phone_os_router
 from app.phone_os_automation import router as phone_os_automation_router
 from app.property_enrichment import router as property_enrichment_router
+from app.property_intelligence_map import router as property_intelligence_map_router
 from app.property_workspace import router as property_workspace_router
 from app.provider_activation import router as provider_activation_router
 from app.provider_intelligence import router as provider_intelligence_router
@@ -84,6 +85,7 @@ from app.session_control import router as session_router
 from app.session_time_compat import install_session_time_compatibility
 from app.tenant_ops import router as tenant_ops_router
 from app.title_company_matching import router as title_company_matching_router
+from app.tinyfish_intelligence import router as tinyfish_intelligence_router
 from app.verified_ingest import router as verified_ingest_router
 from app.voice_engine import router as voice_router
 from app.voice_intelligence import router as voice_intelligence_router
@@ -130,6 +132,8 @@ app.include_router(real_deal_candidates_router)
 app.include_router(wholesale_skill_engine_router)
 app.include_router(openai_wholesale_copilot_router)
 app.include_router(property_workspace_router)
+app.include_router(property_intelligence_map_router)
+app.include_router(tinyfish_intelligence_router)
 app.include_router(crm_router)
 app.include_router(tenant_ops_router)
 app.include_router(executive_ops_router)

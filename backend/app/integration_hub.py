@@ -19,6 +19,12 @@ router = APIRouter(prefix="/integration-hub", tags=["production integration oper
 
 EXTRA_PROVIDERS = [
     {
+        "id": "tinyfish", "name": "TinyFish Web Intelligence", "category": "public_record_research", "tier": "optional",
+        "env": ["TINYFISH_API_KEY", "TINYFISH_ALLOWED_DOMAINS"],
+        "capabilities": ["live_web_navigation", "structured_extraction", "official_source_research"],
+        "authority": "research_preview_only", "verification": "authoritative_county_record_and_human_review",
+    },
+    {
         "id": "propstream", "name": "PropStream", "category": "lead_acquisition", "tier": "primary",
         "env": ["PROPSTREAM_API_KEY"], "optional_env": ["PROPSTREAM_BASE_URL"],
         "capabilities": ["lead_lists", "property_search", "distress_filters", "exports"],
@@ -103,6 +109,7 @@ def _workflow_readiness(statuses: list[dict]) -> dict:
     return {
         "lead_acquisition": ready("attom") and ready("batchdata"),
         "property_verification": ready("county_records"),
+        "public_web_research": ready("tinyfish"),
         "seller_outreach": ready("twilio") or ready("bland"),
         "email_delivery": ready("gmail") or ready("outlook"),
         "crm_sync": ready("hubspot"),
