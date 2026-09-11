@@ -56,6 +56,7 @@ const controls: NavItem[] = [
   { href: '/owner/system-health', label: 'System Health', hint: 'Production readiness and diagnostics' },
   { href: '/owner/jobs', label: 'AI Workforce', hint: 'Agent health and task execution' },
   { href: '/owner/integrations', label: 'Integrations', hint: 'Providers and credentials status' },
+  { href: '/owner/connect', label: 'Connections', hint: 'Connected services and account sessions' },
   { href: '/owner/live-data', label: 'Data Sources', hint: 'Source coverage, freshness and provider evidence' },
   { href: '/owner/audit', label: 'Audit Trail', hint: 'Consequential action history' },
   { href: '/owner/security', label: 'Security', hint: 'Owner access and controls' },
