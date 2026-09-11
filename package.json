@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "frontend"
+    "frontend",
+    "world-intel"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=frontend",
-    "start": "npm run start --workspace=frontend"
+    "build": "npm run build:world-intel && npm run build --workspace=frontend",
+    "start": "npm run start --workspace=frontend",
+    "build:world-intel": "mkdir -p world-intel/node_modules && ln -sfn ../../node_modules/cesium world-intel/node_modules/cesium && npm run build --workspace=world-intel -- --base=/world-intel/ && rm -rf frontend/public/world-intel && cp -R world-intel/dist frontend/public/world-intel"
   },
   "dependencies": {
     "next": "^16.3.2",
