@@ -110,6 +110,7 @@ export default function CEOCommandCenter() {
         <p>One operating system for sourcing, underwriting, seller conversion, contracts, disposition, title and assignment revenue.</p>
       </div>
       <div className={styles.actions}>
+        <a className={styles.secondary} href="/world-intel/index.html">Open World Intelligence</a>
         <Link className={styles.secondary} href="/owner/real-deals">Open Deal Room</Link>
         <button className={styles.primary} onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh OS'}</button>
       </div>

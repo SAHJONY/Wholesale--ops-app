@@ -31,3 +31,7 @@ build/
 *.swp
 .vercel
 .env*
+
+frontend/public/world-intel/
+world-intel/dist/
+world-intel/.gev-cache/
