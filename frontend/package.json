@@ -7,7 +7,7 @@
     "build": "npm run build:world-intel && next build",
     "start": "next start",
     "lint": "next lint",
-    "build:world-intel": "cd ../world-intel && npm run build -- --base=/world-intel/ && rm -rf ../frontend/public/world-intel && cp -R dist ../frontend/public/world-intel"
+    "build:world-intel": "npm ci --prefix ../world-intel --include=dev && cd ../world-intel && npm run build -- --base=/world-intel/ && rm -rf ../frontend/public/world-intel && cp -R dist ../frontend/public/world-intel"
   },
   "dependencies": {
     "@openai/agents": "0.14.1",
